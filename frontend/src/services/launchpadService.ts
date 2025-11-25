@@ -370,6 +370,101 @@ export async function harvestAndPump(
   }
 }
 
+// New contract ABI for market cap and bonding curve
+const newLaunchpadAbi = [
+  {
+    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
+    name: "getMarketCap",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
+    name: "getBondingCurve",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "basePrice", type: "uint256" },
+          { internalType: "uint256", name: "priceIncrement", type: "uint256" },
+          { internalType: "uint256", name: "currentSupply", type: "uint256" },
+          { internalType: "uint256", name: "reserveBalance", type: "uint256" },
+          { internalType: "bool", name: "isActive", type: "bool" },
+        ],
+        internalType: "struct SovryLaunchpad.BondingCurve",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+// Cache for contract version
+const contractVersionCache = new Map<string, "new" | "old">();
+
+/**
+ * Detect which contract version is deployed
+ */
+export async function detectContractVersion(launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS): Promise<"new" | "old"> {
+  const cached = contractVersionCache.get(launchpadAddress);
+  if (cached) return cached;
+
+  try {
+    // Try to call getMarketCap - if it exists, it's the new contract
+    await publicClient.readContract({
+      address: launchpadAddress as Address,
+      abi: newLaunchpadAbi,
+      functionName: "getMarketCap",
+      args: ["0x0000000000000000000000000000000000000001" as Address], // dummy address
+    });
+    contractVersionCache.set(launchpadAddress, "new");
+    return "new";
+  } catch {
+    // If it fails, assume old contract
+    contractVersionCache.set(launchpadAddress, "old");
+    return "old";
+  }
+}
+
+/**
+ * Get market cap for a token (supports both contract versions)
+ */
+export async function getMarketCap(
+  tokenAddress: string,
+  launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS
+): Promise<string | null> {
+  try {
+    const version = await detectContractVersion(launchpadAddress);
+    
+    if (version === "new") {
+      try {
+        const marketCap = await publicClient.readContract({
+          address: launchpadAddress as Address,
+          abi: newLaunchpadAbi,
+          functionName: "getMarketCap",
+          args: [tokenAddress as Address],
+        });
+        return formatBigIntToFloat(marketCap as bigint, 18).toString();
+      } catch (error) {
+        console.error(`Error fetching market cap (new contract) for ${tokenAddress}:`, error);
+        return null;
+      }
+    } else {
+      // Old contract - calculate from totalRaised
+      const launchInfo = await getLaunchInfo(tokenAddress);
+      if (!launchInfo) return null;
+      
+      // Approximate market cap = totalRaised (in IP)
+      return formatBigIntToFloat(launchInfo.totalRaised, 18).toString();
+    }
+  } catch (error) {
+    console.error(`Error fetching market cap for ${tokenAddress}:`, error);
+    return null;
+  }
+}
+
 export const launchpadService = {
   getLaunchInfo,
   getBondingProgress,
@@ -381,6 +476,8 @@ export const launchpadService = {
   sell,
   harvestAndPump,
   getRoyaltyLockInfo,
+  detectContractVersion,
+  getMarketCap,
 };
 
 export type { LaunchInfo, RoyaltyLockInfo };

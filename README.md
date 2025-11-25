@@ -211,7 +211,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - Pivot from AMM Model (Factory/Router) to Bonding Curve Model (Launchpad).
   - Set Graduation Target to **PiperX V2** (Major Story Protocol DEX).
 
-- [ ] **Smart Contract Development**
+- [x] **Smart Contract Development**
   - `SovryToken.sol`: Implement a standard, mintable/burnable ERC-20 Wrapper Contract.
   - `SovryLaunchpad.sol`:
     - **Bonding Curve Logic:** Implement linear price curve with buy/sell functions.
@@ -234,7 +234,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - Remove obsolete pages: Liquidity, Pools, Swap (Old).
   - Remove obsolete services calling the internal Factory/Router.
 
-- [ ] **New "Home" Page (The Gallery)**
+- [x] **New "Home" Page (The Gallery)**
   - Grid layout displaying newly launched tokens.
   - Cards showing: IP Image, Ticker, Market Cap, & Bonding Curve Progress.
   - Search/Filter by Name or Category.
