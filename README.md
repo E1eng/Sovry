@@ -185,7 +185,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - Pivot from AMM Model (Factory/Router) to Bonding Curve Model (Launchpad).
   - Set Graduation Target to **PiperX V2** (Major Story Protocol DEX).
 
-- [o] **Smart Contract Development**
+- [ ] **Smart Contract Development**
   - `SovryToken.sol`: Implement a standard, mintable/burnable ERC-20 Wrapper Contract.
   - `SovryLaunchpad.sol`:
     - **Bonding Curve Logic:** Implement linear price curve with buy/sell functions.
@@ -195,7 +195,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
     - **Graduation:** Implement `_graduate()` to migrate liquidity to PiperX V2 Router and burn LP tokens.
     - **Fee System:** Implement 0.5% trading fee routed to the Treasury.
 
-- [ ] **Deployment Scripts**
+- [x] **Deployment Scripts**
   - Create `scripts/deploy-launchpad.ts`.
   - Verify contracts on **StoryScan (Aeneid)**.
 
@@ -204,7 +204,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
 ### Phase 2: Frontend Refactor (UI/UX Overhaul) 🎨
 **Focus:** Transforming the UI from a "Swap Interface" to a "Social Trading Terminal".
 
-- [ ] **Legacy Code Cleanup**
+- [x] **Legacy Code Cleanup**
   - Remove obsolete pages: Liquidity, Pools, Swap (Old).
   - Remove obsolete services calling the internal Factory/Router.
 
@@ -228,7 +228,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
 ### Phase 3: Data & Social Layer (Backend) 🗄️
 **Focus:** Ensuring data speed and community engagement.
 
-- [o] **Indexer (Goldsky Subgraph)**
+- [x] **Indexer (Goldsky Subgraph)**
   - Update `subgraph.yaml` to index `SovryLaunchpad` events (Launched, Bought, Sold, Graduated).
   - Define new Schema Entities: `Launch`, `Trade`, `Candle` (for charting).
   - Deploy new Subgraph to **Goldsky**.
