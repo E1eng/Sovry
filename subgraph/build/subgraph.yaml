@@ -3,53 +3,37 @@ schema:
   file: schema.graphql
 dataSources:
   - kind: ethereum/contract
-    name: SovryFactory
+    name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0xAc903015B6828A5290DF0e42504423EBB295c8a3"
-      abi: SovryFactory
+      address: "0xABddc4817c287cCc6F1a170Fa3C364e9df2464E6"
+      abi: SovryLaunchpad
       startBlock: 11332680
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - Factory
-        - Pool
-        - Token
+        - Launch
+        - Trade
+        - RevenueInjection
+        - Graduation
       abis:
-        - name: SovryFactory
-          file: SovryFactory\abis\SovryFactory.json
-        - name: ERC20
-          file: SovryFactory\abis\ERC20.json
+        - name: SovryLaunchpad
+          file: SovryLaunchpad\abis\SovryLaunchpad.json
       eventHandlers:
-        - event: PairCreated(indexed address,indexed address,address,uint256)
-          handler: handlePairCreated
-      file: SovryFactory\SovryFactory.wasm
-templates:
-  - kind: ethereum/contract
-    name: SovryPool
-    network: story-aeneid
-    source:
-      abi: SovryPool
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      entities:
-        - Swap
-        - Mint
-        - Burn
-      abis:
-        - name: SovryPool
-          file: SovryPool\abis\SovryPool.json
-      eventHandlers:
-        - event: Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
-          handler: handleSwap
-        - event: Sync(uint112,uint112)
-          handler: handleSync
-        - event: Mint(indexed address,uint256,uint256)
-          handler: handleMint
-        - event: Burn(indexed address,uint256,uint256,indexed address)
-          handler: handleBurn
-      file: SovryFactory\SovryFactory.wasm
+        - event: Launched(indexed address,indexed address)
+          handler: handleLaunched
+        - event: Bought(indexed address,indexed address,uint256,uint256)
+          handler: handleBought
+        - event: Sold(indexed address,indexed address,uint256,uint256)
+          handler: handleSold
+        - event: Graduated(indexed address,indexed address,uint256)
+          handler: handleGraduated
+        - event: RevenueInjected(indexed address,uint256)
+          handler: handleRevenueInjected
+        - event: WrapperDeployed(indexed address,indexed address,string,string)
+          handler: handleWrapperDeployed
+        - event: Redeemed(indexed address,indexed address,uint256)
+          handler: handleRedeemed
+      file: SovryLaunchpad\SovryLaunchpad.wasm

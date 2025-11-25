@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ArrowDownUp, Settings, TrendingUp, CheckCircle, AlertCircle } from "lucide-react";
-import { createPublicClient, http, Address } from 'viem';
+import { createPublicClient, http, Address } from "viem";
+import { launchpadService, type LaunchInfo } from "@/services/launchpadService";
 
 const GOLDSKY_API_URL = process.env.NEXT_PUBLIC_GOLDSKY_API_URL;
 
@@ -26,6 +28,11 @@ interface SwapPool {
   totalSupply: string;
 }
 
+interface SwapInterfaceProps {
+  defaultFromToken?: string;
+  defaultToToken?: string;
+}
+
 const TOKEN_MAPPING: Record<string, { symbol: string; name: string }> = {
   "0x1514000000000000000000000000000000000000": {
     symbol: "WIP",
@@ -41,7 +48,13 @@ const TOKEN_MAPPING: Record<string, { symbol: string; name: string }> = {
   }
 };
 
-export default function SwapInterface() {
+export default function SwapInterface({
+  defaultFromToken,
+  defaultToToken,
+}: SwapInterfaceProps) {
+  const { primaryWallet } = useDynamicContext();
+  const walletAddress = primaryWallet?.address as string | undefined;
+
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState("");
   const [fromToken, setFromToken] = useState("");
@@ -58,6 +71,11 @@ export default function SwapInterface() {
   const [poolsLoading, setPoolsLoading] = useState(true);
   const [poolsError, setPoolsError] = useState<string | null>(null);
   const [selectedPool, setSelectedPool] = useState<SwapPool | null>(null);
+  const [launchInfo, setLaunchInfo] = useState<LaunchInfo | null>(null);
+  const [bondingProgress, setBondingProgress] = useState(0);
+  const [bondingTokenAddress, setBondingTokenAddress] = useState<string | null>(null);
+  const [launchpadMode, setLaunchpadMode] = useState<"none" | "bonding" | "dex">("none");
+  const [launchpadError, setLaunchpadError] = useState<string | null>(null);
 
   // Fetch swap pools directly from blockchain
   const fetchSwapPoolsFromBlockchain = async () => {
@@ -264,6 +282,15 @@ export default function SwapInterface() {
   }, []);
 
   useEffect(() => {
+    if (defaultFromToken || defaultToToken) {
+      setFromToken(defaultFromToken || "");
+      setToToken(defaultToToken || "");
+      setFromAmount("");
+      setToAmount("");
+    }
+  }, [defaultFromToken, defaultToToken]);
+
+  useEffect(() => {
     if (fromToken && toToken && pools.length > 0) {
       // Handle native IP auto-wrapping to WIP
       const effectiveFromToken = fromToken === "IP" ? "WIP" : fromToken;
@@ -281,6 +308,113 @@ export default function SwapInterface() {
   }, [fromToken, toToken, pools]);
 
   useEffect(() => {
+    const checkLaunchpadStatus = async () => {
+      setLaunchpadError(null);
+      setLaunchInfo(null);
+      setBondingTokenAddress(null);
+      setBondingProgress(0);
+
+      if (!fromToken || !toToken || availableTokens.length === 0) {
+        setLaunchpadMode("none");
+        return;
+      }
+
+      const fromMeta = availableTokens.find((t) => t.symbol === fromToken);
+      const toMeta = availableTokens.find((t) => t.symbol === toToken);
+
+      if (!fromMeta || !toMeta) {
+        setLaunchpadMode("none");
+        return;
+      }
+
+      const isFromIP = fromMeta.symbol === "IP";
+      const isToIP = toMeta.symbol === "IP";
+
+      if (isFromIP === isToIP) {
+        setLaunchpadMode("dex");
+        return;
+      }
+
+      const tokenMeta = isFromIP ? toMeta : fromMeta;
+      const tokenAddress = tokenMeta.id;
+
+      if (!tokenAddress || tokenAddress === "native") {
+        setLaunchpadMode("dex");
+        return;
+      }
+
+      try {
+        const info = await launchpadService.getLaunchInfo(tokenAddress);
+        if (!info) {
+          setLaunchpadMode("dex");
+          return;
+        }
+
+        setLaunchInfo(info);
+        setBondingTokenAddress(tokenAddress);
+        const progress = launchpadService.getBondingProgress(info);
+        setBondingProgress(progress);
+        setLaunchpadMode(info.graduated ? "dex" : "bonding");
+      } catch (error) {
+        console.error("Error checking launchpad status:", error);
+        setLaunchpadError("Failed to load Launchpad status");
+        setLaunchpadMode("dex");
+      }
+    };
+
+    checkLaunchpadStatus();
+  }, [fromToken, toToken, availableTokens]);
+
+  useEffect(() => {
+    if (!fromAmount || !fromToken || !toToken) {
+      setSimulationSuccess(false);
+      setToAmount("");
+      return;
+    }
+
+    if (launchpadMode === "bonding" && bondingTokenAddress) {
+      setIsSimulating(true);
+      setSimulationSuccess(false);
+
+      const timer = setTimeout(async () => {
+        setIsSimulating(false);
+
+        try {
+          const inputValue = parseFloat(fromAmount) || 0;
+          if (inputValue <= 0) {
+            setToAmount("");
+            setSimulationSuccess(false);
+            return;
+          }
+
+          if (fromToken === "IP" && toToken !== "IP") {
+            const estimated = await launchpadService.getEstimatedTokensForIP(
+              bondingTokenAddress,
+              fromAmount
+            );
+            setToAmount(parseFloat(estimated).toFixed(6));
+            setSimulationSuccess(true);
+          } else if (toToken === "IP" && fromToken !== "IP") {
+            const estimated = await launchpadService.estimateIPForTokens(
+              bondingTokenAddress,
+              fromAmount
+            );
+            setToAmount(parseFloat(estimated).toFixed(6));
+            setSimulationSuccess(true);
+          } else {
+            setToAmount("");
+            setSimulationSuccess(false);
+          }
+        } catch (error) {
+          console.error("Launchpad swap calculation error:", error);
+          setToAmount("");
+          setSimulationSuccess(false);
+        }
+      }, 800);
+
+      return () => clearTimeout(timer);
+    }
+
     if (fromAmount && fromToken && toToken && selectedPool) {
       setIsSimulating(true);
       setSimulationSuccess(false);
@@ -296,7 +430,6 @@ export default function SwapInterface() {
             return;
           }
 
-          // Handle native IP auto-wrapping for calculation
           const effectiveFromToken = fromToken === "IP" ? "WIP" : fromToken;
           const isToken0Input = selectedPool.token0.symbol === effectiveFromToken;
           const reserveIn = parseFloat(isToken0Input ? selectedPool.reserve0 : selectedPool.reserve1);
@@ -325,23 +458,71 @@ export default function SwapInterface() {
       setSimulationSuccess(false);
       setToAmount("");
     }
-  }, [fromAmount, fromToken, toToken, selectedPool]);
+  }, [fromAmount, fromToken, toToken, selectedPool, launchpadMode, bondingTokenAddress]);
+
+  const bondingModeActive = launchpadMode === "bonding" && !!bondingTokenAddress;
+  const requiresDexPool = !bondingModeActive;
 
   const handleSwap = async () => {
-    if (!simulationSuccess) return;
-    
+    if (!simulationSuccess || !fromAmount || !toToken) return;
+
     setIsSwapping(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      if (launchpadMode === "bonding" && bondingTokenAddress) {
+        if (!primaryWallet || !walletAddress) {
+          throw new Error("Connect your wallet to trade on the bonding curve");
+        }
+
+        const slippagePct = parseFloat(slippage || "0");
+
+        if (fromToken === "IP" && toToken !== "IP") {
+          const estOut = parseFloat(toAmount || "0");
+          const minOut =
+            estOut > 0 && slippagePct >= 0
+              ? (estOut * (1 - slippagePct / 100)).toString()
+              : "0";
+
+          const result = await launchpadService.buy(
+            bondingTokenAddress,
+            fromAmount,
+            minOut,
+            primaryWallet
+          );
+          if (!result.success) {
+            throw new Error(result.error || "Launchpad buy failed");
+          }
+        } else if (toToken === "IP" && fromToken !== "IP") {
+          const estIpOut = parseFloat(toAmount || "0");
+          const minIpOut =
+            estIpOut > 0 && slippagePct >= 0
+              ? (estIpOut * (1 - slippagePct / 100)).toString()
+              : "0";
+
+          const result = await launchpadService.sell(
+            bondingTokenAddress,
+            fromAmount,
+            minIpOut,
+            primaryWallet
+          );
+          if (!result.success) {
+            throw new Error(result.error || "Launchpad sell failed");
+          }
+        } else {
+          throw new Error("Bonding curve swaps are only supported between IP and a launch token");
+        }
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+
       setFromAmount("");
       setToAmount("");
       setSimulationSuccess(false);
       
       alert("Swap successful!");
     } catch (error) {
-      alert("Swap failed. Please try again.");
+      const message = error instanceof Error ? error.message : "Swap failed. Please try again.";
+      alert(message);
     } finally {
       setIsSwapping(false);
     }
@@ -393,9 +574,33 @@ export default function SwapInterface() {
                 Settings
               </Button>
             </div>
+            {launchpadMode === "bonding" && launchInfo && (
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between text-xs text-blue-200">
+                  <span className="font-medium">Bonding Curve Phase (SovryLaunchpad)</span>
+                  <span>
+                    {(
+                      Number(launchInfo.totalRaised) / 1e18
+                    ).toFixed(2)} IP / 100 IP
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-blue-500/20 overflow-hidden">
+                  <div
+                    className="h-2 bg-blue-400"
+                    style={{ width: `${bondingProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {launchpadMode === "dex" && launchInfo?.graduated && (
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-xs text-emerald-200">
+                <CheckCircle className="h-3 w-3" />
+                Graduated to DEX (Sovry Router)
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
-            {pools.length === 0 && (
+            {pools.length === 0 && requiresDexPool && (
               <Alert>
                 <TrendingUp className="h-4 w-4" />
                 <AlertDescription>
@@ -426,7 +631,7 @@ export default function SwapInterface() {
                 <Select 
                   value={fromToken} 
                   onValueChange={setFromToken}
-                  disabled={pools.length === 0}
+                  disabled={requiresDexPool && pools.length === 0}
                 >
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder={pools.length === 0 ? "No pools available" : "Select token"} />
@@ -448,7 +653,7 @@ export default function SwapInterface() {
                   value={fromAmount}
                   onChange={(e) => setFromAmount(e.target.value)}
                   className="flex-1"
-                  disabled={pools.length === 0}
+                  disabled={requiresDexPool && pools.length === 0}
                 />
               </div>
               {fromToken && availableTokens.length > 0 && (
@@ -476,7 +681,7 @@ export default function SwapInterface() {
                 <Select 
                   value={toToken} 
                   onValueChange={setToToken}
-                  disabled={pools.length === 0}
+                  disabled={requiresDexPool && pools.length === 0}
                 >
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder={pools.length === 0 ? "No pools available" : "Select token"} />
@@ -500,7 +705,7 @@ export default function SwapInterface() {
                   value={toAmount}
                   readOnly
                   className="flex-1 bg-muted/20"
-                  disabled={pools.length === 0}
+                  disabled={requiresDexPool && pools.length === 0}
                 />
               </div>
               {toToken && availableTokens.length > 0 && (
@@ -537,7 +742,7 @@ export default function SwapInterface() {
               </div>
             )}
 
-            {fromToken && toToken && !selectedPool && (
+            {fromToken && toToken && !selectedPool && requiresDexPool && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
@@ -546,7 +751,7 @@ export default function SwapInterface() {
               </Alert>
             )}
 
-            {fromAmount && toToken && selectedPool && (
+            {fromAmount && toToken && (selectedPool || bondingModeActive) && (
               <div className="space-y-2">
                 {isSimulating && (
                   <Alert>
@@ -570,7 +775,13 @@ export default function SwapInterface() {
 
             <Button
               onClick={handleSwap}
-              disabled={pools.length === 0 || !simulationSuccess || isSwapping || !fromAmount || !toToken || !selectedPool}
+              disabled={
+                !simulationSuccess ||
+                isSwapping ||
+                !fromAmount ||
+                !toToken ||
+                (requiresDexPool && (pools.length === 0 || !selectedPool))
+              }
               className="w-full py-3 text-base font-medium"
               size="lg"
             >
@@ -588,9 +799,19 @@ export default function SwapInterface() {
               ) : isSimulating ? (
                 "Calculating..."
               ) : (
-                fromToken === "IP" || toToken === "IP" ? 
-                  "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken + " (auto-wrap)" :
-                  "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken
+                launchpadMode === "bonding" && bondingTokenAddress ? (
+                  fromToken === "IP" && toToken !== "IP" ? (
+                    "Buy " + (toAmount || "0") + " " + toToken + " with " + (fromAmount || "0") + " IP"
+                  ) : toToken === "IP" && fromToken !== "IP" ? (
+                    "Sell " + (fromAmount || "0") + " " + fromToken + " for IP"
+                  ) : (
+                    "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken
+                  )
+                ) : (
+                  fromToken === "IP" || toToken === "IP"
+                    ? "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken + " (auto-wrap)"
+                    : "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken
+                )
               )}
             </Button>
           </CardContent>

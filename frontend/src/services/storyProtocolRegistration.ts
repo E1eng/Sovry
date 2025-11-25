@@ -4,6 +4,7 @@
 import { StoryClient } from '@story-protocol/core-sdk';
 import { createPublicClient, http, Address, custom, createHash, encodeFunctionData, parseEther } from 'viem';
 import { primaryWallet } from '@dynamic-labs/sdk-react-core';
+import { pinJSONToIPFS } from './pinataService';
 
 // Environment variables
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
@@ -105,11 +106,9 @@ export interface RegistrationResult {
 
 // Upload metadata to IPFS (mock implementation - in production use Pinata)
 async function uploadToIPFS(metadata: any): Promise<string> {
-  // For now, return a mock IPFS hash
-  // In production, you would use Pinata or another IPFS service
-  const mockHash = 'QmSamy4zqP91X42k6wS7kLJQVzuYJuW2EN94couPaq82A8';
-  console.log('Mock uploading to IPFS:', metadata);
-  return mockHash;
+  const name = (metadata && (metadata.title || metadata.name)) || 'ip-metadata';
+  const result = await pinJSONToIPFS(metadata, name);
+  return result.cid;
 }
 
 // Calculate SHA256 hash
@@ -117,7 +116,7 @@ function calculateSHA256(data: any): string {
   // In browser, we'll use a simple mock hash
   // In production, use crypto.subtle.digest
   const mockHash = '21937ba9d821cb0306c7f1a1a2cc5a257509f228ea6abccc9af1a67dd754af6e';
-  return `0x${mockHash}`;
+  return mockHash;
 }
 
 // Register IP Asset and get tokens
@@ -296,14 +295,14 @@ export async function transferRoyaltyTokensFromIP(
     
     console.log('✅ Royalty vault address found:', royaltyVaultAddress);
     
-    // Transfer ALL royalty tokens dari IP Account ke user wallet
+    // Transfer SELURUH royalty tokens dari IP Account ke user wallet
     // Total supply = 100,000,000 tokens (100% dengan 6 decimals)
     const transferResponse = await client.ipAccount.transferErc20({
       ipId: ipId as Address,
       tokens: [
         {
           address: royaltyVaultAddress,
-          amount: BigInt(100000000), // 100,000,000 tokens = 100% (6 decimals)
+          amount: BigInt(100_000_000), // 100,000,000 tokens = 100% (6 decimals)
           target: primaryWallet.address as Address,
         },
       ],

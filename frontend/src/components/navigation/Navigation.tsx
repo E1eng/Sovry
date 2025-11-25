@@ -3,17 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { Button } from "@/components/ui/button";
-import { Menu, Wallet, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 const NAV_ITEMS = [
-  { label: "Home", href: "/" },
-  { label: "Swap", href: "/swap" },
-  { label: "Liquidity", href: "/liquidity" },
-  { label: "Pools", href: "/pools" },
-  { label: "Portfolio", href: "/portfolio" },
-  { label: "Revenue", href: "/revenue" }
+  { label: "Create / Launch", href: "/create" },
+  { label: "Portfolio / Pools", href: "/profile" },
 ];
 
 export function Navigation() {
@@ -69,8 +65,8 @@ export function Navigation() {
               <span className="text-background font-black text-lg">S</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-foreground font-semibold leading-tight">Sovry DEX</span>
-              <span className="text-xs text-muted-foreground tracking-wide">Story Protocol Markets</span>
+              <span className="text-foreground font-semibold leading-tight">Sovry Launchpad</span>
+              <span className="text-xs text-muted-foreground tracking-wide">Story IP Markets</span>
             </div>
           </Link>
 
@@ -81,16 +77,9 @@ export function Navigation() {
 
           {/* Wallet / CTA */}
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              className="hidden md:inline-flex border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary hover:text-foreground"
-              onClick={() => setShowAuthFlow(true)}
-            >
-              <Wallet className="h-4 w-4 mr-2" />
-              {primaryWallet
-                ? `${primaryWallet.address.slice(0, 6)}...${primaryWallet.address.slice(-4)}`
-                : "Connect Wallet"}
-            </Button>
+            <div className="hidden md:block">
+              <DynamicWidget variant="dropdown" />
+            </div>
 
             <button
               className="md:hidden inline-flex items-center justify-center rounded-xl border border-border/60 bg-card/80 p-2 text-muted-foreground hover:text-foreground hover:border-border"
@@ -108,19 +97,9 @@ export function Navigation() {
         <div className="md:hidden border-t border-border/40 bg-card/95 backdrop-blur-xl">
           <div className="px-4 py-4 space-y-3">
             {NAV_ITEMS.map((item) => renderLink(item, true))}
-            <Button
-              variant="outline"
-              className="w-full border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary hover:text-foreground"
-              onClick={() => {
-                setShowAuthFlow(true);
-                closeMobile();
-              }}
-            >
-              <Wallet className="h-4 w-4 mr-2" />
-              {primaryWallet
-                ? `${primaryWallet.address.slice(0, 6)}...${primaryWallet.address.slice(-4)}`
-                : "Connect Wallet"}
-            </Button>
+            <div onClick={closeMobile}>
+              <DynamicWidget variant="modal" />
+            </div>
           </div>
         </div>
       )}
