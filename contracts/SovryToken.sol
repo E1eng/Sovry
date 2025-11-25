@@ -45,15 +45,18 @@ contract SovryToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
 
     /**
      * @notice Constructor that initializes the token
+     * @param _name The name of the token
+     * @param _symbol The symbol of the token
      * @param _underlyingToken The address of the underlying token to wrap (can be address(0) if not used as wrapper)
      * @param _initialOwner The address that will own the contract and have minting rights
-     * @dev Sets the token name to "Sovry Token" and symbol to "SOVRY"
-     *      If _underlyingToken is address(0), the contract can still function as a regular mintable/burnable token
+     * @dev If _underlyingToken is address(0), the contract can still function as a regular mintable/burnable token
      */
     constructor(
+        string memory _name,
+        string memory _symbol,
         address _underlyingToken,
         address _initialOwner
-    ) ERC20("Sovry Token", "SOVRY") Ownable(_initialOwner) {
+    ) ERC20(_name, _symbol) Ownable(_initialOwner) {
         underlyingToken = IERC20(_underlyingToken);
     }
 
