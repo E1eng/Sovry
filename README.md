@@ -174,13 +174,119 @@ npm run dev
 
 Subgraph (optional, if you’re iterating on mappings/schema):
 
-```bash
-cd subgraph
-yarn install
-yarn codegen
-yarn build
-# yarn deploy ... (to your Graph / Goldsky endpoint)
-```
+## 🗺️ Project Roadmap
+
+Below is the development roadmap for Sovry, focused on pivoting from a standard AMM to a Bonding Curve Launchpad model.
+
+### Phase 1: Foundation & Smart Contracts (The Pivot) 🏗️
+**Focus:** Replacing the old DEX infrastructure with the new Bonding Curve Launchpad engine.
+
+- [x] **Architecture Design**
+  - Pivot from AMM Model (Factory/Router) to Bonding Curve Model (Launchpad).
+  - Set Graduation Target to **PiperX V2** (Major Story Protocol DEX).
+
+- [o] **Smart Contract Development**
+  - `SovryToken.sol`: Implement a standard, mintable/burnable ERC-20 Wrapper Contract.
+  - `SovryLaunchpad.sol`:
+    - **Bonding Curve Logic:** Implement linear price curve with buy/sell functions.
+    - **Wrapper Mechanism:** `launchToken` function to accept Royalty Tokens (RT), lock them in the vault, and mint Wrapper Tokens.
+    - **Fractional Listing:** Logic to accept a specific amount of RT to lock (allowing 10-100% listing).
+    - **Harvest & Pump:** Implement `harvestAndPump()` to claim royalties from Story Protocol and inject them into the curve's liquidity reserve (raising floor price).
+    - **Graduation:** Implement `_graduate()` to migrate liquidity to PiperX V2 Router and burn LP tokens.
+    - **Fee System:** Implement 0.5% trading fee routed to the Treasury.
+
+- [ ] **Deployment Scripts**
+  - Create `scripts/deploy-launchpad.ts`.
+  - Verify contracts on **StoryScan (Aeneid)**.
+
+---
+
+### Phase 2: Frontend Refactor (UI/UX Overhaul) 🎨
+**Focus:** Transforming the UI from a "Swap Interface" to a "Social Trading Terminal".
+
+- [ ] **Legacy Code Cleanup**
+  - Remove obsolete pages: Liquidity, Pools, Swap (Old).
+  - Remove obsolete services calling the internal Factory/Router.
+
+- [ ] **New "Home" Page (The Gallery)**
+  - Grid layout displaying newly launched tokens.
+  - Cards showing: IP Image, Ticker, Market Cap, & Bonding Curve Progress.
+  - Search/Filter by Name or Category.
+
+- [ ] **New "Create" Page (The Launcher)**
+  - **Native Story Integration:** Fetch and preview IP Media directly from Story Protocol metadata (No manual upload).
+  - **Fractional Slider:** UI to select "Percentage of IP to List" (1% - 100%).
+  - **Transaction Flow:** Register IP -> Mint License -> Approve -> Launch.
+
+- [ ] **New "Token Detail" Page (The Terminal)**
+  - **Left Column:** Real-time TradingView Chart (Lightweight Charts) + IP Metadata/License Terms.
+  - **Right Column:** Buy/Sell Interface (Bonding Curve) + Slippage Settings.
+  - **Bottom Section:** Tabs for "Holder Distribution", "Transaction History", and "Comments".
+
+---
+
+### Phase 3: Data & Social Layer (Backend) 🗄️
+**Focus:** Ensuring data speed and community engagement.
+
+- [o] **Indexer (Goldsky Subgraph)**
+  - Update `subgraph.yaml` to index `SovryLaunchpad` events (Launched, Bought, Sold, Graduated).
+  - Define new Schema Entities: `Launch`, `Trade`, `Candle` (for charting).
+  - Deploy new Subgraph to **Goldsky**.
+
+- [ ] **Social Features (Supabase)**
+  - Setup Supabase Database tables (`profiles`, `comments`).
+  - Implement Real-time Comment Section on Token Detail pages.
+  - Implement User Profiles (Avatar, Bio, Social Links like Twitter/Telegram).
+
+- [ ] **Real-time Data (Wagmi)**
+  - Implement direct RPC Event Listeners in the frontend for instant price/chart updates (bypassing indexer delay).
+
+---
+
+### Phase 4: Security & Polish 🛡️
+**Focus:** Security, investor trust, and platform stability.
+
+- [ ] **Security Hardening**
+  - Implement **SIWE (Sign-In with Ethereum)** for Supabase authentication to prevent identity spoofing.
+  - Add Slippage Protection & Max Transaction Limits in the UI.
+  - Implement Rate Limiting for Social APIs.
+
+- [ ] **IP Asset Integrity**
+  - Ensure all displayed metadata is fetched strictly from On-Chain/IPFS (Single Source of Truth).
+
+- [ ] **Gamification**
+  - **"King of the Hill":** Highlight the top token nearing graduation on the Home Page.
+  - **Whale Alerts:** Toast notifications for large buy transactions.
+
+---
+
+### Phase 5: Launch & Marketing (Go-to-Market) 🚀
+**Focus:** Public release and user acquisition.
+
+- [ ] **Testnet Beta**
+  - Deploy to **Story Aeneid Testnet**.
+  - Community event: "Launch your Test IP" campaign.
+
+- [ ] **Documentation**
+  - Publish Gitbook/Docs explaining the "IP Backed Token" mechanism.
+  - Create "How-to" video tutorials for creators.
+
+- [ ] **Mainnet Launch**
+  - Deploy final contracts to **Story Mainnet**.
+  - Launch Marketing Campaign.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Blockchain:** Story Protocol, Solidity
+- **Frontend:** Next.js, TailwindCSS, Wagmi/Viem
+- **Data:** Goldsky (Subgraph), Supabase (Social), Piwata (IPFS)
+- **Charting:** TradingView Lightweight Charts
+
+---
+
+*Last Updated: November 2025*
 
 ---
 
