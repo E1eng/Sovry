@@ -92,40 +92,66 @@ class SovryWorker {
 
       console.log(`📋 [USER REQUEST] Retrieved ${poolsData.length} pools from Goldsky`);
 
-      // Step 2: Get IP price from memory cache
+      // Step 2: Get IP price from memory cache, fallback to StoryScan if needed
       console.log('💾 [USER REQUEST] Fetching price:IP:USD from memory cache...');
       const cachedIPPrice = this.memoryCache.price;
-      
+      let ipPrice;
+
       if (!cachedIPPrice) {
-        console.warn('⚠️ [USER REQUEST] No cached IP price in memory');
-        return {
-          success: false,
-          error: 'IP price not available in cache - worker may be starting',
-          pools: []
-        };
+        console.warn('⚠️ [USER REQUEST] No cached IP price in memory, fetching directly from StoryScan...');
+        const freshPrice = await storyscanService.getIPPriceWithFallback();
+
+        if (freshPrice === null) {
+          console.error('❌ [USER REQUEST] Failed to fetch IP price from StoryScan as fallback');
+          return {
+            success: false,
+            error: 'IP price not available (cache empty and StoryScan fetch failed)',
+            pools: []
+          };
+        }
+
+        ipPrice = freshPrice;
+        // Update in-memory cache for subsequent requests
+        this.memoryCache.price = freshPrice.toString();
+        this.memoryCache.timestamp = new Date().toISOString();
+        console.log(`💰 [USER REQUEST] Fetched fresh IP price from StoryScan: $${ipPrice}`);
+      } else {
+        ipPrice = parseFloat(cachedIPPrice);
+        console.log(`💰 [USER REQUEST] Retrieved from memory: price:IP:USD = ${ipPrice}`);
       }
 
-      const ipPrice = parseFloat(cachedIPPrice);
-      console.log(`💰 [USER REQUEST] Retrieved from memory: price:IP:USD = ${ipPrice}`);
-
-      // Step 3: Calculate prices for each pool
+      // Step 3: Calculate pair-based price ratio for each pool (no USD)
       const processedPools = [];
       
       for (const pool of poolsData) {
-        console.log(`🧮 [USER REQUEST] Calculating price for pool ${pool.id}...`);
-        console.log(`📊 [USER REQUEST] Pool reserves - WIP: ${pool.reserve0}, Token: ${pool.reserve1}`);
+        console.log(`🧮 [USER REQUEST] Calculating price ratio for pool ${pool.id}...`);
+        console.log(`📊 [USER REQUEST] Pool reserves - token0: ${pool.reserve0}, token1: ${pool.reserve1}`);
         
-        // Calculate: (reserve0/reserve1) * ipPrice (as per sequence diagram)
         const reserve0 = parseFloat(pool.reserve0);
         const reserve1 = parseFloat(pool.reserve1);
-        const calculatedPrice = (reserve0 / reserve1) * ipPrice;
-        
-        console.log(`📈 [USER REQUEST] Calculation: (${reserve0}/${reserve1}) * ${ipPrice} = $${calculatedPrice.toFixed(2)}`);
+        const priceRatio = reserve1 > 0 ? reserve0 / reserve1 : 0; // token0 per token1
+
+        const token0Symbol = pool.token0?.symbol || 'UNKNOWN';
+        const token1Symbol = pool.token1?.symbol || 'UNKNOWN';
+        const volumeUSD = pool.volumeUSD ? Number(pool.volumeUSD) : 0;
+
+        console.log(`📈 [USER REQUEST] Pair price ratio (token0/token1): ${priceRatio}`);
         
         processedPools.push({
           ...pool,
-          priceUSD: calculatedPrice.toFixed(2),
-          calculation: `(${reserve0}/${reserve1}) * ${ipPrice}`,
+          // Flatten commonly used fields for frontend convenience
+          address: pool.id,
+          token0Symbol,
+          token1Symbol,
+          token0Address: pool.token0?.id || '',
+          token1Address: pool.token1?.id || '',
+          volume24hUSD: volumeUSD,
+          fees24hUSD: 0,
+          tvlUSD: 0,
+          apr: typeof pool.apr === 'number' ? pool.apr : 0,
+          // Expose ratio via priceUSD field so existing frontend mappings keep working
+          priceUSD: priceRatio,
+          calculation: `${reserve0}/${reserve1}`,
           ipPrice: ipPrice,
           timestamp: new Date().toISOString()
         });

@@ -3,7 +3,7 @@
 
 import { StoryClient } from '@story-protocol/core-sdk';
 import { StoryClient as StoryClientType } from '@story-protocol/core-sdk';
-import { createPublicClient, http, Address, parseEther, encodeFunctionData, custom, formatEther, keccak256, toHex } from 'viem';
+import { createPublicClient, http, Address, encodeFunctionData, custom } from 'viem';
 import { erc20Abi } from 'viem';
 
 // Environment variables
@@ -11,19 +11,10 @@ const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.s
 const GOLDSKY_GRAPHQL_URL = 'https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn';
 const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || 'KOTbaGUSWQ6cUJWhiJYiOjPgB0kTRu1eCFFvQL0IWls';
 
-// Sovry Router Contract Address (from your deployment)
-export const SOVRY_ROUTER_ADDRESS =
-  process.env.NEXT_PUBLIC_ROUTER_ADDRESS ||
-  "0xD711896DCD894CB3dECAdF79e8522bf660b23960";
-
-// Sovry Factory Contract Address
-const SOVRY_FACTORY_ADDRESS = '0xAc903015B6828A5290DF0e42504423EBB295c8a3';
-
-// Wrapped IP Token Address (Story Protocol standard)
-const WIP_TOKEN_ADDRESS = '0x1514000000000000000000000000000000000000';
-
-// Testing mode - set to false for real transactions
-const TESTING_MODE = false;
+// Sovry Launchpad Contract Address (bonding curve launch)
+export const SOVRY_LAUNCHPAD_ADDRESS =
+  process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS ||
+  "0xABddc4817c287cCc6F1a170Fa3C364e9df2464E6";
 
 // ===== READ OPERATIONS (Use Backend API / Goldsky) =====
 // These should NOT use user's MetaMask wallet
@@ -62,66 +53,17 @@ export interface IPAsset {
   createdAt: string;
 }
 
-// Pool creation parameters
-export interface PoolCreationParams {
-  ipId: string;
-  royaltyVaultAddress: string;
-  token0Address: string;
-  token1Address: string;
-  amountTokenDesired: string;
-  amountETHDesired: string;
-}
-
-// Sovry Router ABI (for Story Protocol WIP pairs)
-const SOVRY_ROUTER_ABI = [
-  // ERC-20 approve function (using standard erc20Abi)
+// Sovry Launchpad ABI (wrapper-based launch)
+const SOVRY_LAUNCHPAD_ABI = [
   {
     inputs: [
-      { internalType: 'address', name: 'spender', type: 'address' },
-      { internalType: 'uint256', name: 'amount', type: 'uint256' }
+      { internalType: 'address', name: 'royaltyToken', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+      { internalType: 'string', name: 'name', type: 'string' },
+      { internalType: 'string', name: 'symbol', type: 'string' },
     ],
-    name: 'approve',
-    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  // addLiquidityIP function (Story Protocol specific - wraps IP to WIP)
-  {
-    inputs: [
-      { internalType: 'address', name: 'token', type: 'address' },
-      { internalType: 'uint256', name: 'amountTokenDesired', type: 'uint256' },
-      { internalType: 'uint256', name: 'amountTokenMin', type: 'uint256' },
-      { internalType: 'uint256', name: 'amountETHMin', type: 'uint256' },
-      { internalType: 'address', name: 'to', type: 'address' },
-      { internalType: 'uint256', name: 'deadline', type: 'uint256' }
-    ],
-    name: 'addLiquidityIP',
-    outputs: [
-      { internalType: 'uint256', name: 'amountToken', type: 'uint256' },
-      { internalType: 'uint256', name: 'amountETH', type: 'uint256' },
-      { internalType: 'uint256', name: 'liquidity', type: 'uint256' }
-    ],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  // addLiquidity function (token-token pair, both must include WIP)
-  {
-    inputs: [
-      { internalType: 'address', name: 'tokenA', type: 'address' },
-      { internalType: 'address', name: 'tokenB', type: 'address' },
-      { internalType: 'uint256', name: 'amountADesired', type: 'uint256' },
-      { internalType: 'uint256', name: 'amountBDesired', type: 'uint256' },
-      { internalType: 'uint256', name: 'amountAMin', type: 'uint256' },
-      { internalType: 'uint256', name: 'amountBMin', type: 'uint256' },
-      { internalType: 'address', name: 'to', type: 'address' },
-      { internalType: 'uint256', name: 'deadline', type: 'uint256' }
-    ],
-    name: 'addLiquidity',
-    outputs: [
-      { internalType: 'uint256', name: 'amountA', type: 'uint256' },
-      { internalType: 'uint256', name: 'amountB', type: 'uint256' },
-      { internalType: 'uint256', name: 'liquidity', type: 'uint256' }
-    ],
+    name: 'launchToken',
+    outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
@@ -626,173 +568,53 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
 // ===== WRITE OPERATIONS (Use Dynamic Wallet ONLY) =====
 // These functions use user's wallet for signing transactions
 
-// Dynamic SDK Approve Function - WRITE ONLY (Approve Royalty Token)
-export async function approveRoyaltyTokensDynamic(
+// Dynamic SDK Launch Function - WRITE ONLY (Sovry Launchpad bonding curve)
+// Uses a wrapper token (SovryToken) around the locked royalty token.
+export async function launchOnBondingCurveDynamic(
   royaltyTokenAddress: string,
-  amount: string,
-  primaryWallet: any
-): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  primaryWallet: any,
+  tokenName: string,
+  tokenSymbol: string,
+  launchPercentage: number,
+): Promise<{ success: boolean; approveTxHash?: string; launchTxHash?: string; error?: string }> {
   try {
     if (!primaryWallet) {
       throw new Error("No wallet connected");
     }
 
-    console.log('🔥 Dynamic Approve - WRITE Operation (Royalty Token)');
-    console.log('Approving royalty token for router:', { 
-      royaltyToken: royaltyTokenAddress, 
-      amount, 
-      router: SOVRY_ROUTER_ADDRESS 
+    console.log('🔥 Dynamic Launch - WRITE Operation (Sovry Launchpad)');
+    console.log('Launch params:', { 
+      royaltyToken: royaltyTokenAddress,
+      launchpad: SOVRY_LAUNCHPAD_ADDRESS,
+      name: tokenName,
+      symbol: tokenSymbol,
+      percentage: launchPercentage,
     });
 
-    // CRITICAL: Check if this is actually an ERC20 token first
-    console.log('⚠️ DEBUGGING: Checking if contract is ERC20...');
-    
     const publicClient = getPublicClient();
-    let actualRoyaltyToken = royaltyTokenAddress;
-    
-    try {
-      // First, try to call symbol() to verify it's ERC20
-      const symbol = await publicClient.readContract({
-        address: royaltyTokenAddress as Address,
-        abi: erc20Abi,
-        functionName: 'symbol',
-      });
-      console.log('✅ Contract is ERC20, symbol:', symbol);
-    } catch (symbolError) {
-      console.error('❌ Contract is NOT ERC20:', symbolError);
-      
-      // Try to get the actual token from the vault
-      try {
-        const tokenResult = await publicClient.readContract({
-          address: royaltyTokenAddress as Address,
-          abi: [{
-            inputs: [],
-            name: 'token',
-            outputs: [{ internalType: 'address', name: '', type: 'address' }],
-            stateMutability: 'view',
-            type: 'function',
-          }],
-          functionName: 'token',
-        });
-        
-        if (tokenResult && tokenResult !== '0x0000000000000000000000000000000000000000') {
-          actualRoyaltyToken = tokenResult as string;
-          console.log('✅ Found actual royalty token from vault:', actualRoyaltyToken);
-          
-          // Verify the actual token is ERC20
-          const actualSymbol = await publicClient.readContract({
-            address: actualRoyaltyToken as Address,
-            abi: erc20Abi,
-            functionName: 'symbol',
-          });
-          console.log('✅ Actual token is ERC20, symbol:', actualSymbol);
-        } else {
-          throw new Error('No token found in vault');
-        }
-      } catch (vaultError) {
-        console.error('❌ Could not get token from vault:', vaultError);
-        // Skip approval if we can't find a valid ERC20 token
-        console.log('⚠️ Skipping approval - no valid ERC20 token found');
-        return { 
-          success: true, 
-          txHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
-          error: 'Skipped - no valid ERC20 token found' 
-        };
-      }
-    }
-
-    // Get wallet client from Dynamic - WRITE ONLY
-    const walletClient = await primaryWallet.getWalletClient();
-    
-    if (!walletClient) {
-      throw new Error("No wallet client available");
-    }
-
-    // Encode approve function data for the actual royalty token
-    const data = encodeFunctionData({
-      abi: erc20Abi,
-      functionName: "approve",
-      args: [SOVRY_ROUTER_ADDRESS as Address, parseEther(amount)],
-    });
-
-    console.log('📤 Sending royalty token approve transaction via Dynamic...');
-    console.log('Approving token:', actualRoyaltyToken);
-
-    // Send transaction to the actual royalty token contract
-    const txHash = await walletClient.sendTransaction({
-      to: actualRoyaltyToken as Address,
-      data: data,
-    });
-
-    console.log('✅ Royalty Token Approve Success! Tx Hash:', txHash);
-    return { success: true, txHash };
-
-  } catch (error) {
-    console.error('❌ Royalty Token Approve Failed:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error approving royalty tokens' 
-    };
-  }
-}
-
-// Dynamic SDK Create Pool Function - WRITE ONLY (Story Protocol addLiquidityIP)
-export async function createPoolDynamic(
-  royaltyTokenAddress: string,
-  amountToken: string,
-  amountIP: string,
-  primaryWallet: any
-): Promise<{ success: boolean; txHash?: string; poolAddress?: string; error?: string }> {
-  try {
-    if (!primaryWallet) {
-      throw new Error("No wallet connected");
-    }
-
-    console.log('🔥 Dynamic Create Pool - WRITE Operation (Story Protocol addLiquidityIP)');
-    console.log('Pool params:', { 
-      royaltyToken: royaltyTokenAddress, 
-      amountRoyaltyToken: amountToken, 
-      amountIP: amountIP,
-      router: SOVRY_ROUTER_ADDRESS 
-    });
-
-    // Get wallet client and user address - WRITE ONLY
     const walletClient = await primaryWallet.getWalletClient();
     const userAddress = primaryWallet.address;
-    
+
     if (!walletClient) {
       throw new Error("No wallet client available");
     }
 
-    // CRITICAL DEBUG: Let's check what we're actually dealing with
-    const publicClient = getPublicClient();
-    
-    console.log('🔍 DEBUGGING: Analyzing royalty token address...');
-    console.log('Original address:', royaltyTokenAddress);
-    
-    // Check if it's a contract
+    // Ensure the provided address is a contract
     const code = await publicClient.getBytecode({
       address: royaltyTokenAddress as Address,
     });
-    
+
     if (!code || code === '0x') {
       throw new Error(`Address ${royaltyTokenAddress} is not a contract`);
     }
-    
-    console.log('✅ Address is a contract');
-    
-    // CRITICAL: Router requirements:
-    // 1. receive() only accepts from WIP - so we MUST use function calls
-    // 2. addLiquidityIP requires token != WIP - so we need a different token
-    // 3. We need to find the actual royalty token, not the vault
-    
-    console.log('🔍 STEP 1: Finding actual royalty token from vault...');
-    
-    let actualRoyaltyToken = royaltyTokenAddress;
-    
-    // Try multiple methods to get the actual token
+
+    console.log('✅ Launch token address is a contract');
+
+    // Resolve the actual ERC20 token behind the vault (if applicable)
+    let actualToken = royaltyTokenAddress;
+
     try {
-      // Method 1: Try 'token()' function
+      // Try token() first
       const tokenResult = await publicClient.readContract({
         address: royaltyTokenAddress as Address,
         abi: [{
@@ -804,18 +626,17 @@ export async function createPoolDynamic(
         }],
         functionName: 'token',
       });
-      
+
       if (tokenResult && tokenResult !== '0x0000000000000000000000000000000000000000') {
-        actualRoyaltyToken = tokenResult as string;
-        console.log('✅ Found token via token():', actualRoyaltyToken);
+        actualToken = tokenResult as string;
+        console.log('✅ Found launch token via token():', actualToken);
       } else {
         throw new Error('token() returned zero address');
       }
     } catch (tokenError) {
-      console.log('⚠️ token() failed, trying asset()...');
-      
+      console.log('⚠️ token() failed, trying asset() on vault...', tokenError);
+
       try {
-        // Method 2: Try 'asset()' function (common in vaults)
         const assetResult = await publicClient.readContract({
           address: royaltyTokenAddress as Address,
           abi: [{
@@ -827,555 +648,193 @@ export async function createPoolDynamic(
           }],
           functionName: 'asset',
         });
-        
+
         if (assetResult && assetResult !== '0x0000000000000000000000000000000000000000') {
-          actualRoyaltyToken = assetResult as string;
-          console.log('✅ Found token via asset():', actualRoyaltyToken);
+          actualToken = assetResult as string;
+          console.log('✅ Found launch token via asset():', actualToken);
         } else {
-          throw new Error('asset() returned zero address');
+          console.log('⚠️ asset() also returned zero address, using original token as-is');
         }
       } catch (assetError) {
-        console.log('❌ Could not find actual token, using original address');
-        // Use original address and hope it works
+        console.log('❌ asset() failed, using original token as launch token', assetError);
       }
     }
-    
-    // Verify the token is not WIP (router requirement)
-    if (actualRoyaltyToken.toLowerCase() === WIP_TOKEN_ADDRESS.toLowerCase()) {
-      throw new Error('Cannot create pool: token cannot be WIP');
-    }
-    
-    console.log('🔍 STEP 2: Verifying token is ERC20...');
-    
+
+    // Verify actual token looks like an ERC20
     try {
       const symbol = await publicClient.readContract({
-        address: actualRoyaltyToken as Address,
+        address: actualToken as Address,
         abi: erc20Abi,
         functionName: 'symbol',
       });
-      console.log('✅ Token is ERC20, symbol:', symbol);
-      
-      // CRITICAL: Check user's token balance
-      const balance = await publicClient.readContract({
-        address: actualRoyaltyToken as Address,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [userAddress as Address],
-      });
-      
-      const balanceFormatted = Number(balance) / 1e6; // 6 decimals for royalty tokens
-      console.log('💰 User RT token balance:', balanceFormatted);
-      
-      // If user has very small balance, use that instead of the requested amount
-      // Royalty tokens use 6 decimals, not 18!
-      const requestedAmount = BigInt(parseFloat(amountToken) * 1000000); // 6 decimals
-      const availableBalance = Number(balance);
-      
-      if (availableBalance < requestedAmount) {
-        if (availableBalance > 0) {
-          console.log('⚠️ Using available balance instead of requested amount');
-          console.log(`Requested: ${amountToken} RT, Available: ${balanceFormatted} RT`);
-          console.log('✅ Proceeding with available balance');
-        } else {
-          throw new Error(`No RT tokens available. Balance: ${balanceFormatted} RT`);
-        }
-      } else {
-        console.log('✅ Sufficient RT token balance for pool creation');
-      }
-      
+      console.log('✅ Launch token is ERC20, symbol:', symbol);
     } catch (symbolError) {
-      throw new Error(`Token ${actualRoyaltyToken} is not a valid ERC20 token: ${symbolError}`);
+      throw new Error(`Launch token ${actualToken} is not a valid ERC20: ${symbolError}`);
     }
-    
-    console.log('🔍 STEP 3: Creating pool with addLiquidityIP...');
-    
-    // Get user's actual RT token balance to use in pool creation
-    const balance = await publicClient.readContract({
-      address: actualRoyaltyToken as Address,
+
+    // Approve SovryLaunchpad to pull a fraction of creator's tokens based on launchPercentage
+    const userBalance = await publicClient.readContract({
+      address: actualToken as Address,
       abi: erc20Abi,
       functionName: 'balanceOf',
       args: [userAddress as Address],
-    });
-    
-    // Get factory address first
-    const factoryClient = getPublicClient();
-    const factoryAddress = await factoryClient.readContract({
-      address: SOVRY_ROUTER_ADDRESS as Address,
-      abi: [{
-        inputs: [],
-        name: 'factory',
-        outputs: [{ internalType: 'address', name: '', type: 'address' }],
-        stateMutability: 'view',
-        type: 'function',
-      }],
-      functionName: 'factory',
-    });
-    
-    // Check if pair exists and calculate optimal amounts
-    const existingPair = await factoryClient.readContract({
-      address: factoryAddress as Address,
-      abi: [{
-        inputs: [
-          { internalType: 'address', name: 'tokenA', type: 'address' },
-          { internalType: 'address', name: 'tokenB', type: 'address' }
-        ],
-        name: 'getPair',
-        outputs: [{ internalType: 'address', name: 'pair', type: 'address' }],
-        stateMutability: 'view',
-        type: 'function',
-      }],
-      functionName: 'getPair',
-      args: [actualRoyaltyToken as Address, WIP_TOKEN_ADDRESS as Address],
-    });
-    
-    let actualAmountToUse: bigint;
-    let actualIPAmount: bigint = parseEther(amountIP);
-    
-    if (existingPair !== '0x0000000000000000000000000000000000000000') {
-      console.log('🔧 Pool exists - checking if ratio is reasonable...');
-      
-      // Get reserves
-      const reserves = await publicClient.readContract({
-        address: existingPair as Address,
-        abi: [{
-          inputs: [],
-          name: 'getReserves',
-          outputs: [
-            { internalType: 'uint112', name: 'reserve0', type: 'uint112' },
-            { internalType: 'uint112', name: 'reserve1', type: 'uint112' },
-            { internalType: 'uint32', name: 'blockTimestampLast', type: 'uint32' }
-          ],
-          stateMutability: 'view',
-          type: 'function',
-        }],
-        functionName: 'getReserves',
-      });
-      
-      const reserveRT = BigInt(reserves[0].toString());
-      const reserveWIP = BigInt(reserves[1].toString());
-      
-      console.log('🔍 Current Pool Reserves:');
-      console.log('RT Reserves:', reserveRT.toString(), `(${Number(reserveRT) / 1e6} RT)`);
-      console.log('WIP Reserves:', reserveWIP.toString(), `(${formatEther(reserveWIP)} WIP)`);
-      
-      // Calculate ratio
-      const ratioWIPperRT = reserveWIP * BigInt(1000000) / reserveRT;
-      console.log('Current Ratio: 1 RT =', formatEther(ratioWIPperRT), 'WIP');
-      
-      // Check if ratio is reasonable (not extremely skewed)
-      const reasonableRatio = parseEther('0.1'); // 0.1 WIP per RT minimum
-      if (ratioWIPperRT < reasonableRatio) {
-        console.log('❌ Pool ratio is BROKEN! WIP reserves too low relative to RT');
-        console.log('🔧 SOLUTION: Force reasonable amounts to fix the pool');
-        
-        // Use reasonable amounts to fix the broken ratio
-        const userDesiredRT = BigInt(parseFloat(amountToken) * 1000000);
-        const userDesiredWIP = parseEther(amountIP);
-        
-        // Force reasonable ratio: 1 RT = 1 WIP
-        actualAmountToUse = userDesiredRT;
-        actualIPAmount = userDesiredWIP;
-        
-        console.log('🎯 FORCED: Using reasonable amounts to fix broken pool');
-        console.log('RT:', Number(actualAmountToUse) / 1e6, 'RT');
-        console.log('WIP:', formatEther(actualIPAmount), 'WIP');
-        console.log('New Ratio: 1 RT = 1 WIP (FIXED)');
-        
-      } else {
-        console.log('✅ Pool ratio is reasonable - using normal calculation');
-        
-        // Normal calculation for healthy pools
-        const userDesiredRT = BigInt(parseFloat(amountToken) * 1000000);
-        const userDesiredWIP = parseEther(amountIP);
-        
-        // Calculate optimal WIP for desired RT
-        const optimalWIP = (userDesiredRT * reserveWIP) / reserveRT;
-        // Calculate optimal RT for desired WIP  
-        const optimalRT = (userDesiredWIP * reserveRT) / reserveWIP;
-        
-        console.log('💰 Optimal Calculations:');
-        console.log('For', Number(userDesiredRT) / 1e6, 'RT, optimal WIP =', formatEther(optimalWIP), 'WIP');
-        console.log('For', formatEther(userDesiredWIP), 'WIP, optimal RT =', Number(optimalRT) / 1e6, 'RT');
-        
-        // Use the limiting factor (smaller optimal amount)
-        if (optimalWIP <= userDesiredWIP) {
-          actualAmountToUse = userDesiredRT;
-          actualIPAmount = optimalWIP;
-          console.log('🎯 Using RT-limited amounts (WIP is sufficient)');
-        } else {
-          actualAmountToUse = optimalRT;
-          actualIPAmount = userDesiredWIP;
-          console.log('🎯 Using WIP-limited amounts (RT needs adjustment)');
-        }
-        
-        console.log('✅ Final Optimized Amounts:');
-        console.log('RT:', Number(actualAmountToUse) / 1e6, 'RT');
-        console.log('WIP:', formatEther(actualIPAmount), 'WIP');
-      }
-      
-    } else {
-      console.log('🔧 New pool - using user amounts directly');
-      // Use the smaller of: requested amount or available balance
-      const requestedAmount = BigInt(parseFloat(amountToken) * 1000000); // 6 decimals
-      const availableBalance = Number(balance);
-      actualAmountToUse = availableBalance < requestedAmount ? balance : requestedAmount;
-    }
-    
-    console.log('💰 Using RT amount:', Number(actualAmountToUse) / 1e6, 'RT');
-    
-    // Encode addLiquidityIP function data with SMART minimums
-    let minTokenAmount: bigint;
-    let minETHAmount: bigint;
-    
-    if (existingPair !== '0x0000000000000000000000000000000000000000') {
-      // For existing pools: Use 95% of calculated amounts to allow router optimization
-      minTokenAmount = (actualAmountToUse * BigInt(95)) / BigInt(100);
-      minETHAmount = (actualIPAmount * BigInt(95)) / BigInt(100);
-      console.log('🧠 SMART MINIMUMS: Using 95% for existing pools (allows router optimization)');
-    } else {
-      // For new pools: Use 100% since no optimization needed
-      minTokenAmount = actualAmountToUse;
-      minETHAmount = actualIPAmount;
-      console.log('🆕 NEW POOL: Using 100% minimums (no optimization needed)');
-    }
-    
-    console.log('💰 Smart Minimum Calculation:');
-    console.log('Token Desired:', Number(actualAmountToUse) / 1e6, 'RT');
-    console.log('Token Minimum:', Number(minTokenAmount) / 1e6, 'RT');
-    console.log('ETH Desired:', formatEther(actualIPAmount), 'WIP');
-    console.log('ETH Minimum:', formatEther(minETHAmount), 'WIP');
-    
-    const args = [
-      actualRoyaltyToken as Address,            // Token (Actual Royalty Token)
-      actualAmountToUse,                        // Amount Token Desired (Use available balance)
-      minTokenAmount,                           // Min Token (95% to avoid slippage)
-      minETHAmount,                             // Min ETH/IP (95% to avoid slippage)
-      userAddress as Address,                   // To (User gets LP tokens)
-      BigInt(Math.floor(Date.now() / 1000) + 1200) // Deadline (20 minutes)
-    ];
-    
-    console.log('🔍 Function Arguments Debug:');
-    console.log('Token:', args[0]);
-    console.log('Amount Token Desired:', args[1].toString(), `(${Number(args[1]) / 1e6} RT)`);
-    console.log('Amount Token Min:', args[2].toString(), `(${Number(args[2]) / 1e6} RT)`);
-    console.log('Amount ETH Min:', args[3].toString(), `(${formatEther(BigInt(args[3]))} IP)`);
-    console.log('To:', args[4]);
-    console.log('Deadline:', args[5].toString());
-    console.log('Min Token Percentage:', Number(BigInt(args[2]) * BigInt(100) / BigInt(args[1])) + '%');
-    console.log('Min ETH Percentage:', Number(BigInt(args[3]) * BigInt(100) / parseEther(amountIP)) + '%');
-    console.log('🔧 Testing: 100% minimum amounts (no slippage protection)');
-    
-    const data = encodeFunctionData({
-      abi: SOVRY_ROUTER_ABI,
-      functionName: "addLiquidityIP",
-      args: args,
-    });
-    
-    console.log('🔍 Encoded Transaction Data:');
-    console.log('Data length:', data.length);
-    console.log('Data preview:', data.slice(0, 100) + '...');
-    console.log('🔧 CONTRACT ISSUE DETECTED:');
-    console.log('Router requires pair to exist BEFORE calling addLiquidityIP');
-    console.log('But addLiquidityIP should create the pair if it doesn\'t exist');
-    console.log('WORKAROUND: Creating pair first via factory...');
-    
-    // WORKAROUND: Create pair first via factory to bypass router bug
-    try {
-      console.log('🔧 STEP 4: Checking if pair exists first...');
-      
-      // Get factory address from router
-      const receiptClient = getPublicClient();
-      const factoryAddress = await receiptClient.readContract({
-        address: SOVRY_ROUTER_ADDRESS as Address,
-        abi: [{
-          inputs: [],
-          name: 'factory',
-          outputs: [{ internalType: 'address', name: '', type: 'address' }],
-          stateMutability: 'view',
-          type: 'function',
-        }],
-        functionName: 'factory',
-      });
-      
-      console.log('Factory address:', factoryAddress);
-      
-      // Check if pair already exists
-      const existingPair = await receiptClient.readContract({
-        address: factoryAddress as Address,
-        abi: [{
-          inputs: [
-            { internalType: 'address', name: 'tokenA', type: 'address' },
-            { internalType: 'address', name: 'tokenB', type: 'address' }
-          ],
-          name: 'getPair',
-          outputs: [{ internalType: 'address', name: 'pair', type: 'address' }],
-          stateMutability: 'view',
-          type: 'function',
-        }],
-        functionName: 'getPair',
-        args: [actualRoyaltyToken as Address, WIP_TOKEN_ADDRESS as Address],
-      });
-      
-      if (existingPair !== '0x0000000000000000000000000000000000000000') {
-        console.log('🔧 Pool exists - checking if ratio is reasonable...');
-        
-        // Get reserves
-        const reserves = await publicClient.readContract({
-          address: existingPair as Address,
-          abi: [{
-            inputs: [],
-            name: 'getReserves',
-            outputs: [
-              { internalType: 'uint112', name: 'reserve0', type: 'uint112' },
-              { internalType: 'uint112', name: 'reserve1', type: 'uint112' },
-              { internalType: 'uint32', name: 'blockTimestampLast', type: 'uint32' }
-            ],
-            stateMutability: 'view',
-            type: 'function',
-          }],
-          functionName: 'getReserves',
-        });
-        
-        const reserveRT = BigInt(reserves[0].toString());
-        const reserveWIP = BigInt(reserves[1].toString());
-        
-        console.log('🔍 Current Pool Reserves:');
-        console.log('RT Reserves:', reserveRT.toString(), `(${Number(reserveRT) / 1e6} RT)`);
-        console.log('WIP Reserves:', reserveWIP.toString(), `(${formatEther(reserveWIP)} WIP)`);
-        
-        // Calculate ratio
-        const ratioWIPperRT = reserveWIP * BigInt(1000000) / reserveRT;
-        console.log('Current Ratio: 1 RT =', formatEther(ratioWIPperRT), 'WIP');
-        
-        // Check if ratio is reasonable (not extremely skewed)
-        const reasonableRatio = parseEther('0.1'); // 0.1 WIP per RT minimum
-        if (ratioWIPperRT < reasonableRatio) {
-          console.log('❌ Pool ratio is BROKEN! WIP reserves too low relative to RT');
-          console.log('🔧 SOLUTION: Force reasonable amounts to fix the pool');
-          
-          // Use reasonable amounts to fix the broken ratio
-          const userDesiredRT = BigInt(parseFloat(amountToken) * 1000000);
-          const userDesiredWIP = parseEther(amountIP);
-          
-          // Force reasonable ratio: 1 RT = 1 WIP
-          actualAmountToUse = userDesiredRT;
-          actualIPAmount = userDesiredWIP;
-          
-          console.log('🎯 FORCED: Using reasonable amounts to fix broken pool');
-          console.log('RT:', Number(actualAmountToUse) / 1e6, 'RT');
-          console.log('WIP:', formatEther(actualIPAmount), 'WIP');
-          console.log('New Ratio: 1 RT = 1 WIP (FIXED)');
-          
-        } else {
-          console.log('✅ Pool ratio is reasonable - using normal calculation');
-          
-          // Normal calculation for healthy pools
-          const userDesiredRT = BigInt(parseFloat(amountToken) * 1000000);
-          const userDesiredWIP = parseEther(amountIP);
-          
-          // Calculate optimal WIP for desired RT
-          const optimalWIP = (userDesiredRT * reserveWIP) / reserveRT;
-          // Calculate optimal RT for desired WIP  
-          const optimalRT = (userDesiredWIP * reserveRT) / reserveWIP;
-          
-          console.log('💰 Optimal Calculations:');
-          console.log('For', Number(userDesiredRT) / 1e6, 'RT, optimal WIP =', formatEther(optimalWIP), 'WIP');
-          console.log('For', formatEther(userDesiredWIP), 'WIP, optimal RT =', Number(optimalRT) / 1e6, 'RT');
-          
-          // Use the limiting factor (smaller optimal amount)
-          if (optimalWIP <= userDesiredWIP) {
-            actualAmountToUse = userDesiredRT;
-            actualIPAmount = optimalWIP;
-            console.log('🎯 Using RT-limited amounts (WIP is sufficient)');
-          } else {
-            actualAmountToUse = optimalRT;
-            actualIPAmount = userDesiredWIP;
-            console.log('🎯 Using WIP-limited amounts (RT needs adjustment)');
-          }
-          
-          console.log('✅ Final Optimized Amounts:');
-          console.log('RT:', Number(actualAmountToUse) / 1e6, 'RT');
-          console.log('WIP:', formatEther(actualIPAmount), 'WIP');
-        }
-        
-      } else {
-        console.log('🔧 New pool - using user amounts directly');
-        // Use the smaller of: requested amount or available balance
-        const requestedAmount = BigInt(parseFloat(amountToken) * 1000000); // 6 decimals
-        const availableBalance = Number(balance);
-        actualAmountToUse = availableBalance < requestedAmount ? balance : requestedAmount;
-      }
-      
-    } catch (pairError) {
-      console.log('⚠️ Pair creation/check failed:', pairError);
-      console.log('🔧 Continuing with addLiquidityIP anyway...');
-    }
-    
-    console.log('📤 Using SECURE Sovry Router (Grade Startup Security)...');
-    console.log('Token:', actualRoyaltyToken);
-    console.log('Amount Token Desired:', Number(actualAmountToUse) / 1e6, 'RT');
-    console.log('Amount Token Min:', Number(minTokenAmount) / 1e6, 'RT');
-    console.log('Amount ETH Min:', formatEther(minETHAmount), 'WIP');
-    console.log('To:', userAddress);
-    
-    // 🛡️ SECURITY: Ensure wallet has liquidity provider role before adding liquidity
-    try {
-      console.log('🔍 Checking Liquidity Provider Role...');
-      const roleClient = getPublicClient();
-      const hasRole = await roleClient.readContract({
-        address: SOVRY_ROUTER_ADDRESS as Address,
-        abi: [{
-          inputs: [
-            { internalType: 'bytes32', name: 'role', type: 'bytes32' },
-            { internalType: 'address', name: 'account', type: 'address' }
-          ],
-          name: 'hasRole',
-          outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
-          stateMutability: 'view',
-          type: 'function',
-        }],
-        functionName: 'hasRole',
-        args: [keccak256(toHex('LIQUIDITY_PROVIDER_ROLE')), userAddress as Address],
-      });
+    }) as bigint;
 
-      if (!hasRole) {
-        throw new Error('Your wallet is not authorized as a liquidity provider. Please contact the admin to grant LIQUIDITY_PROVIDER_ROLE.');
-      }
+    console.log('💰 User launch token balance:', userBalance.toString());
 
-      console.log('✅ Wallet has Liquidity Provider Role');
-    } catch (roleError) {
-      console.error('❌ Liquidity provider role check failed:', roleError);
-      throw roleError instanceof Error ? roleError : new Error('Failed to verify liquidity provider role');
+    if (userBalance === 0n) {
+      throw new Error('You have no royalty tokens to launch. Please Get Royalty Tokens first.');
     }
-    
-    // 🔧 FIXED: Both router and pool contracts now handle skewed pools properly
-    const txParams = {
-      to: SOVRY_ROUTER_ADDRESS as Address,
-      data: data,
-      value: actualIPAmount, // Send calculated native IP tokens
+
+    // Clamp percentage between 1 and 100
+    const pct = BigInt(
+      Math.min(
+        Math.max(Math.floor(launchPercentage || 0), 1),
+        100
+      )
+    );
+
+    const amountToLock = (userBalance * pct) / 100n;
+
+    if (amountToLock === 0n) {
+      throw new Error('Amount to lock is too small for the selected percentage.');
+    }
+
+    const approveData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [SOVRY_LAUNCHPAD_ADDRESS as Address, amountToLock],
+    });
+
+    console.log('📤 Sending approve transaction for launch token via Dynamic...');
+    const approveTxHash = await walletClient.sendTransaction({
+      to: actualToken as Address,
+      data: approveData,
+    });
+
+    console.log('✅ Launch token approve success! Tx Hash:', approveTxHash);
+
+    // Call SovryLaunchpad.launchToken(royaltyToken, amountToLock, name, symbol)
+    const launchData = encodeFunctionData({
+      abi: SOVRY_LAUNCHPAD_ABI,
+      functionName: 'launchToken',
+      args: [
+        actualToken as Address,
+        amountToLock,
+        tokenName,
+        tokenSymbol,
+      ],
+    });
+
+    console.log('📤 Calling SovryLaunchpad.launchToken...');
+    const launchTxHash = await walletClient.sendTransaction({
+      to: SOVRY_LAUNCHPAD_ADDRESS as Address,
+      data: launchData,
+    });
+
+    console.log('✅ SovryLaunchpad launch success! Tx Hash:', launchTxHash);
+
+    return {
+      success: true,
+      approveTxHash,
+      launchTxHash,
     };
-    
-    console.log('🔍 Final Transaction Parameters:');
-    console.log('To:', txParams.to);
-    console.log('Value (ether):', formatEther(txParams.value));
-    
-    const txHash = await walletClient.sendTransaction(txParams);
-
-    console.log('✅ Test transaction sent! Tx Hash:', txHash);
-    
-    // Wait for transaction receipt to check if it was successful
-    console.log('⏳ Waiting for transaction receipt...');
-    const finalReceiptClient = getPublicClient();
-    const receipt = await finalReceiptClient.waitForTransactionReceipt({
-      hash: txHash as Address,
-    });
-    
-    console.log('🔍 Transaction Receipt:');
-    console.log('Status:', receipt.status);
-    console.log('Gas Used:', receipt.gasUsed.toString());
-    console.log('Effective Gas Price:', receipt.effectiveGasPrice?.toString());
-    
-    if (receipt.status === 'reverted') {
-      throw new Error('Transaction was reverted by the contract');
-    }
-    
-    // Generate mock pool address
-    const poolAddress = `0x${Math.random().toString(16).substr(2, 40)}`;
-    
-    return { success: true, txHash, poolAddress };
-
   } catch (error) {
-    console.error('❌ Create Story Protocol Pool Failed:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error creating Story Protocol pool' 
+    console.error('❌ Launch on bonding curve failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error launching on bonding curve',
     };
   }
 }
 
-// Create pool with liquidity (Add Liquidity)
-export async function createPoolWithLiquidity(
-  params: PoolCreationParams,
-  walletAddress: string,
-  signTransaction: (transaction: any) => Promise<string>
-): Promise<{ success: boolean; poolAddress?: string; transactionHash?: string; error?: string }> {
+export interface RoyaltyLockInfo {
+  royaltyToken: string;
+  symbol: string;
+  decimals: number;
+  locked: bigint;
+  creatorBalance: bigint;
+}
+
+export async function getRoyaltyLockInfo(
+  royaltyTokenAddress: string,
+  creatorAddress: string
+): Promise<RoyaltyLockInfo | null> {
   try {
-    console.log('Creating pool with liquidity:', params, { testingMode: TESTING_MODE });
+    const publicClient = getPublicClient();
+    let actualToken = royaltyTokenAddress as string;
 
-    if (TESTING_MODE) {
-      console.log('🧪 TESTING MODE: Skipping real pool creation - returning mock success');
-      // Simulate delay for realistic testing
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      const mockPoolAddress = `0x${Math.random().toString(16).substr(2, 40)}`;
-      return { 
-        success: true, 
-        poolAddress: mockPoolAddress,
-        transactionHash: '0xmocktransactionhash'
-      };
+    try {
+      const tokenResult = await publicClient.readContract({
+        address: royaltyTokenAddress as Address,
+        abi: [{
+          inputs: [],
+          name: 'token',
+          outputs: [{ internalType: 'address', name: '', type: 'address' }],
+          stateMutability: 'view',
+          type: 'function',
+        }],
+        functionName: 'token',
+      });
+
+      if (tokenResult && tokenResult !== '0x0000000000000000000000000000000000000000') {
+        actualToken = tokenResult as string;
+      }
+    } catch {
+      try {
+        const assetResult = await publicClient.readContract({
+          address: royaltyTokenAddress as Address,
+          abi: [{
+            inputs: [],
+            name: 'asset',
+            outputs: [{ internalType: 'address', name: '', type: 'address' }],
+            stateMutability: 'view',
+            type: 'function',
+          }],
+          functionName: 'asset',
+        });
+
+        if (assetResult && assetResult !== '0x0000000000000000000000000000000000000000') {
+          actualToken = assetResult as string;
+        }
+      } catch {}
     }
 
-    // Validate IP asset has royalty tokens
-    const hasRoyaltyTokens = await checkRoyaltyTokens(params.ipId, walletAddress);
-    if (!hasRoyaltyTokens) {
-      throw new Error('IP asset does not have royalty tokens');
-    }
+    const [decimals, symbol, launchpadBalance, creatorBalance] = await Promise.all([
+      publicClient.readContract({
+        address: actualToken as Address,
+        abi: erc20Abi,
+        functionName: 'decimals',
+      }) as Promise<number>,
+      publicClient.readContract({
+        address: actualToken as Address,
+        abi: erc20Abi,
+        functionName: 'symbol',
+      }) as Promise<string>,
+      publicClient.readContract({
+        address: actualToken as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [SOVRY_LAUNCHPAD_ADDRESS as Address],
+      }) as Promise<bigint>,
+      publicClient.readContract({
+        address: actualToken as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [creatorAddress as Address],
+      }) as Promise<bigint>,
+    ]);
 
-    // Parse amounts to wei
-    const amountTokenWei = parseEther(params.amountTokenDesired);
-    const amountETHWei = parseEther(params.amountETHDesired);
-    
-    // Set minimum amounts with 5% slippage protection
-    const amountTokenMin = (amountTokenWei * BigInt(95)) / BigInt(100); // 95% of desired
-    const amountETHMin = (amountETHWei * BigInt(95)) / BigInt(100); // 95% of desired
-    
-    // Set deadline (20 minutes from now)
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
-
-    // For Dynamic, we need to prepare the transaction data
-    const publicClient = createPublicClientForStory();
-    const transactionData = await publicClient.simulateContract({
-      address: SOVRY_ROUTER_ADDRESS as Address,
-      abi: SOVRY_ROUTER_ABI,
-      functionName: 'addLiquidityETH',
-      args: [
-        params.token0Address as Address, // Royalty Token address
-        amountTokenWei,                  // Amount of Royalty Tokens
-        amountTokenMin,                  // Minimum tokens (slippage protection)
-        amountETHMin,                    // Minimum IP tokens (slippage protection)
-        walletAddress as Address,        // LP tokens recipient
-        deadline,                        // Transaction deadline
-      ],
-      account: walletAddress as Address,
-      value: amountETHWei, // Amount of native IP to send
-    });
-
-    // Build transaction object for Dynamic
-    const dynamicTransaction = {
-      address: SOVRY_ROUTER_ADDRESS,
-      data: transactionData,
-      value: `0x${amountETHWei.toString(16)}`, // Convert to hex
+    return {
+      royaltyToken: actualToken,
+      symbol,
+      decimals,
+      locked: launchpadBalance,
+      creatorBalance,
     };
-
-    // Sign and send transaction using Dynamic's connector
-    const transactionHash = await signTransaction(dynamicTransaction);
-    
-    console.log('Pool created successfully:', transactionHash);
-    
-    // Generate mock pool address (in production, get from event logs)
-    const poolAddress = `0x${Math.random().toString(16).substr(2, 40)}`;
-    
-    return { 
-      success: true, 
-      poolAddress,
-      transactionHash 
-    };
-
   } catch (error) {
-    console.error('Error creating pool with liquidity:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error creating pool' 
-    };
+    console.error('Error loading royalty lock info:', error);
+    return null;
   }
 }
 

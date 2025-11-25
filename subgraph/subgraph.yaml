@@ -2,57 +2,38 @@ specVersion: 0.0.5
 schema:
   file: ./schema.graphql
 dataSources:
-  # 1. SOVRY FACTORY (Mendeteksi Pool Baru)
   - kind: ethereum/contract
-    name: SovryFactory
+    name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0xAc903015B6828A5290DF0e42504423EBB295c8a3" # <--- GANTI INI
-      abi: SovryFactory
-      startBlock:  11332680 # All contracts start from this block 
+      address: "0xABddc4817c287cCc6F1a170Fa3C364e9df2464E6" # SovryLaunchpad
+      abi: SovryLaunchpad
+      startBlock: 11332680
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - Factory
-        - Pool
-        - Token
+        - Launch
+        - Trade
+        - RevenueInjection
+        - Graduation
       abis:
-        - name: SovryFactory
-          file: ./abis/SovryFactory.json
-        - name: ERC20
-          file: ./abis/ERC20.json
+        - name: SovryLaunchpad
+          file: ./abis/SovryLaunchpad.json
       eventHandlers:
-        - event: PairCreated(indexed address,indexed address,address,uint256)
-          handler: handlePairCreated
-      file: ./src/pool.ts
-
-templates:
-  # 3. POOL TEMPLATE (Mendeteksi Swap di dalam Pool)
-  - kind: ethereum/contract
-    name: SovryPool
-    network: story-aeneid
-    source:
-      abi: SovryPool
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.7
-      language: wasm/assemblyscript
-      entities:
-        - Swap
-        - Mint
-        - Burn
-      abis:
-        - name: SovryPool
-          file: ./abis/SovryPool.json
-      eventHandlers:
-        - event: Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)
-          handler: handleSwap
-        - event: Sync(uint112,uint112)
-          handler: handleSync
-        - event: Mint(indexed address,uint256,uint256)
-          handler: handleMint
-        - event: Burn(indexed address,uint256,uint256,indexed address)
-          handler: handleBurn
-      file: ./src/pool.ts
+        - event: Launched(indexed address,indexed address)
+          handler: handleLaunched
+        - event: Bought(indexed address,indexed address,uint256,uint256)
+          handler: handleBought
+        - event: Sold(indexed address,indexed address,uint256,uint256)
+          handler: handleSold
+        - event: Graduated(indexed address,indexed address,uint256)
+          handler: handleGraduated
+        - event: RevenueInjected(indexed address,uint256)
+          handler: handleRevenueInjected
+        - event: WrapperDeployed(indexed address,indexed address,string,string)
+          handler: handleWrapperDeployed
+        - event: Redeemed(indexed address,indexed address,uint256)
+          handler: handleRedeemed
+      file: ./src/launchpad.ts
