@@ -66,6 +66,15 @@ export default function CreatePage() {
     setLaunchLogoFile(file);
   };
 
+  // Auto-populate image from Story Protocol when IP is selected
+  useEffect(() => {
+    if (selectedIPAsset?.imageUrl) {
+      setLaunchImageUrl(selectedIPAsset.imageUrl);
+      // Clear manual upload when auto-populating from Story Protocol
+      setLaunchLogoFile(null);
+    }
+  }, [selectedIP]);
+
   useEffect(() => {
     const fetchAssets = async () => {
       if (!isConnected || !walletAddress) return;
@@ -206,10 +215,18 @@ export default function CreatePage() {
 
       let metadataUri: string | null = null;
       try {
-        let imageUrl = launchImageUrl.trim();
+        // Use Story Protocol image as primary source, manual upload as override
+        let imageUrl = "";
         if (launchLogoFile) {
+          // Manual upload takes precedence
           const imageRes = await pinFileToIPFS(launchLogoFile, launchLogoFile.name);
           imageUrl = imageRes.gatewayUrl;
+        } else if (launchImageUrl.trim()) {
+          // Use Story Protocol image
+          imageUrl = launchImageUrl.trim();
+        } else if (ipAsset.imageUrl) {
+          // Fallback to IP asset image
+          imageUrl = ipAsset.imageUrl;
         }
 
         const metadata = {
@@ -425,17 +442,31 @@ export default function CreatePage() {
                       }`}
                       onClick={() => setSelectedIP(ipAsset.ipId)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
+                      <div className="flex items-start gap-3">
+                        {/* IP Image Preview */}
+                        {ipAsset.imageUrl && (
+                          <div className="flex-shrink-0">
+                            <img
+                              src={ipAsset.imageUrl}
+                              alt={ipAsset.name}
+                              className="w-16 h-16 rounded-lg object-cover border border-slate-500/30"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                              }}
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-2">
-                            <h3 className="font-semibold text-white">{ipAsset.name}</h3>
+                            <h3 className="font-semibold text-white truncate">{ipAsset.name}</h3>
                             {hasTokens && (
-                              <div className="px-2 py-1 bg-green-500/20 rounded-full border border-green-500/30">
+                              <div className="px-2 py-1 bg-green-500/20 rounded-full border border-green-500/30 flex-shrink-0">
                                 <span className="text-xs text-green-400">Ready</span>
                               </div>
                             )}
                           </div>
-                          <p className="text-sm text-slate-400 leading-relaxed">{ipAsset.description}</p>
+                          <p className="text-sm text-slate-400 leading-relaxed line-clamp-2">{ipAsset.description}</p>
                           <div className="mt-2 text-xs text-gray-500">
                             <p>IP ID: {ipAsset.ipId.slice(0, 10)}...</p>
                             <p>Royalty Vault: {ipAsset.royaltyVaultAddress.slice(0, 10)}...</p>
@@ -486,11 +517,34 @@ export default function CreatePage() {
             {selectedIPAsset ? (
               <div className="space-y-4">
                 <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                  <h3 className="font-medium text-blue-300 mb-2">Selected IP Asset</h3>
-                  <p className="text-sm text-blue-200">{selectedIPAsset.name}</p>
-                  <p className="text-xs text-blue-400 mt-1">
-                    Royalty Token: {selectedIPAsset.royaltyVaultAddress.slice(0, 10)}...
-                  </p>
+                  <h3 className="font-medium text-blue-300 mb-3">Selected IP Asset</h3>
+                  <div className="flex items-start gap-4">
+                    {/* IP Image Preview */}
+                    {selectedIPAsset.imageUrl && (
+                      <div className="flex-shrink-0">
+                        <img
+                          src={selectedIPAsset.imageUrl}
+                          alt={selectedIPAsset.name}
+                          className="w-24 h-24 rounded-lg object-cover border-2 border-blue-500/30"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = "none";
+                          }}
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-blue-200 font-medium mb-1">{selectedIPAsset.name}</p>
+                      <p className="text-xs text-blue-400">
+                        Royalty Token: {selectedIPAsset.royaltyVaultAddress.slice(0, 10)}...
+                      </p>
+                      {selectedIPAsset.imageUrl && (
+                        <p className="text-xs text-blue-300/70 mt-2">
+                          ✓ Image loaded from Story Protocol
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
@@ -534,9 +588,37 @@ export default function CreatePage() {
                     </div>
                   </div>
 
+                  {/* Image Preview Section */}
+                  {selectedIPAsset.imageUrl && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-300">Token Logo Preview</Label>
+                      <div className="relative">
+                        <img
+                          src={launchImageUrl || selectedIPAsset.imageUrl}
+                          alt="Token logo preview"
+                          className="w-full h-32 rounded-lg object-cover border border-slate-500/30 bg-slate-900/40"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = selectedIPAsset.imageUrl || "/placeholder-ip.png";
+                          }}
+                        />
+                        {launchLogoFile && (
+                          <div className="absolute top-2 right-2 px-2 py-1 bg-blue-500/90 rounded text-xs text-white">
+                            Custom Upload
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Using image from Story Protocol. You can override with a custom image below if needed.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                     <div className="space-y-1">
-                      <Label className="text-xs text-slate-300">Token Logo (file)</Label>
+                      <Label className="text-xs text-slate-300">
+                        Custom Logo (optional override)
+                      </Label>
                       <div
                         onDragOver={(e) => {
                           e.preventDefault();
@@ -549,11 +631,13 @@ export default function CreatePage() {
                           }
                         }}
                         onClick={() => logoInputRef.current?.click()}
-                        className="h-20 border border-dashed border-slate-500/60 rounded-md px-3 py-2 text-[11px] text-slate-300 flex items-center cursor-pointer bg-slate-900/40"
+                        className="h-20 border border-dashed border-slate-500/60 rounded-md px-3 py-2 text-[11px] text-slate-300 flex items-center cursor-pointer bg-slate-900/40 hover:border-slate-400/60 transition-colors"
                       >
                         <span className="truncate">
                           {launchLogoFile
                             ? launchLogoFile.name
+                            : selectedIPAsset.imageUrl
+                            ? "Click to override with custom image"
                             : "Drag & drop image here, or click to browse"}
                         </span>
                       </div>
@@ -566,6 +650,19 @@ export default function CreatePage() {
                           handleLogoFileChange(e.target.files?.[0] || null)
                         }
                       />
+                      {launchLogoFile && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs text-slate-400 hover:text-slate-200"
+                          onClick={() => {
+                            setLaunchLogoFile(null);
+                            setLaunchImageUrl(selectedIPAsset?.imageUrl || "");
+                          }}
+                        >
+                          Reset to Story Protocol image
+                        </Button>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-slate-300">Token Description (optional)</Label>
@@ -650,6 +747,11 @@ export default function CreatePage() {
                   </Button>
 
                   <div className="mt-4 space-y-2 text-xs text-slate-300">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 font-medium">1.</span>
+                      <CheckCircle className="h-3 w-3 text-emerald-400" />
+                      <span>IP Asset Registered (from Story Protocol)</span>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400 font-medium">2.</span>
                       {needsUnlock ? (

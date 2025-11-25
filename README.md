@@ -239,7 +239,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - Cards showing: IP Image, Ticker, Market Cap, & Bonding Curve Progress.
   - Search/Filter by Name or Category.
 
-- [ ] **New "Create" Page (The Launcher)**
+- [x] **New "Create" Page (The Launcher)**
   - **Native Story Integration:** Fetch and preview IP Media directly from Story Protocol metadata (No manual upload).
   - **Fractional Slider:** UI to select "Percentage of IP to List" (1% - 100%).
   - **Transaction Flow:** Register IP -> Mint License -> Approve -> Launch.
