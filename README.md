@@ -165,8 +165,7 @@ If you also deploy contracts from scripts, you may keep `SOVRY_LAUNCHPAD_ADDRESS
 From project root:
 
 ```bash
-cd frontend
-npm install
+npm install:all
 npm run dev
 
 # Frontend: http://localhost:3000
