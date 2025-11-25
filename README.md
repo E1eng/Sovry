@@ -49,8 +49,8 @@ Key on-chain behaviours:
   - Frontend passes `amountToLock = balance * percentage / 100`
 
 - **Bonding Curve**
-  - `buy(token)` – pays native IP, takes 1% fee to `feeTo`, rest into curve
-  - `sell(token, tokenAmount)` – returns IP minus 1% fee
+  - `buy(token)` – pays native IP, takes 0.5% fee to `feeTo`, rest into curve
+  - `sell(token, tokenAmount)` – returns IP minus 0.5% fee
   - Curve math uses constant product formula with a **virtual IP reserve**
 
 - **Harvest & Pump**
