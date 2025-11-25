@@ -1,6 +1,6 @@
-# Sovry Launchpad – IP-Backed Token Engine
+# Sovry
 
-Sovry Launchpad is a **Pump.fun–style bonding-curve launchpad** for Story Protocol IP assets.
+Sovry is a **Pump.fun–style bonding-curve** for Story Protocol IP assets.
 
 Creators lock a portion of their **Story Protocol Royalty Tokens (RT)** into the Launchpad, which deploys a branded ERC‑20 **wrapper token** and sells it on a bonding curve. When the raise target is hit, the wrapper graduates to a **PiperX V2** pool. Royalties earned by the underlying IP can be **harvested** and injected back into the curve to **boost price**.
 
