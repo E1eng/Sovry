@@ -1,28 +1,44 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as LightweightCharts from "lightweight-charts";
+import { Button } from "@/components/ui/button";
+import type { TimeRange } from "@/services/chartDataService";
 
-interface BondingCurvePoint {
-  time: number; // Unix timestamp (seconds) or business-day index
+interface ChartDataPoint {
+  time: number;
   value: number;
+  volume?: number;
 }
 
 interface BondingCurveChartProps {
-  data: BondingCurvePoint[];
+  priceData: ChartDataPoint[];
+  volumeData?: ChartDataPoint[];
+  timeRange?: TimeRange;
+  onTimeRangeChange?: (range: TimeRange) => void;
+  height?: number;
 }
 
+const TIME_RANGES: TimeRange[] = ["1H", "24H", "7D", "30D", "ALL"];
+
 /**
- * Lightweight bonding curve chart for pump.fun-style UX.
- * - Dark transparent background
- * - Green area series
- * - No grid lines
- * - Auto-resizes with parent width
+ * Enhanced bonding curve chart with dual display (price + volume).
+ * - Price chart: Area series showing token price over time
+ * - Volume chart: Histogram showing trading volume
+ * - Time range selector
+ * - Real-time updates
  */
-const BondingCurveChart = ({ data }: BondingCurveChartProps) => {
+const BondingCurveChart = ({
+  priceData,
+  volumeData = [],
+  timeRange = "7D",
+  onTimeRangeChange,
+  height = 400,
+}: BondingCurveChartProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<any>(null);
-  const seriesRef = useRef<any>(null);
+  const priceSeriesRef = useRef<any>(null);
+  const volumeSeriesRef = useRef<any>(null);
 
   // Initialize chart once
   useEffect(() => {
@@ -41,7 +57,21 @@ const BondingCurveChart = ({ data }: BondingCurveChartProps) => {
       },
       rightPriceScale: {
         borderVisible: false,
+        scaleMargins: {
+          top: 0.1,
+          bottom: volumeData.length > 0 ? 0.4 : 0.1,
+        },
       },
+      leftPriceScale: volumeData.length > 0
+        ? {
+            visible: true,
+            borderVisible: false,
+            scaleMargins: {
+              top: 0.6,
+              bottom: 0.1,
+            },
+          }
+        : undefined,
       timeScale: {
         borderVisible: false,
         secondsVisible: true,
@@ -57,29 +87,42 @@ const BondingCurveChart = ({ data }: BondingCurveChartProps) => {
 
     const anyChart: any = chart;
 
-    if (typeof anyChart.addAreaSeries !== "function") {
-      console.error("BondingCurveChart: addAreaSeries is not available on chart instance", anyChart);
-      chartRef.current = anyChart;
-      return;
+    // Add price series (area chart)
+    if (typeof anyChart.addAreaSeries === "function") {
+      const priceSeries = anyChart.addAreaSeries({
+        lineColor: "#22c55e", // green-500
+        topColor: "rgba(34, 197, 94, 0.35)",
+        bottomColor: "rgba(34, 197, 94, 0.0)",
+        lineWidth: 2,
+        priceScaleId: "right",
+      });
+      priceSeriesRef.current = priceSeries;
     }
 
-    const areaSeries = anyChart.addAreaSeries({
-      lineColor: "#22c55e", // green-500
-      topColor: "rgba(34, 197, 94, 0.35)",
-      bottomColor: "rgba(34, 197, 94, 0.0)",
-      lineWidth: 2,
-    });
+    // Add volume series (histogram) if volume data exists
+    if (volumeData.length > 0 && typeof anyChart.addHistogramSeries === "function") {
+      const volumeSeries = anyChart.addHistogramSeries({
+        color: "#3b82f6", // blue-500
+        priceFormat: {
+          type: "volume",
+        },
+        priceScaleId: "left",
+        scaleMargins: {
+          top: 0.6,
+          bottom: 0,
+        },
+      });
+      volumeSeriesRef.current = volumeSeries;
+    }
 
     chartRef.current = anyChart;
-    seriesRef.current = areaSeries;
 
     // Initial resize to container size
     const resize = () => {
       if (!containerRef.current || !chartRef.current) return;
-      const { width, height } = containerRef.current.getBoundingClientRect();
+      const { width } = containerRef.current.getBoundingClientRect();
       const safeWidth = Math.max(Math.floor(width), 0);
-      const safeHeight = Math.max(Math.floor(height || 200), 100);
-      chartRef.current.resize(safeWidth, safeHeight);
+      chartRef.current.resize(safeWidth, height);
     };
 
     resize();
@@ -94,33 +137,67 @@ const BondingCurveChart = ({ data }: BondingCurveChartProps) => {
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
-      seriesRef.current = null;
+      priceSeriesRef.current = null;
+      volumeSeriesRef.current = null;
     };
-  }, []);
+  }, [height, volumeData.length]);
 
-  // Update data when props change
+  // Update price data when props change
   useEffect(() => {
-    if (!seriesRef.current) return;
+    if (!priceSeriesRef.current) return;
 
-    const mapped = data.map((point) => ({
-      time: point.time as any, // let lightweight-charts handle the numeric time
+    const mapped = priceData.map((point) => ({
+      time: point.time as any,
       value: point.value,
     }));
 
-    seriesRef.current.setData(mapped);
+    priceSeriesRef.current.setData(mapped);
 
-    // Optionally auto-fit time scale to data
+    // Auto-fit time scale to data
     if (chartRef.current && mapped.length > 0) {
       chartRef.current.timeScale().fitContent();
     }
-  }, [data]);
+  }, [priceData]);
+
+  // Update volume data when props change
+  useEffect(() => {
+    if (!volumeSeriesRef.current || volumeData.length === 0) return;
+
+    const mapped = volumeData.map((point) => ({
+      time: point.time as any,
+      value: point.volume || point.value,
+      color: point.value > 0 ? "rgba(59, 130, 246, 0.5)" : "rgba(239, 68, 68, 0.5)",
+    }));
+
+    volumeSeriesRef.current.setData(mapped);
+  }, [volumeData]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-48 sm:h-56 md:h-64 rounded-xl overflow-hidden"
-      style={{ backgroundColor: "transparent" }}
-    />
+    <div className="space-y-2">
+      {/* Time Range Selector */}
+      {onTimeRangeChange && (
+        <div className="flex gap-2 justify-end">
+          {TIME_RANGES.map((range) => (
+            <Button
+              key={range}
+              variant={timeRange === range ? "default" : "outline"}
+              size="sm"
+              onClick={() => onTimeRangeChange(range)}
+              className="h-7 text-xs px-2"
+            >
+              {range}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Chart Container */}
+      <div
+        ref={containerRef}
+        className="w-full rounded-xl overflow-hidden"
+        style={{ height: `${height}px`, backgroundColor: "transparent" }}
+      />
+    </div>
   );
 };
 

@@ -244,7 +244,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - **Fractional Slider:** UI to select "Percentage of IP to List" (1% - 100%).
   - **Transaction Flow:** Register IP -> Mint License -> Approve -> Launch.
 
-- [ ] **New "Token Detail" Page (The Terminal)**
+- [x] **New "Token Detail" Page (The Terminal)**
   - **Left Column:** Real-time TradingView Chart (Lightweight Charts) + IP Metadata/License Terms.
   - **Right Column:** Buy/Sell Interface (Bonding Curve) + Slippage Settings.
   - **Bottom Section:** Tabs for "Holder Distribution", "Transaction History", and "Comments".

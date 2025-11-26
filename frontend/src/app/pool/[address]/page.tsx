@@ -6,10 +6,14 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 
 import { useParams } from "next/navigation";
 import { Navigation } from "@/components/navigation/Navigation";
-import SwapInterface from "@/components/swap/SwapInterface";
 import BondingCurveChart from "@/components/chart/BondingCurveChart";
+import BondingCurveTrading from "@/components/trading/BondingCurveTrading";
+import TransactionHistory from "@/components/trading/TransactionHistory";
+import HolderDistribution from "@/components/trading/HolderDistribution";
 import CommentSection from "@/components/social/CommentSection";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { launchpadService, type LaunchInfo } from "@/services/launchpadService";
+import { getChartData, type TimeRange } from "@/services/chartDataService";
 
 // Pool Detail Interface
 interface PoolDetail {
@@ -82,7 +86,9 @@ export default function PoolDetailPage() {
   const [launchInfo, setLaunchInfo] = useState<LaunchInfo | null>(null);
   const [bondingProgress, setBondingProgress] = useState(0);
   const [launchTokenAddress, setLaunchTokenAddress] = useState<string | null>(null);
-  const [curveData, setCurveData] = useState<{ time: number; value: number }[]>([]);
+  const [priceData, setPriceData] = useState<{ time: number; value: number }[]>([]);
+  const [volumeData, setVolumeData] = useState<{ time: number; value: number; volume?: number }[]>([]);
+  const [timeRange, setTimeRange] = useState<TimeRange>("7D");
   const [harvesting, setHarvesting] = useState(false);
   const [harvestError, setHarvestError] = useState<string | null>(null);
   const [harvestSuccess, setHarvestSuccess] = useState<string | null>(null);
@@ -216,104 +222,27 @@ export default function PoolDetailPage() {
     }
   };
 
-  // Bonding curve data from real trades on Launchpad (via subgraph) with mock fallback
+  // Load chart data using chartDataService
   useEffect(() => {
-    const loadCurveData = async () => {
+    const loadChartData = async () => {
       if (!launchTokenAddress || !isValidAddress(launchTokenAddress)) {
         return;
       }
 
       try {
-        const now = Math.floor(Date.now() / 1000);
-        const from = now - 24 * 60 * 60; // last 24h
-
-        const query = `
-          query TradesForToken($token: Bytes!, $from: BigInt!) {
-            trades(
-              where: { token: $token, timestamp_gte: $from }
-              orderBy: timestamp
-              orderDirection: asc
-            ) {
-              timestamp
-              amountIP
-              amountTokens
-            }
-          }
-        `;
-
-        const res = await fetch(SUBGRAPH_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query,
-            variables: {
-              token: launchTokenAddress.toLowerCase(),
-              from,
-            },
-          }),
-        });
-
-        if (!res.ok) {
-          throw new Error("Subgraph request failed");
-        }
-
-        const json = await res.json();
-        const trades = (json?.data?.trades || []) as Array<{
-          timestamp: string;
-          amountIP: string;
-          amountTokens: string;
-        }>;
-
-        if (!trades.length) {
-          throw new Error("No trades for token");
-        }
-
-        const points = trades
-          .map((t) => {
-            const ts = Number(t.timestamp || 0);
-            if (!ts) return null;
-
-            // Price in IP per token; both amounts are 18-decimal fixed-point
-            const ip = Number(t.amountIP || "0");
-            const tokens = Number(t.amountTokens || "0");
-            if (!tokens) return null;
-
-            const price = ip / tokens;
-            return {
-              time: ts,
-              value: price,
-            };
-          })
-          .filter((p): p is { time: number; value: number } => !!p);
-
-        if (points.length) {
-          setCurveData(points);
-          return;
-        }
-
-        throw new Error("No valid trade points");
+        const { priceData, volumeData } = await getChartData(launchTokenAddress, timeRange);
+        setPriceData(priceData);
+        setVolumeData(volumeData);
       } catch (e) {
-        console.warn("Falling back to mock bonding curve data", e);
-
-        // Fallback: old mock data (price increases over time)
-        const initial: { time: number; value: number }[] = [];
-        let price = 0.001;
-        const startTime = Math.floor(Date.now() / 1000) - 100 * 60; // 100 minutes ago
-
-        for (let i = 0; i < 100; i++) {
-          price = price * (1 + Math.random() * 0.05); // random upside drift
-          initial.push({
-            time: startTime + i * 60,
-            value: price,
-          });
-        }
-
-        setCurveData(initial);
+        console.warn("Error loading chart data:", e);
+        // Fallback to empty data
+        setPriceData([]);
+        setVolumeData([]);
       }
     };
 
-    loadCurveData();
-  }, [launchTokenAddress]);
+    loadChartData();
+  }, [launchTokenAddress, timeRange]);
 
   useEffect(() => {
     const loadLaunchpadInfo = async () => {
@@ -478,10 +407,17 @@ export default function PoolDetailPage() {
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)] gap-8">
-          {/* Left Column - Visuals & Social */}
+          {/* Left Column - Chart & Metadata (60-70%) */}
           <div className="space-y-6">
+            {/* Enhanced TradingView Chart */}
             <div className="rounded-xl border border-border/70 bg-card/80 p-4">
-              <BondingCurveChart data={curveData} />
+              <BondingCurveChart
+                priceData={priceData}
+                volumeData={volumeData}
+                timeRange={timeRange}
+                onTimeRangeChange={setTimeRange}
+                height={400}
+              />
             </div>
 
             <div className="rounded-xl border border-border/70 bg-card/80 p-6 space-y-6">
@@ -615,12 +551,31 @@ export default function PoolDetailPage() {
               )}
             </div>
 
-            <CommentSection tokenAddress={launchTokenAddress || pool.address} />
-
           </div>
 
-          {/* Right Column - Trading */}
+          {/* Right Column - Trading Interface (30-40%) */}
           <div className="space-y-6">
+            {/* Bonding Curve Buy/Sell Interface */}
+            {launchTokenAddress && (
+              <BondingCurveTrading
+                tokenAddress={launchTokenAddress}
+                launchInfo={launchInfo}
+                bondingProgress={bondingProgress}
+                onTradeComplete={() => {
+                  // Reload chart data after trade
+                  const reload = async () => {
+                    if (launchTokenAddress) {
+                      const { priceData, volumeData } = await getChartData(launchTokenAddress, timeRange);
+                      setPriceData(priceData);
+                      setVolumeData(volumeData);
+                    }
+                  };
+                  reload();
+                }}
+              />
+            )}
+
+            {/* Harvest Royalties */}
             {launchInfo && launchTokenAddress && (
               <div className="rounded-xl border border-border/70 bg-card/80 p-4 space-y-3">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -645,90 +600,30 @@ export default function PoolDetailPage() {
                 )}
               </div>
             )}
-
-            {launchInfo && (
-              <div className="rounded-xl border border-border/70 bg-card/80 p-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                  <span className="font-medium text-foreground">Bonding Curve Progress</span>
-                  <span>
-                    {(Number(launchInfo.totalRaised) / 1e18).toFixed(2)} IP / 100 IP
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-2 bg-primary"
-                    style={{ width: `${bondingProgress}%` }}
-                  />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>
-                    {bondingProgress >= 100
-                      ? "Graduated to DEX"
-                      : `~${Math.round(bondingProgress)}% to graduation`}
-                  </span>
-                  {launchTokenAddress && (
-                    <span className="font-mono">
-                      Token {launchTokenAddress.slice(0, 6)}…{launchTokenAddress.slice(-4)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Swap Interface */}
-            <div className="rounded-xl border border-border/70 bg-card/80 p-6">
-              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                💱 Trade {pool.token0.symbol} / {pool.token1.symbol}
-              </h2>
-              <SwapInterface
-                defaultFromToken={pool.token0.symbol}
-                defaultToToken={pool.token1.symbol}
-              />
-            </div>
-
-            {/* Pool Performance */}
-            <div className="rounded-xl border border-border/70 bg-card/80 p-6">
-              <h3 className="text-sm font-semibold text-foreground mb-4">
-                📈 Holder Distribution (mock)
-              </h3>
-              <div className="space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-foreground">0xCreator...1234</span>
-                  <span className="text-muted-foreground">45% supply</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-foreground">0xLPVault...9ab2</span>
-                  <span className="text-muted-foreground">30% supply</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-foreground">0xFans...88ff</span>
-                  <span className="text-muted-foreground">25% supply</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Investment Thesis */}
-            <div className="rounded-xl border border-border/70 bg-card/80 p-6">
-              <h3 className="text-sm font-semibold text-foreground mb-4">
-                💡 Investment Thesis
-              </h3>
-              <div className="space-y-3 text-xs text-muted-foreground">
-                <p>
-                  <strong>Revenue Potential:</strong> This IP asset generates royalties through commercial licensing with a {pool.ipAsset?.licenseTerms.commercialRevShare}% share rate.
-                </p>
-                <p>
-                  <strong>Market Demand:</strong> {pool.ipAsset?.metadata.attributes.find(a => a.trait_type === 'Genre')?.value} content shows strong trading volume with {(pool.stats.volume24h / 1000).toFixed(1)}K in 24h.
-                </p>
-                <p>
-                  <strong>Legal Protection:</strong> Full commercial rights and derivative permissions provide flexible monetization options.
-                </p>
-                <p>
-                  <strong>Yield Opportunity:</strong> Current APR of {pool.stats.apr}% includes both trading fees and potential royalty distributions.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
+
+        {/* Bottom Section - Tabs (Full Width) */}
+        {launchTokenAddress && (
+          <div className="mt-8">
+            <Tabs defaultValue="holders" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="holders">Holder Distribution</TabsTrigger>
+                <TabsTrigger value="history">Transaction History</TabsTrigger>
+                <TabsTrigger value="comments">Comments</TabsTrigger>
+              </TabsList>
+              <TabsContent value="holders" className="mt-4">
+                <HolderDistribution tokenAddress={launchTokenAddress} />
+              </TabsContent>
+              <TabsContent value="history" className="mt-4">
+                <TransactionHistory tokenAddress={launchTokenAddress} />
+              </TabsContent>
+              <TabsContent value="comments" className="mt-4">
+                <CommentSection tokenAddress={launchTokenAddress} />
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
       </div>
     </div>
   );
