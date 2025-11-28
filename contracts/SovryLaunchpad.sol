@@ -1088,8 +1088,23 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         // Required ETH = spotPrice * tokenLiquidity / WRAP_UNIT
         uint256 requiredETH = Math.mulDiv(spotPrice, tokenLiquidity, WRAP_UNIT);
 
-        // Ensure we have enough ETH (should always be true due to bonding curve math)
-        require(requiredETH <= nativeLiquidity, "Insufficient ETH for price alignment");
+        // AUTO-BALANCE FIX: Adjust tokenLiquidity if ETH insufficient
+        // Instead of reverting, we reduce token liquidity to match available ETH
+        // This maintains listing price while burning excess tokens (deflationary = good for holders)
+        if (requiredETH > nativeLiquidity) {
+            // Calculate adjusted token liquidity: (AvailableETH * WRAP_UNIT) / SpotPrice
+            uint256 newTokenLiquidity = Math.mulDiv(nativeLiquidity, WRAP_UNIT, spotPrice);
+            
+            // Calculate excess tokens that won't be paired with ETH
+            uint256 excessTokens = tokenLiquidity - newTokenLiquidity;
+            
+            // Burn excess tokens to maintain price and reduce supply (deflationary)
+            IERC20(wrapperToken).safeTransfer(BURN_ADDRESS, excessTokens);
+            
+            // Update variables for addLiquidity - now perfectly balanced
+            tokenLiquidity = newTokenLiquidity;
+            requiredETH = nativeLiquidity; // Use all available ETH
+        }
 
         // Calculate excess ETH (virtual liquidity profit)
         uint256 excessETH = nativeLiquidity - requiredETH;
