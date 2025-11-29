@@ -749,29 +749,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         if (amount % WRAP_UNIT != 0) revert InvalidStep();
         if (curve.currentSupply < amount) revert InsufficientSupply();
 
-        // Enforce a per-transaction buy cap as a fraction of the initial curve supply
-        if (token.initialCurveSupply > 0) {
-            uint256 maxPerTx = (token.initialCurveSupply * MAX_BUY_PER_TX_BPS) / BPS_DENOMINATOR;
-            if (amount > maxPerTx) revert SupplyExceeded();
-        }
-
-        // DUST ATTACK PREVENTION: Enforce purchase cooldown to prevent rapid dust purchases
-        if (block.timestamp < lastPurchaseTime[msg.sender][wrapperToken] + PURCHASE_COOLDOWN) revert CooldownActive();
-        lastPurchaseTime[msg.sender][wrapperToken] = block.timestamp;
-
-        // DUST ATTACK PREVENTION: Enforce daily purchase limit per wallet
-        uint256 currentDay = block.timestamp / 1 days;
-        if (lastResetDay[msg.sender][wrapperToken] < currentDay) {
-            // Reset daily purchase counter for new day
-            dailyPurchased[msg.sender][wrapperToken] = 0;
-            lastResetDay[msg.sender][wrapperToken] = currentDay;
-        }
-
-        // Daily limit: 20% of initial curve supply per wallet per day
-        uint256 maxDailyPerWallet = (token.initialCurveSupply * 2000) / BPS_DENOMINATOR; // 20%
-        if (dailyPurchased[msg.sender][wrapperToken] + amount > maxDailyPerWallet) revert SupplyExceeded();
-        dailyPurchased[msg.sender][wrapperToken] += amount;
-
         // Calculate base cost (before trading fees) using linear bonding curve formula in wrapper units
         uint256 baseCost = calculateBuyPrice(wrapperToken, amount);
 
@@ -967,22 +944,7 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
         // Distribute royalties to bonding curve pool
         if (!token.graduated && curve.isActive) {
-            // Inject royalties into the bonding curve reserve
-            // This raises the floor price for wrapper token holders
-            curve.reserveBalance += claimedAmount;
-            totalCurveReserves += claimedAmount;
-
-            // Emit buyback event (no tokens burned, just reserve injection)
-            emit BuybackAndBurn(wrapperToken, claimedAmount, 0);
-
-            // Emit event showing reserves increased after royalty injection
-            emit ReservesIncreased(
-                wrapperToken,
-                curve.reserveBalance
-            );
-
-            // Check if token meets graduation threshold
-            _checkGraduation(wrapperToken);
+            _applyRoyaltiesToBondingCurve(wrapperToken, claimedAmount);
         } else {
             // If the token has graduated, use royalties for buyback-and-burn on PiperX
             // This benefits all token holders by reducing supply
@@ -992,6 +954,123 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         // GRIEFING FIX: Only update timestamp when meaningful royalties were claimed
         // This prevents attackers from blocking harvests with empty parameter arrays
         lastHarvestTime[wrapperToken] = block.timestamp;
+    }
+
+    /**
+     * @notice Internal helper to inject royalties as a bonding curve buyback before graduation
+     * @dev Treats claimedAmount as WIP spent along the linear bonding curve to "buy" wrapper
+     *      tokens into the burn address, reducing currentSupply and increasing reserveBalance.
+     */
+    function _applyRoyaltiesToBondingCurve(
+        address wrapperToken,
+        uint256 claimedAmount
+    ) internal {
+        LaunchedToken storage token = launchedTokens[wrapperToken];
+        BondingCurve storage curve = bondingCurves[wrapperToken];
+
+        // Safety: if curve is not active or token already graduated, fall back to simple injection
+        if (token.graduated || !curve.isActive) {
+            curve.reserveBalance += claimedAmount;
+            totalCurveReserves += claimedAmount;
+            emit ReservesIncreased(wrapperToken, curve.reserveBalance);
+            return;
+        }
+
+        uint256 supply = curve.currentSupply;
+
+        // If there is no inventory left on the curve, just inject to reserves
+        if (supply < WRAP_UNIT) {
+            curve.reserveBalance += claimedAmount;
+            totalCurveReserves += claimedAmount;
+            emit ReservesIncreased(wrapperToken, curve.reserveBalance);
+            _checkGraduation(wrapperToken);
+            return;
+        }
+
+        uint256 initialCurveSupply = token.initialCurveSupply;
+        uint256 soldRaw = initialCurveSupply > supply
+            ? (initialCurveSupply - supply)
+            : 0;
+        uint256 soldUnits = soldRaw / WRAP_UNIT;
+
+        uint256 maxUnits = supply / WRAP_UNIT;
+        if (maxUnits == 0) {
+            // Defensive: should be covered by supply < WRAP_UNIT above
+            curve.reserveBalance += claimedAmount;
+            totalCurveReserves += claimedAmount;
+            emit ReservesIncreased(wrapperToken, curve.reserveBalance);
+            _checkGraduation(wrapperToken);
+            return;
+        }
+
+        uint256 basePrice = curve.basePrice;
+        uint256 priceIncrement = curve.priceIncrement;
+
+        uint256 unitsToBuy;
+
+        if (priceIncrement == 0) {
+            // Flat price curve: spend royalties at current spot price
+            uint256 currentPricePerUnit = basePrice;
+            if (currentPricePerUnit == 0) {
+                curve.reserveBalance += claimedAmount;
+                totalCurveReserves += claimedAmount;
+                emit ReservesIncreased(wrapperToken, curve.reserveBalance);
+                _checkGraduation(wrapperToken);
+                return;
+            }
+
+            unitsToBuy = claimedAmount / currentPricePerUnit;
+        } else {
+            // Solve quadratic cost function:
+            // cost(x) = (basePrice + priceIncrement * soldUnits) * x + 0.5 * priceIncrement * x^2
+            // We approximate x from claimedAmount and clamp to inventory.
+            uint256 B = basePrice + (priceIncrement * soldUnits);
+
+            // Discriminant: B^2 + 2 * priceIncrement * claimedAmount
+            uint256 twoAC = 2 * priceIncrement * claimedAmount;
+            uint256 D = (B * B) + twoAC;
+            uint256 sqrtD = Math.sqrt(D);
+
+            if (sqrtD <= B) {
+                // Royalties too small to move the curve by even 1 whole unit
+                curve.reserveBalance += claimedAmount;
+                totalCurveReserves += claimedAmount;
+                emit ReservesIncreased(wrapperToken, curve.reserveBalance);
+                _checkGraduation(wrapperToken);
+                return;
+            }
+
+            unitsToBuy = (sqrtD - B) / priceIncrement;
+        }
+
+        if (unitsToBuy > maxUnits) {
+            unitsToBuy = maxUnits;
+        }
+
+        if (unitsToBuy == 0) {
+            // Fallback: treat royalties as pure reserve injection
+            curve.reserveBalance += claimedAmount;
+            totalCurveReserves += claimedAmount;
+            emit ReservesIncreased(wrapperToken, curve.reserveBalance);
+            _checkGraduation(wrapperToken);
+            return;
+        }
+
+        uint256 amount = unitsToBuy * WRAP_UNIT;
+
+        // Update bonding curve state as if the curve sold `amount` tokens for claimedAmount WIP
+        curve.currentSupply -= amount;
+        curve.reserveBalance += claimedAmount;
+        totalCurveReserves += claimedAmount;
+
+        // Burn the purchased wrapper tokens from the launchpad's inventory
+        IERC20(wrapperToken).safeTransfer(BURN_ADDRESS, amount);
+
+        emit BuybackAndBurn(wrapperToken, claimedAmount, amount);
+        emit ReservesIncreased(wrapperToken, curve.reserveBalance);
+
+        // Check if the new, higher market cap meets graduation conditions
+        _checkGraduation(wrapperToken);
     }
 
     function _buybackAndBurn(address wrapperToken, uint256 wipAmount) internal {

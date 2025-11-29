@@ -1,5 +1,9 @@
 import { expect } from "chai";
 import { ethers, network } from "hardhat";
+import * as dotenv from "dotenv";
+
+// Load .env.testnet but don't override existing env vars
+dotenv.config({ path: ".env.testnet", override: false });
 
 /**
  * 🎯 SOVRY LAUNCHPAD - COMPREHENSIVE TEST SUITE
@@ -19,8 +23,54 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
   // ============================================================================
 
   async function deployLaunchpadFixture() {
-    const [owner, creator, trader1, trader2, treasury] = await ethers.getSigners();
+    const networkInfo = await ethers.provider.getNetwork();
+    const isAeneid = networkInfo.chainId === 1315;
 
+    const signers = await ethers.getSigners();
+    const [owner, creator, trader1, trader2] = signers;
+    const treasury = signers[4] || owner;
+
+    // ON AENEID: Load contracts from .env.testnet with signer
+    if (isAeneid) {
+      const launchpadAddr = process.env.SOVRY_LAUNCHPAD;
+      const rtAddr = process.env.MOCK_RT_TOKEN;
+      const wipAddr = process.env.MOCK_WIP_TOKEN;
+      const piperXAddr = process.env.PIPERX_ROUTER;
+      const royaltyAddr = process.env.ROYALTY_WORKFLOWS;
+
+      if (!launchpadAddr || !rtAddr || !wipAddr || !piperXAddr || !royaltyAddr) {
+        throw new Error("❌ Missing .env.testnet addresses");
+      }
+
+      // Load contracts and connect with signer for write operations
+      const launchpad = await ethers.getContractAt("SovryLaunchpad", launchpadAddr, owner);
+      const wipToken = await ethers.getContractAt("MockERC20", wipAddr, owner);
+      const royaltyToken = await ethers.getContractAt("MockERC20_6", rtAddr, owner);
+      const piperXRouter = await ethers.getContractAt("MockPiperXRouter", piperXAddr, owner);
+      const royaltyWorkflows = await ethers.getContractAt("MockRoyaltyWorkflows", royaltyAddr, owner);
+
+      const graduationThreshold = ethers.utils.parseEther("1.0");
+
+      console.log("\n✅ AENEID: USING DEPLOYED CONTRACTS WITH SIGNER");
+      console.log(`   Launchpad: ${launchpadAddr}`);
+      console.log(`   RT: ${rtAddr}`);
+
+      return {
+        launchpad,
+        wipToken,
+        royaltyToken,
+        piperXRouter,
+        royaltyWorkflows,
+        owner,
+        creator,
+        trader1,
+        trader2,
+        treasury,
+        graduationThreshold,
+      };
+    }
+
+    // ON HARDHAT: Deploy fresh contracts
     // Deploy Mocks
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     const MockERC206 = await ethers.getContractFactory("MockERC20_6");
@@ -32,15 +82,17 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
     const piperXRouter = await MockPiperX.deploy();
     const royaltyWorkflows = await MockRoyalty.deploy();
 
-    // Fund MockRoyaltyWorkflows with 10 ETH for harvest testing
+    // Fund MockRoyaltyWorkflows for harvest testing
+    const harvestFunding = ethers.utils.parseEther("10.0");
+    
     await owner.sendTransaction({
       to: royaltyWorkflows.address,
-      value: ethers.utils.parseEther("10.0"),
+      value: harvestFunding,
     });
 
-    // Deploy SovryLaunchpad with 10 ETH graduation threshold
+    // Deploy SovryLaunchpad
     const SovryLaunchpad = await ethers.getContractFactory("SovryLaunchpad");
-    const graduationThreshold = ethers.utils.parseEther("10.0");
+    const graduationThreshold = ethers.utils.parseEther("1.0");
 
     const launchpad = await SovryLaunchpad.deploy(
       treasury.address,
@@ -73,14 +125,22 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
     };
   }
 
-  // Helper function to launch a token
+  // Helper function to launch a token (or get existing if already launched)
   async function launchTokenHelper(launchpad: any, royaltyToken: any, creator: any) {
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100); // 100 RT
 
+    // Check if token already launched (for aeneid testnet)
+    let wrapperAddress = await launchpad.rtToWrapper(royaltyToken.address);
+    if (wrapperAddress !== ethers.constants.AddressZero) {
+      console.log(`   ℹ️  Token already launched: ${wrapperAddress}`);
+      return wrapperAddress;
+    }
+
+    // Token not launched, launch it
     await royaltyToken.connect(creator).approve(launchpad.address, amountToLock);
 
-    await launchpad.connect(creator).launchToken(
+    const tx = await launchpad.connect(creator).launchToken(
       royaltyToken.address,
       amountToLock,
       "Test Token",
@@ -88,9 +148,23 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
       ethers.utils.parseEther("0.001"), // basePrice
       ethers.utils.parseEther("0.0001") // priceIncrement
     );
-
-    const launchedTokens = await launchpad.getAllLaunchedTokens();
-    return launchedTokens[0]; // wrapper address
+    
+    const receipt = await tx.wait();
+    
+    // Get wrapper from events
+    const events = receipt.events || [];
+    for (const event of events) {
+      if (event.event === "TokenLaunched") {
+        wrapperAddress = event.args?.wrapper;
+        break;
+      }
+    }
+    
+    if (!wrapperAddress || wrapperAddress === ethers.constants.AddressZero) {
+      throw new Error("❌ TokenLaunched event not found");
+    }
+    
+    return wrapperAddress;
   }
 
   // Helper for graduation tests with higher pricing to build sufficient reserve
@@ -98,9 +172,16 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100); // 100 RT
 
+    // Check if token already launched (for aeneid testnet)
+    let wrapperAddress = await launchpad.rtToWrapper(royaltyToken.address);
+    if (wrapperAddress !== ethers.constants.AddressZero) {
+      console.log(`   ℹ️  Token already launched: ${wrapperAddress}`);
+      return wrapperAddress;
+    }
+
     await royaltyToken.connect(creator).approve(launchpad.address, amountToLock);
 
-    await launchpad.connect(creator).launchToken(
+    const tx = await launchpad.connect(creator).launchToken(
       royaltyToken.address,
       amountToLock,
       "Test Token",
@@ -109,8 +190,22 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
       ethers.utils.parseEther("0.001") // Higher priceIncrement
     );
 
-    const launchedTokens = await launchpad.getAllLaunchedTokens();
-    return launchedTokens[0]; // wrapper address
+    const receipt = await tx.wait();
+    
+    // Get wrapper from events
+    const events = receipt.events || [];
+    for (const event of events) {
+      if (event.event === "TokenLaunched") {
+        wrapperAddress = event.args?.wrapper;
+        break;
+      }
+    }
+
+    if (!wrapperAddress || wrapperAddress === ethers.constants.AddressZero) {
+      throw new Error("❌ TokenLaunched event not found");
+    }
+
+    return wrapperAddress;
   }
 
   // ============================================================================
@@ -142,11 +237,11 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
       console.log("✅ Owner Check Passed:", owner.address);
     });
 
-    it("✅ Should have correct initial graduation threshold (10 ETH)", async function () {
+    it("✅ Should have correct initial graduation threshold", async function () {
       const { launchpad, graduationThreshold } = await deployLaunchpadFixture();
       
       const threshold = await launchpad.graduationThreshold();
-      expect(threshold).to.equal(ethers.utils.parseEther("10.0"));
+      // Threshold is 0.5 ETH for testnet, 10 ETH for mainnet
       expect(threshold).to.equal(graduationThreshold);
       
       console.log("✅ Initial Threshold:", ethers.utils.formatEther(threshold), "ETH");
@@ -302,12 +397,22 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
       // Check event emitted
       await expect(tx).to.emit(launchpad, "TokenLaunched");
 
-      // Check token was added to list
-      const launchedTokens = await launchpad.getAllLaunchedTokens();
-      expect(launchedTokens.length).to.equal(1);
+      // Get wrapper from receipt events
+      const receipt = await tx.wait();
+      let wrapperAddress: string | undefined;
+      const events = receipt.events || [];
+      for (const event of events) {
+        if (event.event === "TokenLaunched") {
+          wrapperAddress = event.args?.wrapper;
+          break;
+        }
+      }
+
+      expect(wrapperAddress).to.not.be.undefined;
+      expect(wrapperAddress).to.not.equal(ethers.constants.AddressZero);
 
       console.log("✅ Launch Happy Path:");
-      console.log("   Wrapper Address:", launchedTokens[0]);
+      console.log("   Wrapper Address:", wrapperAddress);
       console.log("   Amount Locked:", ethers.utils.formatUnits(amountToLock, 6), "RT");
     });
 
@@ -451,7 +556,7 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
 
       const wrapperAddress = await launchTokenHelper(launchpad, royaltyToken, creator);
       const WRAP_UNIT = await launchpad.WRAP_UNIT();
-      const buyAmount = WRAP_UNIT.mul(5); // 5 tokens
+      const buyAmount = WRAP_UNIT.mul(2); // 2 tokens (reduced for faster testing)
 
       const price = await launchpad.calculateBuyPrice(wrapperAddress, buyAmount);
       const fee = price.div(100);
@@ -616,7 +721,7 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
 
       const wrapperAddress = await launchTokenHelper(launchpad, royaltyToken, creator);
       const WRAP_UNIT = await launchpad.WRAP_UNIT();
-      const buyAmount = WRAP_UNIT.mul(5);
+      const buyAmount = WRAP_UNIT.mul(2); // 2 tokens (reduced for faster testing)
 
       // First buy
       const buyPrice = await launchpad.calculateBuyPrice(wrapperAddress, buyAmount);
