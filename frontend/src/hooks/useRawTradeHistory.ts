@@ -101,6 +101,17 @@ function processTrades(rawTrades: RawTrade[]): Trade[] {
 
     // amount is in wrapper smallest units (6 decimals). Convert to 18-dec for formatting.
     const tokenWei = tokenRaw * (10n ** 12n)
+    const ipFloat = parseFloat(formatEther(ipRaw))
+    const tokenFloat = parseFloat(formatEther(tokenWei))
+
+    const formatFloat = (value: number): string => {
+      if (!isFinite(value) || value === 0) return "0"
+      const abs = Math.abs(value)
+      if (abs >= 1) return value.toFixed(4).replace(/\.0+$/, "").replace(/\.$/, "")
+      if (abs >= 0.0001) return value.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
+      if (abs >= 0.00000001) return value.toFixed(8).replace(/0+$/, "").replace(/\.$/, "")
+      return "<0.00000001"
+    }
 
     return {
       timestamp,
@@ -109,8 +120,8 @@ function processTrades(rawTrades: RawTrade[]): Trade[] {
       tokenAmount: tokenRaw.toString(),
       trader,
       txHash: trade.txHash || "",
-      formattedIP: parseFloat(formatEther(ipRaw)).toFixed(4),
-      formattedTokens: parseFloat(formatEther(tokenWei)).toFixed(4),
+      formattedIP: formatFloat(ipFloat),
+      formattedTokens: formatFloat(tokenFloat),
     }
   })
 }

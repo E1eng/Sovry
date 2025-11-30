@@ -13,11 +13,12 @@ import Link from "next/link"
 
 export interface TransactionHistoryProps {
   tokenAddress: string
+  tokenSymbol?: string
   limit?: number
   className?: string
 }
 
-const BLOCK_EXPLORER_URL = "https://storyscan.xyz/tx/"
+const BLOCK_EXPLORER_URL = "https://aeneid/storyscan.io/tx/"
 
 /**
  * Format timestamp to relative time
@@ -49,6 +50,7 @@ function truncateAddress(address: string): string {
 
 export function TransactionHistory({
   tokenAddress,
+  tokenSymbol,
   limit = 20,
   className,
 }: TransactionHistoryProps) {
@@ -116,6 +118,7 @@ export function TransactionHistory({
 
   const displayedTrades = trades.slice(0, displayLimit)
   const hasMore = displayLimit < trades.length
+  const symbolLabel = tokenSymbol || "tokens"
 
   if (isLoading && trades.length === 0) {
     return (
@@ -182,8 +185,8 @@ export function TransactionHistory({
       <CardHeader>
         <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="max-h-[600px] overflow-y-auto">
+      <CardContent className={cn("overflow-hidden", className)}>
+        <div className="max-h-[600px] overflow-y-auto no-scrollbar">
           <div className="divide-y divide-zinc-800">
             {displayedTrades.map((trade, index) => (
               <div
@@ -235,7 +238,7 @@ export function TransactionHistory({
 
                     {/* Amount */}
                     <p className="text-sm text-zinc-50 mb-1">
-                      {trade.formattedTokens} tokens for {trade.formattedIP} IP
+                      {trade.formattedTokens} {symbolLabel} for {trade.formattedIP} IP
                     </p>
 
                     {/* Timestamp and Explorer Link */}

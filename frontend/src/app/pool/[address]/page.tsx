@@ -237,103 +237,36 @@ export default function TokenDetailPage() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen px-4 md:px-6 py-8 sm:py-12">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Breadcrumbs */}
-        <Breadcrumb items={breadcrumbItems} />
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Breadcrumbs */}
+          <Breadcrumb items={breadcrumbItems} />
 
-        {/* Token Header - Full Width */}
-        <div
-          style={{
-            animation: "fadeIn 0.5s ease-out 0ms both",
-          }}
-        >
-          <TokenHeader details={details} />
-        </div>
-
-        {/* Mobile Layout: Stack vertically with custom order */}
-        <div className="flex flex-col lg:hidden space-y-6">
-          {/* Swap Interface - First on mobile */}
+          {/* Token Header - Full Width */}
           <div
             style={{
-              animation: "fadeIn 0.5s ease-out 100ms both",
+              animation: "fadeIn 0.5s ease-out 0ms both",
             }}
           >
-            <SwapInterface
-              tokenAddress={address}
-              tokenSymbol={ticker}
-              isGraduated={launchInfo?.graduated || false}
-              piperXPoolAddress={graduationData?.liquidityPoolAddress}
-            />
+            <TokenHeader details={details} />
           </div>
 
-          {/* Progress to Graduation - Second on mobile */}
-          {launchInfo && launchInfo.totalRaised && (
-            <div
-              style={{
-                animation: "fadeIn 0.5s ease-out 200ms both",
-              }}
-            >
-              <Card>
-                <CardContent className="p-4 sm:p-6">
-                  <ProgressToGraduation
-                    totalRaised={launchInfo.totalRaised}
-                    tokenTicker={ticker}
-                    tokenName={tokenName}
-                    tokenAddress={address}
-                    isGraduated={launchInfo.graduated}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Trading Chart - Third on mobile */}
-          <div
-            style={{
-              animation: "fadeIn 0.5s ease-out 300ms both",
-            }}
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle>Price Chart</CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <TradingChart tokenAddress={address} height={300} />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Activity Feed - Last on mobile */}
-          <div
-            style={{
-              animation: "fadeIn 0.5s ease-out 400ms both",
-            }}
-          >
-            <TransactionHistory tokenAddress={address} limit={20} />
-          </div>
-        </div>
-
-        {/* Desktop Layout: Two-Column Grid */}
-        <div className="hidden lg:grid grid-cols-[60%_40%] gap-6">
-          {/* Left Column: TradingChart, then ProgressToGraduation */}
-          <div className="space-y-6">
-            {/* Trading Chart */}
+          {/* Mobile Layout: Stack vertically with custom order */}
+          <div className="flex flex-col lg:hidden space-y-6">
+            {/* Swap Interface - First on mobile */}
             <div
               style={{
                 animation: "fadeIn 0.5s ease-out 100ms both",
               }}
             >
-              <Card>
-                <CardHeader>
-                  <CardTitle>Price Chart</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <TradingChart tokenAddress={address} height={500} />
-                </CardContent>
-              </Card>
+              <SwapInterface
+                tokenAddress={address}
+                tokenSymbol={ticker}
+                isGraduated={launchInfo?.graduated || false}
+                piperXPoolAddress={graduationData?.liquidityPoolAddress}
+              />
             </div>
 
-            {/* Progress to Graduation */}
+            {/* Progress to Graduation - Second on mobile */}
             {launchInfo && launchInfo.totalRaised && (
               <div
                 style={{
@@ -341,7 +274,7 @@ export default function TokenDetailPage() {
                 }}
               >
                 <Card>
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-6">
                     <ProgressToGraduation
                       totalRaised={launchInfo.totalRaised}
                       tokenTicker={ticker}
@@ -353,46 +286,113 @@ export default function TokenDetailPage() {
                 </Card>
               </div>
             )}
-          </div>
 
-          {/* Right Column: SwapInterface, then Activity Feed */}
-          <div className="space-y-6">
-            {/* Swap Interface */}
+            {/* Trading Chart - Third on mobile */}
             <div
               style={{
-                animation: "fadeIn 0.5s ease-out 150ms both",
+                animation: "fadeIn 0.5s ease-out 300ms both",
               }}
             >
-              <SwapInterface
-                tokenAddress={address}
-                tokenSymbol={ticker}
-                isGraduated={launchInfo?.graduated || false}
-                piperXPoolAddress={graduationData?.liquidityPoolAddress}
-              />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Price Chart</CardTitle>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <TradingChart tokenAddress={address} height={300} />
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Activity Feed */}
+            {/* Activity Feed - Last on mobile */}
             <div
               style={{
-                animation: "fadeIn 0.5s ease-out 250ms both",
+                animation: "fadeIn 0.5s ease-out 400ms both",
               }}
             >
-              <TransactionHistory tokenAddress={address} limit={20} />
+              <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
             </div>
           </div>
+
+          {/* Desktop Layout: Two-Column Grid */}
+          <div className="hidden lg:grid grid-cols-[60%_40%] gap-6">
+            {/* Left Column: TradingChart, then ProgressToGraduation */}
+            <div className="space-y-6">
+              {/* Trading Chart */}
+              <div
+                style={{
+                  animation: "fadeIn 0.5s ease-out 100ms both",
+                }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Price Chart</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <TradingChart tokenAddress={address} height={500} />
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Progress to Graduation */}
+              {launchInfo && launchInfo.totalRaised && (
+                <div
+                  style={{
+                    animation: "fadeIn 0.5s ease-out 200ms both",
+                  }}
+                >
+                  <Card>
+                    <CardContent className="p-6">
+                      <ProgressToGraduation
+                        totalRaised={launchInfo.totalRaised}
+                        tokenTicker={ticker}
+                        tokenName={tokenName}
+                        tokenAddress={address}
+                        isGraduated={launchInfo.graduated}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: SwapInterface, then Activity Feed */}
+            <div className="space-y-6">
+              {/* Swap Interface */}
+              <div
+                style={{
+                  animation: "fadeIn 0.5s ease-out 150ms both",
+                }}
+              >
+                <SwapInterface
+                  tokenAddress={address}
+                  tokenSymbol={ticker}
+                  isGraduated={launchInfo?.graduated || false}
+                  piperXPoolAddress={graduationData?.liquidityPoolAddress}
+                />
+              </div>
+
+              {/* Activity Feed */}
+              <div
+                style={{
+                  animation: "fadeIn 0.5s ease-out 250ms both",
+                }}
+              >
+                <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
+              </div>
+            </div>
+          </div>
+
+          {/* Graduation Modal */}
+          {details && (
+            <GraduationModal
+              open={showGraduationModal}
+              onOpenChange={setShowGraduationModal}
+              tokenTicker={details.symbol || "TOKEN"}
+              tokenName={details.name || "Token"}
+              tokenAddress={graduationData?.liquidityPoolAddress || address}
+            />
+          )}
         </div>
-          </div>
-
-      {/* Graduation Modal */}
-      {details && (
-        <GraduationModal
-          open={showGraduationModal}
-          onOpenChange={setShowGraduationModal}
-          tokenTicker={details.symbol || "TOKEN"}
-          tokenName={details.name || "Token"}
-          tokenAddress={graduationData?.liquidityPoolAddress || address}
-        />
-        )}
       </div>
     </ErrorBoundary>
   )

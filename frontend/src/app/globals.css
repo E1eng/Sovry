@@ -103,6 +103,11 @@
   }
   body {
     @apply bg-zinc-950 text-foreground;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  body::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
   }
 }
 
@@ -173,5 +178,15 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* Hide scrollbar but keep scroll behavior (used in dark panels like Recent Activity) */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
   }
 }

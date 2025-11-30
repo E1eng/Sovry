@@ -17,7 +17,7 @@ import { useLaunchDetails } from "@/hooks/useLaunchDetails"
 import {
   estimateBuyAmountForIp,
   calculateRealPriceImpact,
-  calculateSellAmount,
+  calculateBondingCurveSellProceeds,
   WRAP_UNIT,
 } from "@/lib/bondingCurve"
 import { SlippageSettings } from "@/components/token/SlippageSettings"
@@ -75,12 +75,15 @@ function SwapInterfaceComponent({
   const [tokenBalance, setTokenBalance] = useState<string | null>(null)
   const [isApproved, setIsApproved] = useState(false)
   const [isApproving, setIsApproving] = useState(false)
-  const [approvalStep, setApprovalStep] = useState<"approve" | "sell" | null>(null)
   const [balanceError, setBalanceError] = useState<string | null>(null)
   const [slippageError, setSlippageError] = useState<string | null>(null)
   const [estimatedGasCost, setEstimatedGasCost] = useState<string | null>(null)
   const [isEstimatingGas, setIsEstimatingGas] = useState(false)
   const [curveParams, setCurveParams] = useState<any | null>(null)
+
+  // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
+  const FEE_BPS = 100n
+  const BPS_DENOMINATOR = 10_000n
 
   // Get wallet connection
   const { primaryWallet } = useDynamicContext()
@@ -164,6 +167,7 @@ function SwapInterfaceComponent({
           const rate = parseFloat(outputFormatted) / parseFloat(amount)
           setExchangeRate(`1 IP = ${rate.toFixed(6)} ${toToken}`)
         } else {
+          // SELL: convert 18-dec UI amount to 6-dec wrapper units
           const tokenWeiIn = amountBigInt
           const wrapperAmount = tokenWeiIn / (10n ** 12n)
           if (wrapperAmount <= 0n) {
@@ -172,14 +176,28 @@ function SwapInterfaceComponent({
             setExchangeRate("")
             return
           }
-          // For sell estimation, approximate IP out as equal to input scaled by curve slope using current price
-          // We reuse calculatePriceImpact for relative movement and keep absolute IP estimate simple
-          const ipOutWei = amountBigInt
+
+          const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
+          if (baseProceeds <= 0n) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          // Apply 1% trading fee to get net proceeds, mirroring SovryLaunchpad.sell
+          const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
+          const netProceeds = baseProceeds - fee
+
           const slippagePercent = parseFloat(slippage) || 0.5
-          const minIpOut = parseFloat(formatEther(ipOutWei)) * (1 - slippagePercent / 100)
-          setToAmount(minIpOut.toFixed(6))
+          const slippageBps = BigInt(Math.floor(slippagePercent * 100))
+          const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+
+          const minIpOutFloat = parseFloat(formatEther(minProceeds))
+          setToAmount(minIpOutFloat.toFixed(6))
+
           impact = calculateRealPriceImpact(curveParams, wrapperAmount, false)
-          const rate = parseFloat(formatEther(ipOutWei)) / parseFloat(amount)
+          const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
           setExchangeRate(`1 ${fromToken} = ${rate.toFixed(6)} IP`)
         }
         setPriceImpact(impact)
@@ -242,12 +260,11 @@ function SwapInterfaceComponent({
     }
   }, [fromAmount, activeTab, calculateOutput, tokenAddress, currentSupply])
 
-  // Handle tab change
+  // Handle tab change - direction is always IP -> TOKEN for buy, TOKEN -> IP for sell
   const handleTabChange = (value: string) => {
     const newTab = value as "buy" | "sell"
     setActiveTab(newTab)
 
-    // Swap tokens when tab changes
     if (newTab === "buy") {
       setFromToken("IP")
       setToToken("TOKEN")
@@ -265,17 +282,10 @@ function SwapInterfaceComponent({
     setSlippageError(null)
   }
 
-  // Handle swap button click (flip tokens)
+  // Handle swap button click: simply toggle between buy and sell directions
   const handleSwapTokens = () => {
-    const tempFrom = fromToken
-    const tempTo = toToken
-    const tempFromAmount = fromAmount
-    const tempToAmount = toAmount
-
-    setFromToken(tempTo)
-    setToToken(tempFrom)
-    setFromAmount(tempToAmount)
-    setToAmount(tempFromAmount)
+    const nextTab = activeTab === "buy" ? "sell" : "buy"
+    handleTabChange(nextTab)
   }
 
   // Create public client for balance checks (memoized)
@@ -530,80 +540,8 @@ function SwapInterfaceComponent({
         return
       }
 
-      // Check if approval is needed
-      if (!isApproved) {
-        // Handle approval first
-        await handleApprove()
-        return
-      }
-
-      // Proceed with sell
+      // Proceed with sell using launchpadService.sell (which manages approvals internally)
       await handleSell()
-    }
-  }
-
-  // Handle token approval
-  const handleApprove = async () => {
-    if (!tokenAddress || !primaryWallet || !fromAmount) return
-
-    setIsApproving(true)
-    setApprovalStep("approve")
-
-    // Track approval initiation
-    trackEvent("approval_initiated", { tokenAddress })
-
-    try {
-      const walletClient = await primaryWallet.getWalletClient()
-      if (!walletClient) {
-        throw new Error("No wallet client available")
-      }
-
-      const amountWei = parseEther(fromAmount)
-
-      const approveData = encodeFunctionData({
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`, amountWei],
-      })
-
-      const txHash = await walletClient.sendTransaction({
-        to: tokenAddress as `0x${string}`,
-        data: approveData,
-      })
-
-      trackApproval(tokenAddress, true)
-      toast.success("Approval successful!", {
-        description: `Transaction: ${txHash.slice(0, 10)}...`,
-        duration: 3000,
-      })
-
-      // Wait a bit for the transaction to be mined, then check approval again
-      setTimeout(async () => {
-        try {
-          const allowance = await publicClient.readContract({
-            address: tokenAddress as `0x${string}`,
-            abi: erc20Abi,
-            functionName: "allowance",
-            args: [primaryWallet.address as `0x${string}`, SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`],
-          }) as bigint
-
-          const sellAmountWei = parseEther(fromAmount)
-          setIsApproved(allowance >= sellAmountWei)
-        } catch (error) {
-          console.error("Error checking approval after transaction:", error)
-        }
-      }, 2000)
-    } catch (error) {
-      const parsedError = parseTransactionError(error)
-      logError(error, "SwapInterface.approve")
-      trackApproval(tokenAddress, false, parsedError.message)
-      toast.error(parsedError.userFriendlyMessage, {
-        description: parsedError.suggestion || parsedError.message,
-        duration: 5000,
-      })
-    } finally {
-      setIsApproving(false)
-      setApprovalStep(null)
     }
   }
 
@@ -612,7 +550,6 @@ function SwapInterfaceComponent({
     if (!tokenAddress || !primaryWallet || !fromAmount) return
 
     setIsTrading(true)
-    setApprovalStep("sell")
     setTradeSuccess(false)
 
     const slippagePercent = parseFloat(slippage) || 1
@@ -626,16 +563,45 @@ function SwapInterfaceComponent({
     })
 
     try {
-      // Calculate minIpOut with slippage (heuristic 1:1 TOKEN:IP for now)
-      const ipAmountBigInt = parseEther(fromAmount)
-      const actualIpOut = calculateSellAmount(ipAmountBigInt, currentSupply)
-      const actualIpOutFormatted = parseFloat(formatEther(actualIpOut))
-      const minIpOut = actualIpOutFormatted * (1 - slippagePercent / 100)
+      if (!curveParams) {
+        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
+          duration: 3000,
+        })
+        return
+      }
+
+      // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell
+      const tokenWeiIn = parseEther(fromAmount)
+      const wrapperAmount = tokenWeiIn / (10n ** 12n)
+      if (wrapperAmount <= 0n) {
+        toast.error("Amount too small for current bonding curve", {
+          duration: 3000,
+        })
+        return
+      }
+
+      const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
+      if (baseProceeds <= 0n) {
+        toast.error("Amount too small for current bonding curve", {
+          duration: 3000,
+        })
+        return
+      }
+
+      // Apply 1% trading fee: netProceeds = baseProceeds - fee
+      const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
+      const netProceeds = baseProceeds - fee
+
+      // Apply slippage in BigInt basis points
+      const slippageBps = BigInt(Math.floor(slippagePercent * 100))
+      const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+
+      const minIpOutStr = formatEther(minProceeds)
 
       const result = await launchpadService.sell(
         tokenAddress,
         fromAmount,
-        minIpOut.toFixed(18),
+        minIpOutStr,
         primaryWallet
       )
 
@@ -854,13 +820,7 @@ function SwapInterfaceComponent({
             />
             <Select
               value={fromToken}
-              onValueChange={(value) => {
-                setFromToken(value as "IP" | "TOKEN")
-                // Swap tokens if needed
-                if (value === toToken) {
-                  setToToken(fromToken)
-                }
-              }}
+              disabled
             >
               <SelectTrigger className="w-full sm:w-24">
                 <SelectValue />
@@ -877,7 +837,7 @@ function SwapInterfaceComponent({
               Balance: {fromToken === "IP" 
                 ? (userBalance ? parseFloat(userBalance).toFixed(4) : "0.0000")
                 : (tokenBalance ? parseFloat(tokenBalance).toFixed(4) : "0.0000")
-              } {fromToken}
+              } {fromToken === "IP" ? "IP" : tokenSymbol}
             </span>
             <Button
               type="button"
@@ -936,13 +896,7 @@ function SwapInterfaceComponent({
             </div>
             <Select
               value={toToken}
-              onValueChange={(value) => {
-                setToToken(value as "IP" | "TOKEN")
-                // Swap tokens if needed
-                if (value === fromToken) {
-                  setFromToken(toToken)
-                }
-              }}
+              disabled
             >
               <SelectTrigger className="w-full sm:w-24">
                 <SelectValue />
@@ -959,7 +913,7 @@ function SwapInterfaceComponent({
               Balance: {toToken === "IP" 
                 ? (userBalance ? parseFloat(userBalance).toFixed(4) : "0.0000")
                 : (tokenBalance ? parseFloat(tokenBalance).toFixed(4) : "0.0000")
-              } {toToken}
+              } {toToken === "IP" ? "IP" : tokenSymbol}
             </span>
           </div>
         </div>
@@ -1030,73 +984,41 @@ function SwapInterfaceComponent({
           </Alert>
         )}
 
-        {/* Place Trade / Approve Button */}
-        {activeTab === "sell" && !isApproved && fromAmount && parseFloat(fromAmount) > 0 ? (
-          <Button
-            onClick={handleApprove}
-            disabled={
-              !isConnected ||
-              isApproving ||
-              !tokenAddress ||
-              !fromAmount ||
-              parseFloat(fromAmount) <= 0
-            }
-            className="w-full h-12 sm:h-12 font-semibold bg-blue-500 hover:bg-blue-500/90 text-white disabled:opacity-50 touch-manipulation min-h-[44px]"
-          >
-            {isApproving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Step 1/2: Approving...
-              </>
-            ) : (
-              `Approve ${tokenSymbol}`
-            )}
-          </Button>
-        ) : (
-          <Button
-            onClick={handlePlaceTrade}
-            disabled={
-              !fromAmount ||
-              parseFloat(fromAmount) <= 0 ||
-              !isConnected ||
-              isTrading ||
-              isApproving ||
-              detailsLoading ||
-              !tokenAddress ||
-              (activeTab === "sell" && !isApproved) ||
-              !!balanceError
-            }
-            className={cn(
-              "w-full h-12 sm:h-12 font-semibold touch-manipulation min-h-[44px]",
-              activeTab === "buy"
-                ? "bg-green-500 hover:bg-green-500/90 text-white disabled:opacity-50"
-                : "bg-red-500 hover:bg-red-500/90 text-white disabled:opacity-50"
-            )}
-          >
-            {isTrading && approvalStep === "sell" ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Step 2/2: Selling...
-              </>
-            ) : isTrading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Confirming...
-              </>
-            ) : tradeSuccess ? (
-              <>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Trade Successful!
-              </>
-            ) : !isConnected ? (
-              "Connect Wallet"
-            ) : activeTab === "sell" && !isApproved ? (
-              "Approve First"
-            ) : (
-              "Place Trade"
-            )}
-          </Button>
-        )}
+        {/* Place Trade Button */}
+        <Button
+          onClick={handlePlaceTrade}
+          disabled={
+            !fromAmount ||
+            parseFloat(fromAmount) <= 0 ||
+            !isConnected ||
+            isTrading ||
+            detailsLoading ||
+            !tokenAddress ||
+            !!balanceError
+          }
+          className={cn(
+            "w-full h-12 sm:h-12 font-semibold touch-manipulation min-h-[44px]",
+            activeTab === "buy"
+              ? "bg-green-500 hover:bg-green-500/90 text-white disabled:opacity-50"
+              : "bg-red-500 hover:bg-red-500/90 text-white disabled:opacity-50"
+          )}
+        >
+          {isTrading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Confirming...
+            </>
+          ) : tradeSuccess ? (
+            <>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Trade Successful!
+            </>
+          ) : !isConnected ? (
+            "Connect Wallet"
+          ) : (
+            "Place Trade"
+          )}
+        </Button>
       </CardContent>
 
       {/* Slippage Settings Dialog */}

@@ -1,4 +1,5 @@
 import { createPublicClient, http, Address, encodeFunctionData, parseEther } from "viem";
+
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
 
@@ -10,6 +11,10 @@ import {
 } from "./storyProtocolService";
 
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
+
+// Large approval amount so that subsequent sells can skip additional approve
+// transactions as long as the required amount is below the remaining allowance.
+const MAX_UINT256 = (1n << 256n) - 1n;
 
 // Legacy ABI placeholder kept only for backwards compatibility with any old deployments.
 // The current SovryLaunchpad contract on Aeneid does NOT expose these shapes (no `launches` mapping,
@@ -63,7 +68,7 @@ export interface LaunchInfo {
   graduated: boolean;
 }
 
-const TARGET_RAISE_IP = parseEther("1");
+const TARGET_RAISE_IP = parseEther("0.8");
 const VIRTUAL_IP_RESERVE = parseEther("0.2");
 
 function getAmountOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): bigint {
@@ -362,17 +367,49 @@ export async function sell(
     if (amount <= 0n) {
       throw new Error("Sell amount too small");
     }
+    const ownerAddress = primaryWallet.address as Address | undefined;
+    if (!ownerAddress) {
+      throw new Error("No wallet address available");
+    }
 
-    const approveData = encodeFunctionData({
-      abi: erc20Abi,
-      functionName: "approve",
-      args: [SOVRY_LAUNCHPAD_ADDRESS as Address, amount],
-    });
+    let approveTxHash: string | undefined;
 
-    const approveTxHash = await walletClient.sendTransaction({
-      to: tokenAddress as Address,
-      data: approveData,
-    });
+    // Check current allowance; only send approve if needed. This avoids
+    // redundant approve transactions when the user has already granted
+    // sufficient allowance in a previous sell.
+    try {
+      const currentAllowance = await publicClient.readContract({
+        address: tokenAddress as Address,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [ownerAddress, SOVRY_LAUNCHPAD_ADDRESS as Address],
+      }) as bigint;
+
+      if (currentAllowance < amount) {
+        const approveData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [SOVRY_LAUNCHPAD_ADDRESS as Address, MAX_UINT256],
+        });
+
+        approveTxHash = await walletClient.sendTransaction({
+          to: tokenAddress as Address,
+          data: approveData,
+        });
+      }
+    } catch (allowanceError) {
+      console.error("Error checking allowance for sell; falling back to approve+sell:", allowanceError);
+      const approveData = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [SOVRY_LAUNCHPAD_ADDRESS as Address, MAX_UINT256],
+      });
+
+      approveTxHash = await walletClient.sendTransaction({
+        to: tokenAddress as Address,
+        data: approveData,
+      });
+    }
 
     const nowSec = Math.floor(Date.now() / 1000);
     const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
