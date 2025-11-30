@@ -109,8 +109,8 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /// @notice Creator premine allocation in basis points of total locked supply (500 = 5%)
     uint256 public constant CREATOR_PREMINE_BPS = 500;
 
-    /// @notice Minimum listing percentage (10%)
-    uint256 public constant MIN_LISTING_PERCENT = 10;
+    /// @notice Minimum listing percentage (50%)
+    uint256 public constant MIN_LISTING_PERCENT = 50;
 
     /// @notice Maximum listing percentage (100%)
     uint256 public constant MAX_LISTING_PERCENT = 100;
@@ -123,6 +123,9 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
     /// @notice RT unit in smallest units
     uint256 public constant RT_UNIT = 10 ** RT_DECIMALS;
+
+    /// @notice Minimum listing amount (10 RT)
+    uint256 public constant MIN_LISTING_AMOUNT = 10 * RT_UNIT;
 
     /// @notice Wrapper token decimals (SovryToken uses 6 decimals)
     uint8 public constant WRAPPER_DECIMALS = 6;
@@ -518,12 +521,12 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /**
      * @notice Launches a new token by locking RT and creating a wrapper token
      * @param rtAddress Address of the Royalty Token to lock
-     * @param amount Amount of RT to lock (must be 10-100% of user's balance)
+     * @param amount Amount of RT to lock (must be 10 RT or more)
      * @param name Name for the wrapper token
      * @param symbol Symbol for the wrapper token
      * @param basePrice Base price for the bonding curve (in wei)
      * @param priceIncrement Price increment per token unit (in wei)
-     * @dev Validates minimum 10% listing requirement
+     * @dev Validates minimum 10 RT listing requirement
      * @dev Locks RT in this contract (acts as vault)
      * @dev Mints wrapper tokens 1:1 with locked RT
      * @dev Initializes bonding curve
@@ -546,8 +549,8 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         IERC20 rt = IERC20(rtAddress);
         uint256 userBalance = rt.balanceOf(msg.sender);
 
-        // Validate minimum 10% listing requirement
-        if (amount < (userBalance * MIN_LISTING_PERCENT) / 100) revert MinListingRequired();
+        // Validate minimum fixed listing amount (10 RT)
+        if (amount < MIN_LISTING_AMOUNT) revert MinListingRequired();
         if (amount > userBalance) revert InsufficientBalance();
 
         // Transfer RT first
@@ -577,7 +580,7 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
      * @dev This variant uses the deposit tracking system to prevent fund theft
      * @dev Users must first call depositRT() to track their prefunded tokens
      * @dev Only the user who deposited can launch with those tokens
-     * @dev Preserves the 10% minimum listing requirement
+     * @dev Preserves the 10 RT minimum listing requirement
      * @dev Security properties (RT locked in vault, 75/20/5 split, anti-rug emergencyWithdraw)
      *      remain the same as in launchToken.
      */
@@ -602,12 +605,8 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         // Deduct from user's deposit balance
         userDeposits[msg.sender][rtAddress] -= amount;
 
-        // Reconstruct user's effective balance as current wallet + amount being used
-        uint256 userBalanceNow = rt.balanceOf(msg.sender);
-        uint256 effectiveBalance = userBalanceNow + amount;
-
-        // Enforce the same 10% minimum listing requirement as launchToken
-        if (amount < (effectiveBalance * MIN_LISTING_PERCENT) / 100) revert MinListingRequired();
+        // Enforce the same fixed minimum listing amount as launchToken
+        if (amount < MIN_LISTING_AMOUNT) revert MinListingRequired();
 
         // Use core helper for common logic
         address wrapperAddress = _launchCore(rtAddress, amount, name, symbol, basePrice, priceIncrement, msg.sender);
