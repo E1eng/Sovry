@@ -82,6 +82,7 @@ error ParamsTooLarge();
 error UnknownToken();
 error MinListingRequired();
 error CooldownActive();
+error IpIdAlreadySet();
 
 /**
  * @title SovryLaunchpad
@@ -227,6 +228,9 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
     /// @notice Mapping from wrapper token to RT address
     mapping(address => address) public wrapperToRt;
+
+    /// @notice Mapping from wrapper token address to Story IP Asset ID (ipId)
+    mapping(address => address) public wrapperIpId;
 
     /// @notice Mapping from user address to wrapper token to locked amount
     mapping(address => mapping(address => uint256)) public userLockedAmounts;
@@ -418,6 +422,11 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /// @param wrapperToken Address of the wrapper token
     /// @dev Indicates the token is now fully decentralized and trustless
     event OwnershipRenounced(address indexed wrapperToken);
+
+    /// @notice Event emitted when wrapper token ipId is set
+    /// @param wrapperToken Address of the wrapper token
+    /// @param ipId Address of the ipId
+    event WrapperIpIdSet(address indexed wrapperToken, address indexed ipId);
 
     /**
      * @notice Constructor initializes the launchpad
