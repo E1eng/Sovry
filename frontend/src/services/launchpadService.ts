@@ -1,5 +1,7 @@
 import { createPublicClient, http, Address, encodeFunctionData, parseEther } from "viem";
 import { erc20Abi } from "viem";
+import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
+
 import {
   SOVRY_LAUNCHPAD_ADDRESS,
   launchOnBondingCurveDynamic,
@@ -15,8 +17,10 @@ const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.s
 const launchpadAbi = [
   {
     inputs: [
-      { internalType: "address", name: "token", type: "address" },
-      { internalType: "uint256", name: "minTokensOut", type: "uint256" },
+      { internalType: "address", name: "wrapperToken", type: "address" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+      { internalType: "uint256", name: "maxEthCost", type: "uint256" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
     ],
     name: "buy",
     outputs: [],
@@ -25,9 +29,10 @@ const launchpadAbi = [
   },
   {
     inputs: [
-      { internalType: "address", name: "token", type: "address" },
-      { internalType: "uint256", name: "tokenAmount", type: "uint256" },
-      { internalType: "uint256", name: "minIpOut", type: "uint256" },
+      { internalType: "address", name: "wrapperToken", type: "address" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+      { internalType: "uint256", name: "minEthProceeds", type: "uint256" },
+      { internalType: "uint256", name: "deadline", type: "uint256" },
     ],
     name: "sell",
     outputs: [],
@@ -176,15 +181,14 @@ export async function getEstimatedTokensForIP(
   ipAmount: string
 ): Promise<string> {
   try {
+    // Heuristic: 1 IP -> 1 wrapper token, convert 18-decimal IP to 6-decimal tokens
     const ipAmountWei = parseEther(ipAmount || "0");
-    const out = (await publicClient.readContract({
-      address: SOVRY_LAUNCHPAD_ADDRESS as Address,
-      abi: launchpadAbi,
-      functionName: "getEstimatedTokensForIP",
-      args: [tokenAddress as Address, ipAmountWei],
-    })) as bigint;
-
-    const numeric = formatBigIntToFloat(out, 18);
+    if (ipAmountWei <= 0n) return "0";
+    const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
+    const tokenAmount = ipAmountWei / ONE_TOKEN_FACTOR;
+    if (tokenAmount <= 0n) return "0";
+    // Interpret as 6-decimal balance
+    const numeric = formatBigIntToFloat(tokenAmount, 6);
     return numeric.toString();
   } catch (error) {
     console.error("Error getting estimated tokens for IP:", error);
@@ -197,26 +201,11 @@ export async function estimateIPForTokens(
   tokenAmount: string
 ): Promise<string> {
   try {
-    const amountIn = parseEther(tokenAmount || "0");
-    if (amountIn === 0n) return "0";
-
-    const info = await getLaunchInfo(tokenAddress);
-    if (!info) return "0";
-
-    const curveSupply = (await publicClient.readContract({
-      address: SOVRY_LAUNCHPAD_ADDRESS as Address,
-      abi: launchpadAbi,
-      functionName: "curveSupplies",
-      args: [tokenAddress as Address],
-    })) as bigint;
-
-    const reserveIn = curveSupply > info.tokensSold ? curveSupply - info.tokensSold : 0n;
-    const reserveOut = info.totalRaised + VIRTUAL_IP_RESERVE;
-
-    if (reserveIn === 0n || reserveOut === 0n) return "0";
-
-    const ipOut = getAmountOut(amountIn, reserveIn, reserveOut);
-    const numeric = formatBigIntToFloat(ipOut, 18);
+    // Heuristic inverse: 1 wrapper token (6 decimals) -> 1 IP (18 decimals)
+    const tokenAmountWei = parseEther(tokenAmount || "0");
+    if (tokenAmountWei === 0n) return "0";
+    // Treat tokenAmountWei as IP wei directly for estimation
+    const numeric = formatBigIntToFloat(tokenAmountWei, 18);
     return numeric.toString();
   } catch (error) {
     console.error("Error estimating IP for tokens:", error);
@@ -276,12 +265,40 @@ export async function buy(
     }
 
     const value = parseEther(ipAmount || "0");
-    const minOutWei = parseEther(minTokensOut || "0");
+    if (value <= 0n) {
+      throw new Error("Amount must be greater than 0");
+    }
+
+    // Fetch real bonding curve parameters for accurate amount calculation
+    const curveParams = await getCurveParams(tokenAddress);
+    if (!curveParams) {
+      throw new Error("Bonding curve not available for this token");
+    }
+
+    // Use the same BigInt bonding-curve math as the UI to determine how many
+    // wrapper tokens can be bought with the provided IP amount. This avoids
+    // sending an 'amount' that is smaller than WRAP_UNIT or not a multiple of it,
+    // which would cause InvalidStep() reverts on-chain.
+    const { amount } = estimateBuyAmountForIp(curveParams, value);
+
+    // Enforce minimum trade size: at least 1 whole wrapper token (1 * WRAP_UNIT)
+    if (amount < WRAP_UNIT) {
+      throw new Error("Trade amount too small to buy at least 1 token");
+    }
+
+    // Extra safety: ensure we do not exceed the curve's current supply
+    if (curveParams.currentSupply < amount) {
+      throw new Error("Insufficient bonding curve supply");
+    }
+
+    // Use a generous deadline based on current wall-clock time
+    const nowSec = Math.floor(Date.now() / 1000);
+    const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
 
     const data = encodeFunctionData({
       abi: launchpadAbi,
       functionName: "buy",
-      args: [tokenAddress as Address, minOutWei],
+      args: [tokenAddress as Address, amount, value, deadline],
     });
 
     const txHash = await walletClient.sendTransaction({
@@ -289,6 +306,26 @@ export async function buy(
       data,
       value,
     });
+
+    // Wait for confirmation so we can distinguish between successful and
+    // reverted transactions and surface accurate status to the UI.
+    try {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      if (receipt.status !== "success") {
+        return {
+          success: false,
+          txHash,
+          error: "Transaction reverted on-chain",
+        };
+      }
+    } catch (waitError) {
+      console.error("Error waiting for buy transaction receipt:", waitError);
+      return {
+        success: false,
+        txHash,
+        error: "Failed to confirm transaction status",
+      };
+    }
 
     return { success: true, txHash };
   } catch (error) {
@@ -316,13 +353,20 @@ export async function sell(
       throw new Error("No wallet client available");
     }
 
-    const amountWei = parseEther(tokenAmount || "0");
+    const amountEthDecimals = parseEther(tokenAmount || "0");
     const minIpOutWei = parseEther(minIpOut || "0");
+
+    // Convert 18-decimal UI token amount to 6-decimal wrapper units
+    const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
+    let amount = amountEthDecimals / ONE_TOKEN_FACTOR;
+    if (amount <= 0n) {
+      throw new Error("Sell amount too small");
+    }
 
     const approveData = encodeFunctionData({
       abi: erc20Abi,
       functionName: "approve",
-      args: [SOVRY_LAUNCHPAD_ADDRESS as Address, amountWei],
+      args: [SOVRY_LAUNCHPAD_ADDRESS as Address, amount],
     });
 
     const approveTxHash = await walletClient.sendTransaction({
@@ -330,16 +374,41 @@ export async function sell(
       data: approveData,
     });
 
+    const nowSec = Math.floor(Date.now() / 1000);
+    const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
+
     const sellData = encodeFunctionData({
       abi: launchpadAbi,
       functionName: "sell",
-      args: [tokenAddress as Address, amountWei, minIpOutWei],
+      args: [tokenAddress as Address, amount, minIpOutWei, deadline],
     });
 
     const sellTxHash = await walletClient.sendTransaction({
       to: SOVRY_LAUNCHPAD_ADDRESS as Address,
       data: sellData,
     });
+
+    // Wait for confirmation to know if the transaction actually succeeded
+    // or was reverted on-chain.
+    try {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: sellTxHash });
+      if (receipt.status !== "success") {
+        return {
+          success: false,
+          approveTxHash,
+          sellTxHash,
+          error: "Transaction reverted on-chain",
+        };
+      }
+    } catch (waitError) {
+      console.error("Error waiting for sell transaction receipt:", waitError);
+      return {
+        success: false,
+        approveTxHash,
+        sellTxHash,
+        error: "Failed to confirm transaction status",
+      };
+    }
 
     return { success: true, approveTxHash, sellTxHash };
   } catch (error) {
@@ -430,6 +499,7 @@ const newLaunchpadAbi = [
           { internalType: "uint256", name: "totalRoyaltiesHarvested", type: "uint256" },
           { internalType: "address", name: "vaultAddress", type: "address" },
           { internalType: "uint256", name: "dexReserve", type: "uint256" },
+          { internalType: "uint256", name: "initialCurveSupply", type: "uint256" },
         ],
         internalType: "struct SovryLaunchpad.LaunchedToken",
         name: "",
@@ -498,6 +568,52 @@ export async function getMarketCap(
   }
 }
 
+export async function getCurveParams(tokenAddress: string): Promise<BondingCurveParams | null> {
+  try {
+    const version = await detectContractVersion(SOVRY_LAUNCHPAD_ADDRESS);
+    if (version !== "new") return null;
+
+    const [rawCurve, rawToken] = await Promise.all([
+      publicClient.readContract({
+        address: SOVRY_LAUNCHPAD_ADDRESS as Address,
+        abi: newLaunchpadAbi,
+        functionName: "getBondingCurve",
+        args: [tokenAddress as Address],
+      }) as Promise<any>,
+      publicClient.readContract({
+        address: SOVRY_LAUNCHPAD_ADDRESS as Address,
+        abi: newLaunchpadAbi,
+        functionName: "getTokenInfo",
+        args: [tokenAddress as Address],
+      }) as Promise<any>,
+    ]);
+
+    const curve = rawCurve as any;
+    const tokenInfo = rawToken as any;
+
+    if (!curve?.isActive) return null;
+
+    const basePrice = BigInt(curve.basePrice ?? 0);
+    const priceIncrement = BigInt(curve.priceIncrement ?? 0);
+    const currentSupply = BigInt(curve.currentSupply ?? 0);
+    const initialCurveSupply = BigInt(tokenInfo.initialCurveSupply ?? 0);
+
+    if (basePrice === 0n && priceIncrement === 0n) {
+      return null;
+    }
+
+    return {
+      basePrice,
+      priceIncrement,
+      currentSupply,
+      initialCurveSupply,
+    };
+  } catch (error) {
+    console.error("Error fetching bonding curve params:", error);
+    return null;
+  }
+}
+
 export const launchpadService = {
   getLaunchInfo,
   getBondingProgress,
@@ -511,6 +627,7 @@ export const launchpadService = {
   getRoyaltyLockInfo,
   detectContractVersion,
   getMarketCap,
+  getCurveParams,
 };
 
 export type { LaunchInfo, RoyaltyLockInfo };

@@ -437,17 +437,21 @@ export class Trade extends Entity {
     this.set("wrapper", Value.fromString(value));
   }
 
-  get user(): string {
+  get user(): string | null {
     let value = this.get("user");
     if (!value || value.kind == ValueKind.NULL) {
-      throw new Error("Cannot return null for a required field.");
+      return null;
     } else {
       return value.toString();
     }
   }
 
-  set user(value: string) {
-    this.set("user", Value.fromString(value));
+  set user(value: string | null) {
+    if (!value) {
+      this.unset("user");
+    } else {
+      this.set("user", Value.fromString(<string>value));
+    }
   }
 
   get type(): string {

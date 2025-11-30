@@ -41,7 +41,7 @@ enum TradeType {
 type Trade @entity {
   id: ID!
   wrapper: WrapperToken!
-  user: User!
+  user: User
   type: TradeType!
   amount: BigInt!            # wrapper units (smallest units)
   value: BigInt!             # base cost / proceeds

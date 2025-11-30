@@ -15,9 +15,10 @@ import toast from "react-hot-toast"
 import { cn } from "@/lib/utils"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
 import {
-  calculateBuyAmount,
+  estimateBuyAmountForIp,
+  calculateRealPriceImpact,
   calculateSellAmount,
-  calculatePriceImpact,
+  WRAP_UNIT,
 } from "@/lib/bondingCurve"
 import { SlippageSettings } from "@/components/token/SlippageSettings"
 import { launchpadService } from "@/services/launchpadService"
@@ -51,7 +52,7 @@ function SwapInterfaceComponent({
   const [fromToken, setFromToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "IP" : "TOKEN")
   const [toToken, setToToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "TOKEN" : "IP")
   const [showSlippageSettings, setShowSlippageSettings] = useState(false)
-  
+
   // Load slippage from localStorage, default to 1%
   const [slippage, setSlippage] = useState(() => {
     if (typeof window !== "undefined") {
@@ -79,6 +80,7 @@ function SwapInterfaceComponent({
   const [slippageError, setSlippageError] = useState<string | null>(null)
   const [estimatedGasCost, setEstimatedGasCost] = useState<string | null>(null)
   const [isEstimatingGas, setIsEstimatingGas] = useState(false)
+  const [curveParams, setCurveParams] = useState<any | null>(null)
 
   // Get wallet connection
   const { primaryWallet } = useDynamicContext()
@@ -95,16 +97,32 @@ function SwapInterfaceComponent({
     }
   }, [isConnected, primaryWallet?.address])
 
-  // Fetch launch details to get current supply
+  // Fetch launch details (for loading state and auxiliary info)
   const { details, loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
 
-  // Get current token supply from launchInfo
-  // For bonding curve calculations, we need the current supply in the curve
-  // Using tokensSold as current supply (tokens already sold = supply used)
-  // In production, you'd get the actual current supply from the bonding curve contract
-  const currentSupply = details?.launchInfo?.tokensSold
-    ? details.launchInfo.tokensSold
-    : 0n
+  const currentSupply = curveParams?.currentSupply ?? 1n
+
+  // Load real bonding curve parameters from the launchpad
+  useEffect(() => {
+    let cancelled = false
+    const loadCurve = async () => {
+      if (!tokenAddress) {
+        if (!cancelled) setCurveParams(null)
+        return
+      }
+      try {
+        const params = await launchpadService.getCurveParams(tokenAddress)
+        if (!cancelled) setCurveParams(params)
+      } catch (error) {
+        console.error("Error loading bonding curve params:", error)
+        if (!cancelled) setCurveParams(null)
+      }
+    }
+    loadCurve()
+    return () => {
+      cancelled = true
+    }
+  }, [tokenAddress])
 
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -116,9 +134,7 @@ function SwapInterfaceComponent({
         !amount ||
         parseFloat(amount) <= 0 ||
         !tokenAddress ||
-        detailsLoading ||
-        !details?.launchInfo ||
-        currentSupply === 0n
+        !curveParams
       ) {
         setToAmount("")
         setPriceImpact(null)
@@ -130,34 +146,43 @@ function SwapInterfaceComponent({
 
       try {
         const amountBigInt = parseEther(amount)
-
-        let outputBigInt: bigint
         let impact: number
-
         if (isBuy) {
-          // Buying: IP -> Tokens
-          outputBigInt = calculateBuyAmount(amountBigInt, currentSupply)
-          impact = calculatePriceImpact(amountBigInt, currentSupply, true)
+          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(curveParams, amountBigInt)
+          if (tokenAmount === 0n || totalCost === 0n) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+          const tokenWei = tokenAmount * (10n ** 12n)
+          const outputFormatted = formatEther(tokenWei)
+          const slippagePercent = parseFloat(slippage) || 0.5
+          const minOut = parseFloat(outputFormatted) * (1 - slippagePercent / 100)
+          setToAmount(minOut.toFixed(6))
+          impact = calculateRealPriceImpact(curveParams, tokenAmount, true)
+          const rate = parseFloat(outputFormatted) / parseFloat(amount)
+          setExchangeRate(`1 IP = ${rate.toFixed(6)} ${toToken}`)
         } else {
-          // Selling: Tokens -> IP
-          outputBigInt = calculateSellAmount(amountBigInt, currentSupply)
-          impact = calculatePriceImpact(amountBigInt, currentSupply, false)
+          const tokenWeiIn = amountBigInt
+          const wrapperAmount = tokenWeiIn / (10n ** 12n)
+          if (wrapperAmount <= 0n) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+          // For sell estimation, approximate IP out as equal to input scaled by curve slope using current price
+          // We reuse calculatePriceImpact for relative movement and keep absolute IP estimate simple
+          const ipOutWei = amountBigInt
+          const slippagePercent = parseFloat(slippage) || 0.5
+          const minIpOut = parseFloat(formatEther(ipOutWei)) * (1 - slippagePercent / 100)
+          setToAmount(minIpOut.toFixed(6))
+          impact = calculateRealPriceImpact(curveParams, wrapperAmount, false)
+          const rate = parseFloat(formatEther(ipOutWei)) / parseFloat(amount)
+          setExchangeRate(`1 ${fromToken} = ${rate.toFixed(6)} IP`)
         }
-
-        // Apply slippage buffer (0.5% default) for display
-        const slippagePercent = parseFloat(slippage) || 0.5
-        const slippageMultiplier = BigInt(Math.floor((100 - slippagePercent) * 100))
-        const outputWithSlippage = (outputBigInt * slippageMultiplier) / 10000n
-
-        // Format output (with slippage applied)
-        const outputFormatted = formatEther(outputWithSlippage)
-        setToAmount(parseFloat(outputFormatted).toFixed(6))
         setPriceImpact(impact)
-
-        // Calculate exchange rate using actual output (before slippage) for accurate rate
-        const actualOutputFormatted = formatEther(outputBigInt)
-        const rate = parseFloat(actualOutputFormatted) / parseFloat(amount)
-        setExchangeRate(`1 ${fromToken} = ${rate.toFixed(6)} ${toToken}`)
       } catch (error) {
         console.error("Error calculating output:", error)
         setToAmount("")
@@ -167,7 +192,7 @@ function SwapInterfaceComponent({
         setIsCalculating(false)
       }
     },
-    [tokenAddress, currentSupply, slippage, fromToken, detailsLoading, details]
+    [tokenAddress, currentSupply, slippage, fromToken, toToken, curveParams]
   )
 
   // Debounced calculation effect
@@ -181,7 +206,7 @@ function SwapInterfaceComponent({
     debounceTimerRef.current = setTimeout(() => {
       if (fromAmount) {
         calculateOutput(fromAmount, activeTab === "buy")
-        
+
         // Estimate gas cost
         if (tokenAddress && currentSupply > 0n) {
           setIsEstimatingGas(true)
@@ -221,7 +246,7 @@ function SwapInterfaceComponent({
   const handleTabChange = (value: string) => {
     const newTab = value as "buy" | "sell"
     setActiveTab(newTab)
-    
+
     // Swap tokens when tab changes
     if (newTab === "buy") {
       setFromToken("IP")
@@ -230,7 +255,7 @@ function SwapInterfaceComponent({
       setFromToken("TOKEN")
       setToToken("IP")
     }
-    
+
     // Clear amounts and errors
     setFromAmount("")
     setToAmount("")
@@ -296,14 +321,15 @@ function SwapInterfaceComponent({
   // Fetch user's token balance and check approval
   useEffect(() => {
     const fetchTokenBalanceAndApproval = async () => {
-      if (!primaryWallet?.address || !tokenAddress || activeTab !== "sell") {
+      if (!primaryWallet?.address || !tokenAddress) {
         setTokenBalance(null)
         setIsApproved(false)
         return
       }
 
       try {
-        // Fetch token balance
+        // Fetch token balance (wrapper uses 6 decimals). Convert to 18-decimal
+        // units for display to keep UI consistent with the buy/sell inputs.
         const balance = await publicClient.readContract({
           address: tokenAddress as `0x${string}`,
           abi: erc20Abi,
@@ -311,19 +337,21 @@ function SwapInterfaceComponent({
           args: [primaryWallet.address as `0x${string}`],
         }) as bigint
 
-        setTokenBalance(formatEther(balance))
+        const tokenWei = balance * (10n ** 12n)
+        setTokenBalance(formatEther(tokenWei))
 
-        // Check approval
-        const allowance = await publicClient.readContract({
+        // Check approval. Allowance is also in 6-decimal units, so normalise
+        // to 18-decimal before comparing with the 18-decimal sell amount.
+        const allowanceRaw = await publicClient.readContract({
           address: tokenAddress as `0x${string}`,
           abi: erc20Abi,
           functionName: "allowance",
           args: [primaryWallet.address as `0x${string}`, SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`],
         }) as bigint
 
-        // Check if allowance is sufficient for the current sell amount
-        const sellAmountWei = fromAmount ? parseEther(fromAmount) : 0n
-        setIsApproved(allowance >= sellAmountWei && sellAmountWei > 0n)
+        const allowanceWei = allowanceRaw * (10n ** 12n)
+        const sellAmountWei = fromAmount && fromToken === "TOKEN" ? parseEther(fromAmount) : 0n
+        setIsApproved(allowanceWei >= sellAmountWei && sellAmountWei > 0n)
       } catch (error) {
         console.error("Error fetching token balance/approval:", error)
         setTokenBalance(null)
@@ -332,7 +360,7 @@ function SwapInterfaceComponent({
     }
 
     fetchTokenBalanceAndApproval()
-  }, [primaryWallet?.address, tokenAddress, activeTab, fromAmount, publicClient])
+  }, [primaryWallet?.address, tokenAddress, fromAmount, fromToken, publicClient])
 
   // Handle place trade
   const handlePlaceTrade = async () => {
@@ -368,12 +396,24 @@ function SwapInterfaceComponent({
         return
       }
 
-      // Calculate minTokensOut with slippage
-      // Use the actual output (before slippage) for minTokensOut calculation
+      // Calculate minTokensOut with slippage using real bonding curve math
+      if (!curveParams) {
+        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
+          duration: 3000,
+        })
+        return
+      }
       const slippagePercent = parseFloat(slippage) || 1
       const ipAmountBigInt = parseEther(fromAmount)
-      const actualTokensOut = calculateBuyAmount(ipAmountBigInt, currentSupply)
-      const actualTokensOutFormatted = parseFloat(formatEther(actualTokensOut))
+      const { amount: tokenAmount } = estimateBuyAmountForIp(curveParams, ipAmountBigInt)
+      if (tokenAmount <= 0n) {
+        toast.error("Amount too small for current bonding curve", {
+          duration: 3000,
+        })
+        return
+      }
+      const tokenWei = tokenAmount * (10n ** 12n)
+      const actualTokensOutFormatted = parseFloat(formatEther(tokenWei))
       const minTokensOut = actualTokensOutFormatted * (1 - slippagePercent / 100)
 
       setIsTrading(true)
@@ -412,6 +452,15 @@ function SwapInterfaceComponent({
             }, 2000)
           }
 
+          // Trigger recent activity refresh for this token
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("refresh-trades", {
+                detail: { tokenAddress },
+              })
+            )
+          }
+
           // Reset form after 2 seconds
           setTimeout(() => {
             setFromAmount("")
@@ -425,7 +474,7 @@ function SwapInterfaceComponent({
           trackTrade("buy", tokenAddress, fromAmount, false, result.error)
           const parsedError = parseTransactionError(result.error || new Error("Unknown error"))
           logError(result.error || new Error("Unknown error"), "SwapInterface.buy")
-          
+
           if (isSlippageError(result.error)) {
             setSlippageError(parsedError.userFriendlyMessage)
             toast.error(parsedError.userFriendlyMessage, {
@@ -443,7 +492,7 @@ function SwapInterfaceComponent({
         const parsedError = parseTransactionError(error)
         logError(error, "SwapInterface.buy")
         trackTrade("buy", tokenAddress, fromAmount, false, parsedError.message)
-        
+
         if (isSlippageError(error)) {
           setSlippageError(parsedError.userFriendlyMessage)
           toast.error(parsedError.userFriendlyMessage, {
@@ -566,6 +615,8 @@ function SwapInterfaceComponent({
     setApprovalStep("sell")
     setTradeSuccess(false)
 
+    const slippagePercent = parseFloat(slippage) || 1
+
     // Track trade initiation
     trackEvent("trade_initiated", {
       type: "sell",
@@ -575,74 +626,72 @@ function SwapInterfaceComponent({
     })
 
     try {
-      // Calculate minIpOut with slippage
-      const slippagePercent = parseFloat(slippage) || 1
+      // Calculate minIpOut with slippage (heuristic 1:1 TOKEN:IP for now)
       const ipAmountBigInt = parseEther(fromAmount)
       const actualIpOut = calculateSellAmount(ipAmountBigInt, currentSupply)
       const actualIpOutFormatted = parseFloat(formatEther(actualIpOut))
       const minIpOut = actualIpOutFormatted * (1 - slippagePercent / 100)
 
-      // Create a sell function that only does the sell (not approval)
-      const walletClient = await primaryWallet.getWalletClient()
-      if (!walletClient) {
-        throw new Error("No wallet client available")
-      }
+      const result = await launchpadService.sell(
+        tokenAddress,
+        fromAmount,
+        minIpOut.toFixed(18),
+        primaryWallet
+      )
 
-      const tokenAmountWei = parseEther(fromAmount)
-      const minIpOutWei = parseEther(minIpOut.toFixed(18))
+      if (result.success) {
+        setTradeSuccess(true)
+        trackTrade("sell", tokenAddress, fromAmount, true)
+        toast.success("Trade Successful!", {
+          duration: 2000,
+          icon: "✅",
+        })
 
-      // Use the launchpad ABI for sell function
-      const launchpadAbi = [
-        {
-          inputs: [
-            { internalType: "address", name: "token", type: "address" },
-            { internalType: "uint256", name: "tokenAmount", type: "uint256" },
-            { internalType: "uint256", name: "minIpOut", type: "uint256" },
-          ],
-          name: "sell",
-          outputs: [],
-          stateMutability: "nonpayable",
-          type: "function",
-        },
-      ] as const
+        // Refresh balances after successful trade
+        if (primaryWallet?.address) {
+          setTimeout(() => {
+            const event = new CustomEvent("refresh-balances")
+            window.dispatchEvent(event)
+          }, 2000)
+        }
 
-      const sellData = encodeFunctionData({
-        abi: launchpadAbi,
-        functionName: "sell",
-        args: [tokenAddress as `0x${string}`, tokenAmountWei, minIpOutWei],
-      })
+        // Trigger recent activity refresh for this token
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("refresh-trades", {
+              detail: { tokenAddress },
+            })
+          )
+        }
 
-      const sellTxHash = await walletClient.sendTransaction({
-        to: SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`,
-        data: sellData,
-      })
-
-      setTradeSuccess(true)
-      trackTrade("sell", tokenAddress, fromAmount, true)
-      toast.success("Trade Successful!", {
-        description: `Transaction: ${sellTxHash.slice(0, 10)}...`,
-        duration: 2000,
-        icon: "✅",
-      })
-
-      // Refresh balances after successful trade
-      if (primaryWallet?.address) {
+        // Reset form after 2 seconds
         setTimeout(() => {
-          const event = new CustomEvent("refresh-balances")
-          window.dispatchEvent(event)
+          setFromAmount("")
+          setToAmount("")
+          setPriceImpact(null)
+          setExchangeRate("")
+          setTradeSuccess(false)
+          setIsApproved(false) // Reset approval status
+          setEstimatedGasCost(null)
         }, 2000)
-      }
+      } else {
+        trackTrade("sell", tokenAddress, fromAmount, false, result.error)
+        const parsedError = parseTransactionError(result.error || new Error("Unknown error"))
+        logError(result.error || new Error("Unknown error"), "SwapInterface.sell")
 
-      // Reset form after 2 seconds
-      setTimeout(() => {
-        setFromAmount("")
-        setToAmount("")
-        setPriceImpact(null)
-        setExchangeRate("")
-        setTradeSuccess(false)
-        setIsApproved(false) // Reset approval status
-        setEstimatedGasCost(null)
-      }, 2000)
+        if (isSlippageError(result.error)) {
+          setSlippageError(parsedError.userFriendlyMessage)
+          toast.error(parsedError.userFriendlyMessage, {
+            description: parsedError.suggestion,
+            duration: 5000,
+          })
+        } else {
+          toast.error(parsedError.userFriendlyMessage, {
+            description: parsedError.suggestion || parsedError.message,
+            duration: 5000,
+          })
+        }
+      }
     } catch (error) {
       const parsedError = parseTransactionError(error)
       logError(error, "SwapInterface.sell")

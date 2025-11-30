@@ -67,6 +67,27 @@ export function TransactionHistory({
     return () => clearInterval(interval)
   }, [refetch])
 
+  // Listen for explicit refresh events from trading UI (e.g., after a
+  // successful buy/sell) so Recent Activity updates quickly.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ tokenAddress?: string }>
+      if (!custom.detail || custom.detail.tokenAddress === tokenAddress) {
+        refetch()
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("refresh-trades", handler)
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("refresh-trades", handler)
+      }
+    }
+  }, [refetch, tokenAddress])
+
   // Infinite scroll setup
   useEffect(() => {
     if (!loadMoreRef.current || isLoading || displayLimit >= trades.length) return

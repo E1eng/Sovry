@@ -9,11 +9,14 @@ const SUBGRAPH_URL =
 
 export interface RawTrade {
   timestamp: string
-  isBuy: boolean
-  amountIP: string
-  amountTokens: string
-  trader: string
+  type: "BUY" | "SELL"
+  amount: string
+  value: string
+  fee: string
   txHash: string
+  user?: {
+    id?: string | null
+  } | null
 }
 
 export interface Trade {
@@ -32,19 +35,20 @@ export interface Trade {
  */
 async function fetchRawTrades(tokenAddress: string, limit: number = 100): Promise<RawTrade[]> {
   const query = `
-    query TradesForToken($token: Bytes!, $limit: Int!) {
+    query TradesForToken($token: String!, $limit: Int!) {
       trades(
-        where: { token: $token }
+        where: { wrapper: $token }
         orderBy: timestamp
         orderDirection: desc
         first: $limit
       ) {
         timestamp
-        isBuy
-        amountIP
-        amountTokens
-        trader
+        type
+        amount
+        value
+        fee
         txHash
+        user { id }
       }
     }
   `
@@ -67,8 +71,12 @@ async function fetchRawTrades(tokenAddress: string, limit: number = 100): Promis
 
   const json = await response.json()
 
+  // The subgraph may occasionally return partial data together with errors
+  // (for example, if older entities have missing relations). We log the
+  // errors for debugging but still try to use whatever data is available
+  // instead of failing the entire Recent Activity UI.
   if (json.errors && json.errors.length > 0) {
-    throw new Error(json.errors[0]?.message || "GraphQL error")
+    console.warn("Subgraph trade query returned errors", json.errors)
   }
 
   const trades = (json?.data?.trades || []) as RawTrade[]
@@ -81,18 +89,28 @@ async function fetchRawTrades(tokenAddress: string, limit: number = 100): Promis
 function processTrades(rawTrades: RawTrade[]): Trade[] {
   return rawTrades.map((trade) => {
     const timestamp = Number(trade.timestamp || 0)
-    const ipAmount = trade.amountIP || "0"
-    const tokenAmount = trade.amountTokens || "0"
+    const ipValue = trade.value || "0"
+    const fee = trade.fee || "0"
+    const amount = trade.amount || "0"
+
+    // Total IP paid/received = base value + fee
+    const ipRaw = BigInt(ipValue) + BigInt(fee)
+    const tokenRaw = BigInt(amount)
+    const isBuy = trade.type === "BUY"
+    const trader = trade.user?.id || ""
+
+    // amount is in wrapper smallest units (6 decimals). Convert to 18-dec for formatting.
+    const tokenWei = tokenRaw * (10n ** 12n)
 
     return {
       timestamp,
-      isBuy: trade.isBuy,
-      ipAmount,
-      tokenAmount,
-      trader: trade.trader || "",
+      isBuy,
+      ipAmount: ipRaw.toString(),
+      tokenAmount: tokenRaw.toString(),
+      trader,
       txHash: trade.txHash || "",
-      formattedIP: parseFloat(formatEther(BigInt(ipAmount))).toFixed(4),
-      formattedTokens: parseFloat(formatEther(BigInt(tokenAmount))).toFixed(4),
+      formattedIP: parseFloat(formatEther(ipRaw)).toFixed(4),
+      formattedTokens: parseFloat(formatEther(tokenWei)).toFixed(4),
     }
   })
 }
