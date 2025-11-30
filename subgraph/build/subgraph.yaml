@@ -2,38 +2,41 @@ specVersion: 0.0.5
 schema:
   file: schema.graphql
 dataSources:
-  - kind: ethereum/contract
+  - kind: ethereum
     name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0xABddc4817c287cCc6F1a170Fa3C364e9df2464E6"
+      address: "0x101fff014606aADb390289583b741F72DD097041"
       abi: SovryLaunchpad
-      startBlock: 11332680
+      startBlock: 11702591
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
       language: wasm/assemblyscript
       entities:
-        - Launch
+        - Launchpad
+        - WrapperToken
+        - User
         - Trade
-        - RevenueInjection
-        - Graduation
+        - Deposit
+        - Harvest
+        - GraduationEvent
       abis:
         - name: SovryLaunchpad
           file: SovryLaunchpad\abis\SovryLaunchpad.json
       eventHandlers:
-        - event: Launched(indexed address,indexed address)
-          handler: handleLaunched
-        - event: Bought(indexed address,indexed address,uint256,uint256)
-          handler: handleBought
-        - event: Sold(indexed address,indexed address,uint256,uint256)
-          handler: handleSold
-        - event: Graduated(indexed address,indexed address,uint256)
+        - event: TokenLaunched(indexed address,indexed address,indexed address,uint256,uint256)
+          handler: handleTokenLaunched
+        - event: TokensPurchased(indexed address,indexed address,uint256,uint256)
+          handler: handleTokensPurchased
+        - event: TokensSold(indexed address,indexed address,uint256,uint256)
+          handler: handleTokensSold
+        - event: RoyaltiesHarvested(indexed address,uint256)
+          handler: handleRoyaltiesHarvested
+        - event: Graduated(indexed address,uint256,indexed address)
           handler: handleGraduated
-        - event: RevenueInjected(indexed address,uint256)
-          handler: handleRevenueInjected
-        - event: WrapperDeployed(indexed address,indexed address,string,string)
-          handler: handleWrapperDeployed
-        - event: Redeemed(indexed address,indexed address,uint256)
-          handler: handleRedeemed
+        - event: RTDeposited(indexed address,indexed address,uint256)
+          handler: handleRTDeposited
+        - event: RTWithdrawn(indexed address,indexed address,uint256)
+          handler: handleRTWithdrawn
       file: SovryLaunchpad\SovryLaunchpad.wasm

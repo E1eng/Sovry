@@ -1,34 +1,77 @@
-type Launch @entity {
-  id: ID!              # wrapper token address
-  token: Bytes!
+type Launchpad @entity {
+  id: ID!
+  totalTokens: Int!
+  totalTrades: Int!
+  totalVolume: BigInt!
+  totalFees: BigInt!
+  wrappers: [WrapperToken!]! @derivedFrom(field: "launchpad")
+}
+
+type WrapperToken @entity {
+  id: ID!                    # wrapper address
+  launchpad: Launchpad!
+  rt: Bytes!
   creator: Bytes!
+  launchTime: BigInt!
+  totalLocked: BigInt!
+  graduated: Boolean!
+  dexReserve: BigInt!
+  initialCurveSupply: BigInt!
+  totalRoyaltiesHarvested: BigInt!
+  poolAddress: Bytes
   createdAt: BigInt!
+  updatedAt: BigInt!
+
+  trades: [Trade!]! @derivedFrom(field: "wrapper")
+  harvests: [Harvest!]! @derivedFrom(field: "wrapper")
+  graduations: [GraduationEvent!]! @derivedFrom(field: "wrapper")
+}
+
+type User @entity {
+  id: ID!                    # user address
+  trades: [Trade!]! @derivedFrom(field: "user")
+  deposits: [Deposit!]! @derivedFrom(field: "user")
+}
+
+enum TradeType {
+  BUY
+  SELL
 }
 
 type Trade @entity {
-  id: ID!              # txHash-logIndex
-  token: Bytes!
-  trader: Bytes!
-  isBuy: Boolean!
-  amountIP: BigInt!
-  amountTokens: BigInt!
-  timestamp: BigInt!
+  id: ID!
+  wrapper: WrapperToken!
+  user: User!
+  type: TradeType!
+  amount: BigInt!            # wrapper units (smallest units)
+  value: BigInt!             # base cost / proceeds
+  fee: BigInt!               # approximate 1% fee (for analytics)
   txHash: Bytes!
+  timestamp: BigInt!
 }
 
-type RevenueInjection @entity {
-  id: ID!              # txHash-logIndex
-  token: Bytes!
+type Deposit @entity {
+  id: ID!
+  user: User!
+  rt: Bytes!
   amount: BigInt!
-  timestamp: BigInt!
-  txHash: Bytes!
+  createdAt: BigInt!
+  updatedAt: BigInt!
 }
 
-type Graduation @entity {
-  id: ID!              # txHash-logIndex
-  token: Bytes!
-  pool: Bytes!
-  totalLiquidity: BigInt!
-  timestamp: BigInt!
+type Harvest @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  amount: BigInt!
   txHash: Bytes!
+  timestamp: BigInt!
+}
+
+type GraduationEvent @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  liquidity: BigInt!
+  poolAddress: Bytes!
+  txHash: Bytes!
+  timestamp: BigInt!
 }
