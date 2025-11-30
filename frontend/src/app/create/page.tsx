@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useRouter } from "next/navigation";
-import { Navigation } from "@/components/navigation/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -320,13 +319,10 @@ export default function CreatePage() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background via-background to-background/95 flex">
-        <Navigation />
-        <main className="flex-1 ml-16 container mx-auto px-4 py-8">
-          <div className="max-w-md mx-auto">
-            <Card className="glass-card">
+      <div className="max-w-md mx-auto">
+            <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl p-6">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
                   <Wallet className="h-5 w-5" />
                   Connect EVM Wallet
                 </CardTitle>
@@ -351,7 +347,7 @@ export default function CreatePage() {
                           href="https://metamask.io/download/"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
+                          className="text-[#39FF14] hover:underline"
                         >
                           Download MetaMask
                         </a>
@@ -363,25 +359,21 @@ export default function CreatePage() {
               </CardContent>
             </Card>
           </div>
-        </main>
-      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-background/95 flex">
-      <Navigation />
-      <main className="flex-1 ml-16 container mx-auto px-4 py-12">
+    <>
         {/* Hero */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-primary/10 to-primary/5 rounded-full mb-4 border border-primary/30">
-            <Sparkles className="w-4 h-4 text-purple-400 mr-2" />
-            <span className="text-sm font-medium text-primary">Create & Launch IP Tokens</span>
+        <div className="text-center mb-8 space-y-4">
+          <div className="inline-flex items-center px-4 py-2 bg-sovry-green/10 rounded-full border border-sovry-green/30">
+            <Sparkles className="w-4 h-4 text-sovry-green mr-2" />
+            <span className="text-sm font-medium text-sovry-green uppercase tracking-wide">Create & Launch IP Tokens</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-amber-300 to-primary bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold text-zinc-50 tracking-tight">
             Turn Your IP Into a Liquid Asset
           </h1>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-zinc-400 text-base leading-relaxed max-w-2xl mx-auto">
             Register new IP assets on Story Protocol, mint royalty tokens, and launch them on a bonding curve via SovryLaunchpad.
           </p>
         </div>
@@ -399,32 +391,32 @@ export default function CreatePage() {
         {success && (
           <div className="mb-6">
             <Alert>
-              <CheckCircle className="h-4 w-4 text-green-400" />
+              <CheckCircle className="h-4 w-4 text-sovry-green" />
               <AlertDescription className="whitespace-pre-line">{success}</AlertDescription>
             </Alert>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* IP Assets List */}
-          <div className="glass-card rounded-2xl p-6">
+          <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-purple-500/20 rounded-lg border border-purple-500/30">
-                <Crown className="h-5 w-5 text-purple-400" />
+              <div className="p-2 bg-sovry-green/20 rounded-lg border border-sovry-green/30">
+                <Crown className="h-5 w-5 text-sovry-green" />
               </div>
-              <h2 className="text-xl font-semibold text-white">Your IP Assets</h2>
+              <h2 className="text-xl font-semibold text-zinc-50">Your IP Assets</h2>
             </div>
 
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
-                <span className="ml-3 text-slate-300">Fetching IP assets...</span>
+                <Loader2 className="h-6 w-6 animate-spin text-sovry-green" />
+                <span className="ml-3 text-zinc-400">Fetching IP assets...</span>
               </div>
             ) : ipAssets.length === 0 ? (
-              <div className="p-6 glass-card rounded-xl border border-slate-500/30">
+              <div className="p-6 bg-zinc-800/30 border border-zinc-700 rounded-lg">
                 <div className="flex items-center space-x-3">
-                  <AlertCircle className="h-5 w-5 text-slate-400" />
-                  <p className="text-slate-300">No IP assets with royalty tokens found</p>
+                  <AlertCircle className="h-5 w-5 text-zinc-400" />
+                  <p className="text-zinc-400">No IP assets with royalty tokens found</p>
                 </div>
               </div>
             ) : (
@@ -435,10 +427,10 @@ export default function CreatePage() {
                   return (
                     <div
                       key={ipAsset.ipId}
-                      className={`p-4 glass-card rounded-xl cursor-pointer transition-all duration-300 ${
+                      className={`p-4 bg-zinc-900/50 backdrop-blur-sm border rounded-xl cursor-pointer transition-all duration-300 ${
                         selectedIP === ipAsset.ipId
-                          ? "border-purple-500/50 bg-purple-500/10"
-                          : "border-slate-500/30 hover:border-purple-500/50 hover:bg-purple-500/5"
+                          ? "border-sovry-green/50 bg-sovry-green/10"
+                          : "border-zinc-800 hover:border-sovry-green/50 hover:bg-sovry-green/5"
                       }`}
                       onClick={() => setSelectedIP(ipAsset.ipId)}
                     >
@@ -449,7 +441,7 @@ export default function CreatePage() {
                             <img
                               src={ipAsset.imageUrl}
                               alt={ipAsset.name}
-                              className="w-16 h-16 rounded-lg object-cover border border-slate-500/30"
+                              className="w-16 h-16 rounded-lg object-cover border border-zinc-800/50"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = "none";
@@ -459,37 +451,37 @@ export default function CreatePage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-2">
-                            <h3 className="font-semibold text-white truncate">{ipAsset.name}</h3>
+                            <h3 className="font-semibold text-zinc-50 truncate">{ipAsset.name}</h3>
                             {hasTokens && (
-                              <div className="px-2 py-1 bg-green-500/20 rounded-full border border-green-500/30 flex-shrink-0">
-                                <span className="text-xs text-green-400">Ready</span>
+                              <div className="px-2 py-1 bg-sovry-green/20 rounded-full border border-sovry-green/30 flex-shrink-0">
+                                <span className="text-xs text-sovry-green font-semibold uppercase tracking-wider">Ready</span>
                               </div>
                             )}
                           </div>
-                          <p className="text-sm text-slate-400 leading-relaxed line-clamp-2">{ipAsset.description}</p>
-                          <div className="mt-2 text-xs text-gray-500">
+                          <p className="text-sm text-zinc-400 leading-relaxed line-clamp-2">{ipAsset.description}</p>
+                          <div className="mt-2 text-xs text-muted-foreground">
                             <p>IP ID: {ipAsset.ipId.slice(0, 10)}...</p>
                             <p>Royalty Vault: {ipAsset.royaltyVaultAddress.slice(0, 10)}...</p>
                           </div>
 
                           {tokenBalance && (
-                            <div className="mt-3 p-3 bg-slate-800/50 rounded-lg border border-slate-600/30">
+                            <div className="mt-3 p-3 bg-zinc-800/30 rounded-lg border border-zinc-700">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                  <div className="p-1 bg-yellow-500/20 rounded border border-yellow-500/30">
-                                    <Coins className="h-3 w-3 text-yellow-400" />
+                                  <div className="p-1 bg-sovry-green/20 rounded border border-sovry-green/30">
+                                    <Coins className="h-3 w-3 text-sovry-green" />
                                   </div>
-                                  <span className="text-sm font-medium text-white">
+                                  <span className="text-sm font-medium text-zinc-50">
                                     {tokenBalance.formattedBalance} {tokenBalance.symbol}
                                   </span>
                                 </div>
                                 {hasTokens ? (
-                                  <div className="px-2 py-1 bg-green-500/20 rounded-full border border-green-500/30">
-                                    <span className="text-xs text-green-400">Available</span>
+                                  <div className="px-2 py-1 bg-sovry-green/20 rounded-full border border-sovry-green/30">
+                                    <span className="text-xs text-sovry-green font-semibold uppercase tracking-wider">Available</span>
                                   </div>
                                 ) : (
-                                  <div className="px-2 py-1 bg-orange-500/20 rounded-full border border-orange-500/30">
-                                    <span className="text-xs text-orange-400">Needs Unlock</span>
+                                  <div className="px-2 py-1 bg-sovry-pink/20 rounded-full border border-sovry-pink/30">
+                                    <span className="text-xs text-sovry-pink font-semibold uppercase tracking-wider">Needs Unlock</span>
                                   </div>
                                 )}
                               </div>
@@ -505,19 +497,19 @@ export default function CreatePage() {
           </div>
 
           {/* Create / Launch Form (only launch existing IP assets) */}
-          <div className="glass-card rounded-2xl p-6">
+          <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-blue-500/20 rounded-lg border border-blue-500/30">
-                <TrendingUp className="h-5 w-5 text-blue-400" />
+              <div className="p-2 bg-sovry-green/20 rounded-lg border border-sovry-green/30">
+                <TrendingUp className="h-5 w-5 text-sovry-green" />
               </div>
-              <h2 className="text-xl font-semibold text-white">Launch Existing IP</h2>
+              <h2 className="text-xl font-semibold text-zinc-50">Launch Existing IP</h2>
             </div>
 
             {/* Selected IP + Launch */}
             {selectedIPAsset ? (
               <div className="space-y-4">
-                <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                  <h3 className="font-medium text-blue-300 mb-3">Selected IP Asset</h3>
+                <div className="p-4 bg-sovry-green/10 border border-sovry-green/30 rounded-xl">
+                  <h3 className="font-medium text-sovry-green mb-3">Selected IP Asset</h3>
                   <div className="flex items-start gap-4">
                     {/* IP Image Preview */}
                     {selectedIPAsset.imageUrl && (
@@ -525,7 +517,7 @@ export default function CreatePage() {
                         <img
                           src={selectedIPAsset.imageUrl}
                           alt={selectedIPAsset.name}
-                          className="w-24 h-24 rounded-lg object-cover border-2 border-blue-500/30"
+                          className="w-24 h-24 rounded-lg object-cover border-2 border-sovry-green/30"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = "none";
@@ -534,12 +526,12 @@ export default function CreatePage() {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-blue-200 font-medium mb-1">{selectedIPAsset.name}</p>
-                      <p className="text-xs text-blue-400">
+                      <p className="text-sm text-sovry-green font-medium mb-1">{selectedIPAsset.name}</p>
+                      <p className="text-xs text-zinc-400">
                         Royalty Token: {selectedIPAsset.royaltyVaultAddress.slice(0, 10)}...
                       </p>
                       {selectedIPAsset.imageUrl && (
-                        <p className="text-xs text-blue-300/70 mt-2">
+                        <p className="text-xs text-zinc-500 mt-2">
                           ✓ Image loaded from Story Protocol
                         </p>
                       )}
@@ -547,43 +539,43 @@ export default function CreatePage() {
                   </div>
                 </div>
 
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
-                  <h3 className="font-medium text-green-300 mb-2">Story Protocol Pair Details</h3>
-                  <p className="text-sm text-green-200">
+                <div className="p-4 bg-sovry-green/10 border border-sovry-green/30 rounded-xl">
+                  <h3 className="font-medium text-sovry-green mb-2">Story Protocol Pair Details</h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed">
                     Royalty Token + WIP pair on SovryRouter will be created automatically when this launch graduates to
                     the DEX.
                   </p>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="p-4 glass-card border border-purple-500/30 bg-purple-500/10">
+                  <div className="p-4 bg-zinc-800/30 border border-sovry-green/30 rounded-lg">
                     <div className="flex items-center space-x-2 mb-2">
-                      <Sparkles className="h-4 w-4 text-purple-400" />
-                      <p className="text-sm font-medium text-purple-300">Launch on SovryLaunchpad</p>
+                      <Sparkles className="h-4 w-4 text-sovry-green" />
+                      <p className="text-sm font-medium text-sovry-green">Launch on SovryLaunchpad</p>
                     </div>
-                    <p className="text-sm text-purple-200">
+                    <p className="text-sm text-zinc-400 leading-relaxed">
                       Launch your royalty token on a bonding curve. No need to provide initial IP liquidity – SovryLaunchpad
                       handles curve mechanics and graduation to DEX.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-slate-300">Token Name (for DEX)</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Name (for DEX)</Label>
                       <Input
                         value={tokenName}
                         onChange={(e) => setTokenName(e.target.value)}
                         placeholder={selectedIPAsset.name || "Super Meme"}
-                        className="h-8 text-xs"
+                        className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                       />
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-slate-300">Token Symbol</Label>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Symbol</Label>
                       <Input
                         value={tokenSymbolLaunch}
                         onChange={(e) => setTokenSymbolLaunch(e.target.value.toUpperCase().slice(0, 10))}
                         placeholder="MEME"
-                        className="h-8 text-xs"
+                        className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                       />
                     </div>
                   </div>
@@ -591,32 +583,32 @@ export default function CreatePage() {
                   {/* Image Preview Section */}
                   {selectedIPAsset.imageUrl && (
                     <div className="space-y-2">
-                      <Label className="text-xs text-slate-300">Token Logo Preview</Label>
+                      <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Logo Preview</Label>
                       <div className="relative">
                         <img
                           src={launchImageUrl || selectedIPAsset.imageUrl}
                           alt="Token logo preview"
-                          className="w-full h-32 rounded-lg object-cover border border-slate-500/30 bg-slate-900/40"
+                          className="w-full h-32 rounded-lg object-cover border border-zinc-800 bg-zinc-900/40"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.src = selectedIPAsset.imageUrl || "/placeholder-ip.png";
                           }}
                         />
                         {launchLogoFile && (
-                          <div className="absolute top-2 right-2 px-2 py-1 bg-blue-500/90 rounded text-xs text-white">
+                          <div className="absolute top-2 right-2 px-2 py-1 bg-sovry-green/90 rounded text-xs text-black font-medium">
                             Custom Upload
                           </div>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-xs text-zinc-500">
                         Using image from Story Protocol. You can override with a custom image below if needed.
                       </p>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-slate-300">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
                         Custom Logo (optional override)
                       </Label>
                       <div
@@ -631,7 +623,7 @@ export default function CreatePage() {
                           }
                         }}
                         onClick={() => logoInputRef.current?.click()}
-                        className="h-20 border border-dashed border-slate-500/60 rounded-md px-3 py-2 text-[11px] text-slate-300 flex items-center cursor-pointer bg-slate-900/40 hover:border-slate-400/60 transition-colors"
+                        className="h-20 border border-dashed border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-400 flex items-center cursor-pointer bg-zinc-900 hover:border-zinc-600 transition-colors"
                       >
                         <span className="truncate">
                           {launchLogoFile
@@ -654,7 +646,7 @@ export default function CreatePage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 text-xs text-slate-400 hover:text-slate-200"
+                          className="text-xs"
                           onClick={() => {
                             setLaunchLogoFile(null);
                             setLaunchImageUrl(selectedIPAsset?.imageUrl || "");
@@ -664,21 +656,21 @@ export default function CreatePage() {
                         </Button>
                       )}
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-slate-300">Token Description (optional)</Label>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Description (optional)</Label>
                       <Input
                         value={launchDescription}
                         onChange={(e) => setLaunchDescription(e.target.value)}
                         placeholder="Short description for this wrapped IP token"
-                        className="h-8 text-xs"
+                        className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2 mt-2">
-                    <div className="flex items-center justify-between text-xs text-slate-300">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm text-zinc-400">
                       <span>Percentage to Launch</span>
-                      <span className="font-medium">{launchPercentage}%</span>
+                      <span className="font-medium text-zinc-50">{launchPercentage}%</span>
                     </div>
                     <Slider
                       value={[launchPercentage]}
@@ -687,19 +679,19 @@ export default function CreatePage() {
                       step={1}
                       onValueChange={(v) => setLaunchPercentage(v[0] ?? 1)}
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <p className="text-xs text-zinc-500">
                       You are selling {launchPercentage}% of your IP rights. You keep {100 - launchPercentage}% in your wallet.
                     </p>
                   </div>
 
                   {needsUnlock && (
                     <div className="space-y-4">
-                      <div className="p-4 glass-card border border-orange-500/30 bg-orange-500/10">
+                      <div className="p-4 bg-zinc-800/30 border border-sovry-pink/30 rounded-lg">
                         <div className="flex items-center space-x-3">
-                          <Coins className="h-5 w-5 text-orange-400" />
+                          <Coins className="h-5 w-5 text-sovry-pink" />
                           <div>
-                            <p className="text-sm font-medium text-orange-300">Royalty Tokens Required</p>
-                            <p className="text-xs text-orange-400 mt-1">
+                            <p className="text-sm font-medium text-sovry-pink">Royalty Tokens Required</p>
+                            <p className="text-xs text-zinc-400 leading-relaxed mt-1">
                               Get royalty tokens before launching. This will mint a license, deploy the vault, and transfer
                               royalty tokens to your wallet.
                             </p>
@@ -710,7 +702,8 @@ export default function CreatePage() {
                       <Button
                         onClick={() => handleUnlockTokens(selectedIPAsset)}
                         disabled={unlockingTokens === selectedIPAsset.ipId}
-                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                        variant="default"
+                        className="w-full"
                       >
                         {unlockingTokens === selectedIPAsset.ipId ? (
                           <>
@@ -731,7 +724,8 @@ export default function CreatePage() {
                   <Button
                     onClick={() => handleCreatePool(selectedIPAsset)}
                     disabled={creatingPool === selectedIPAsset.ipId || needsUnlock}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    variant="default"
+                    className="w-full"
                   >
                     {creatingPool === selectedIPAsset.ipId ? (
                       <>
@@ -746,44 +740,44 @@ export default function CreatePage() {
                     )}
                   </Button>
 
-                  <div className="mt-4 space-y-2 text-xs text-slate-300">
+                  <div className="mt-4 space-y-2 text-sm text-zinc-400">
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-medium">1.</span>
-                      <CheckCircle className="h-3 w-3 text-emerald-400" />
+                      <span className="text-zinc-500 font-medium">1.</span>
+                      <CheckCircle className="h-3 w-3 text-sovry-green" />
                       <span>IP Asset Registered (from Story Protocol)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-medium">2.</span>
+                      <span className="text-zinc-500 font-medium">2.</span>
                       {needsUnlock ? (
                         unlockingTokens === selectedIPAsset.ipId ? (
-                          <Loader2 className="h-3 w-3 animate-spin text-orange-300" />
+                          <Loader2 className="h-3 w-3 animate-spin text-sovry-green" />
                         ) : (
-                          <span className="text-orange-300">⏳</span>
+                          <span className="text-sovry-green">⏳</span>
                         )
                       ) : (
-                        <CheckCircle className="h-3 w-3 text-emerald-400" />
+                        <CheckCircle className="h-3 w-3 text-sovry-green" />
                       )}
                       <span>Minting Royalty Tokens / unlock token</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-medium">3.</span>
+                      <span className="text-zinc-500 font-medium">3.</span>
                       {creatingPool === selectedIPAsset.ipId && launchStep === 3 ? (
-                        <Loader2 className="h-3 w-3 animate-spin text-blue-300" />
+                        <Loader2 className="h-3 w-3 animate-spin text-sovry-green" />
                       ) : launchStep !== null && launchStep > 3 ? (
-                        <CheckCircle className="h-3 w-3 text-emerald-400" />
+                        <CheckCircle className="h-3 w-3 text-sovry-green" />
                       ) : (
-                        <span className="text-blue-300">⏳</span>
+                        <span className="text-sovry-green">⏳</span>
                       )}
                       <span>Approving Launchpad...</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 font-medium">4.</span>
+                      <span className="text-zinc-500 font-medium">4.</span>
                       {creatingPool === selectedIPAsset.ipId && launchStep === 4 ? (
-                        <Loader2 className="h-3 w-3 animate-spin text-emerald-300" />
+                        <Loader2 className="h-3 w-3 animate-spin text-sovry-green" />
                       ) : launchStep !== null && launchStep >= 4 ? (
-                        <CheckCircle className="h-3 w-3 text-emerald-400" />
+                        <CheckCircle className="h-3 w-3 text-sovry-green" />
                       ) : (
-                        <span className="text-emerald-300">⏳</span>
+                        <span className="text-sovry-green">⏳</span>
                       )}
                       <span>
                         Launching Market...
@@ -796,13 +790,12 @@ export default function CreatePage() {
                 </div>
               </div>
             ) : (
-              <div className="p-6 glass-card border border-slate-500/40 text-center text-sm text-muted-foreground">
+              <div className="p-6 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl text-center text-sm text-zinc-400">
                 Select an IP asset on the left to launch it on SovryLaunchpad.
               </div>
             )}
           </div>
         </div>
-      </main>
-    </div>
+    </>
   );
 }

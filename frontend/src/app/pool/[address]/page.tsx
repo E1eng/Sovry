@@ -1,629 +1,399 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Breadcrumb } from "@/components/ui/breadcrumb"
+import { useLaunchDetails } from "@/hooks/useLaunchDetails"
+import { useGraduationEvent } from "@/hooks/useGraduationEvent"
+import { TokenHeader } from "@/components/token/TokenHeader"
+import { GraduationModal } from "@/components/token/GraduationModal"
+import { ProgressToGraduation } from "@/components/token/ProgressBar"
+import { SwapInterface } from "@/components/token/SwapInterface"
+import { TradingChart } from "@/components/token/TradingChart"
+import { TokenDetailSkeleton } from "@/components/token/TokenDetailSkeleton"
+import { TransactionHistory } from "@/components/token/TransactionHistory"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { AlertCircle, Home, ArrowLeft, RefreshCw } from "lucide-react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import toast from "react-hot-toast"
+import { isAddress } from "viem"
+import { logError, isNetworkError, isRPCError } from "@/lib/errorUtils"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+export default function TokenDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const address = params.address as string
+  const { details, loading, error, retry: refreshDetails } = useLaunchDetails(address)
+  
+  const [showGraduationModal, setShowGraduationModal] = useState(false)
+  const [graduationData, setGraduationData] = useState<{
+    finalRaise: bigint
+    liquidityPoolAddress: string
+  } | null>(null)
+  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-import { useParams } from "next/navigation";
-import { Navigation } from "@/components/navigation/Navigation";
-import BondingCurveChart from "@/components/chart/BondingCurveChart";
-import BondingCurveTrading from "@/components/trading/bondingCurveTrading";
-import TransactionHistory from "@/components/trading/transactionHistory";
-import HolderDistribution from "@/components/trading/holderDistribution";
-import CommentSection from "@/components/social/CommentSection";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { launchpadService, type LaunchInfo } from "@/services/launchpadService";
-import { getChartData, type TimeRange } from "@/services/chartDataService";
+  // Validate address format
+  const isValidAddress = address && isAddress(address)
 
-// Pool Detail Interface
-interface PoolDetail {
-  id: string;
-  address: string;
-  token0: {
-    symbol: string;
-    name: string;
-    address: string;
-  };
-  token1: {
-    symbol: string;
-    name: string;
-    address: string;
-  };
-  ipAsset?: {
-    id: string;
-    name: string;
-    description: string;
-    image: string;
-    thumbnail: string;
-    owner: string;
-    tokenId: string;
-    licenseTerms: {
-      commercialUse: boolean;
-      derivativesAllowed: boolean;
-      commercialRevShare: number;
-      royaltyPolicy: string;
-      transferable: boolean;
-      uri: string;
-    };
-    metadata: {
-      title: string;
-      description: string;
-      image: string;
-      attributes: Array<{
-        trait_type: string;
-        value: string;
-      }>;
-    };
-  };
-  stats: {
-    volume24h: number;
-    volume7d: number;
-    apr: number;
-    tvl: number;
-    fees24h: number;
-    price: number;
-    priceChange24h: number;
-  };
-}
-
-const isValidAddress = (address?: string | null) => {
-  if (!address) return false;
-  return /^0x[0-9a-fA-F]{40}$/.test(address);
-};
-
-const SUBGRAPH_URL =
-  process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn";
-
-export default function PoolDetailPage() {
-  const params = useParams();
-  const poolAddress = params.address as string;
-  const { primaryWallet } = useDynamicContext();
-
-  const [pool, setPool] = useState<PoolDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [launchInfo, setLaunchInfo] = useState<LaunchInfo | null>(null);
-  const [bondingProgress, setBondingProgress] = useState(0);
-  const [launchTokenAddress, setLaunchTokenAddress] = useState<string | null>(null);
-  const [priceData, setPriceData] = useState<{ time: number; value: number }[]>([]);
-  const [volumeData, setVolumeData] = useState<{ time: number; value: number; volume?: number }[]>([]);
-  const [timeRange, setTimeRange] = useState<TimeRange>("7D");
-  const [harvesting, setHarvesting] = useState(false);
-  const [harvestError, setHarvestError] = useState<string | null>(null);
-  const [harvestSuccess, setHarvestSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchPoolDetail();
-  }, [poolAddress]);
-
-  const fetchPoolDetail = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // First, try to load real pool data from backend API
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-        if (apiUrl) {
-          const response = await fetch(`${apiUrl}/api/pools`);
-          if (response.ok) {
-            const payload = await response.json();
-            const pools = Array.isArray(payload.data)
-              ? payload.data
-              : Array.isArray(payload.pools)
-              ? payload.pools
-              : [];
-
-            const basePool = pools.find(
-              (p: any) =>
-                (p.address || p.id || "")
-                  .toString()
-                  .toLowerCase() === poolAddress.toLowerCase()
-            );
-
-            if (basePool) {
-              const mappedPool: PoolDetail = {
-                id: poolAddress,
-                address: poolAddress,
-                token0: {
-                  symbol: basePool.token0Symbol || basePool.token0?.symbol || "UNKNOWN",
-                  name: basePool.token0Symbol || basePool.token0?.name || "Token 0",
-                  address: basePool.token0Address || basePool.token0?.id || "",
-                },
-                token1: {
-                  symbol: basePool.token1Symbol || basePool.token1?.symbol || "UNKNOWN",
-                  name: basePool.token1Symbol || basePool.token1?.name || "Token 1",
-                  address: basePool.token1Address || basePool.token1?.id || "",
-                },
-                stats: {
-                  volume24h: basePool.volume24hUSD || 0,
-                  volume7d: basePool.volume7dUSD || basePool.volume24hUSD || 0,
-                  apr: basePool.apr || 0,
-                  tvl: basePool.tvlUSD || 0,
-                  fees24h: basePool.fees24hUSD || 0,
-                  price: basePool.priceUSD != null ? Number(basePool.priceUSD) : 0,
-                  priceChange24h: 0,
-                },
-              };
-
-              setPool(mappedPool);
-              return;
-            }
-          }
-        }
-      } catch (apiError) {
-        console.error("Failed to load pool from API, falling back to mock data", apiError);
+  // Handle graduation event
+  const handleGraduation = useCallback(
+    (eventData: { tokenAddress: string; finalRaise: bigint; liquidityPoolAddress: string }) => {
+      // Only process if it's for the current token
+      if (eventData.tokenAddress.toLowerCase() !== address.toLowerCase()) {
+        return
       }
 
-      // Mock data - akan diganti dengan real API call
-      const mockPool: PoolDetail = {
-        id: poolAddress,
-        address: poolAddress,
-        token0: {
-          symbol: "WIP",
-          name: "Wrapped IP Token",
-          address: "0x1234...5678"
-        },
-        token1: {
-          symbol: "rIP-MUSIC-001",
-          name: "Music Stem Collection Vol.1",
-          address: "0xabcd...efgh"
-        },
-        ipAsset: {
-          id: "0x9876...5432",
-          name: "Music Stem Collection Vol.1",
-          description: "Professional music stems for producers including melodies, basslines, and drum patterns. All stems are royalty-free for commercial use with proper attribution.",
-          image: "https://ttmbengqanqzfrkjajgk.supabase.co/storage/v1/object/public/images/pack-art/20874abc-latinpack.jpg",
-          thumbnail: "https://ttmbengqanqzfrkjajgk.supabase.co/storage/v1/object/public/images/pack-art/20874abc-latinpack.jpg",
-          owner: "0x1234...5678",
-          tokenId: "1234",
-          licenseTerms: {
-            commercialUse: true,
-            derivativesAllowed: true,
-            commercialRevShare: 10,
-            royaltyPolicy: "Story Protocol Royalty Standard",
-            transferable: true,
-            uri: "https://storyprotocol.xyz/license/1234"
-          },
-          metadata: {
-            title: "Music Stem Collection Vol.1",
-            description: "Professional music stems for producers",
-            image: "https://ttmbengqanqzfrkjajgk.supabase.co/storage/v1/object/public/images/pack-art/20874abc-latinpack.jpg",
-            attributes: [
-              { trait_type: "Genre", value: "Latin, Pop, Dance" },
-              { trait_type: "Tempo", value: "96-120 BPM" },
-              { trait_type: "Key", value: "Various" },
-              { trait_type: "Stem Count", value: "12" },
-              { trait_type: "File Format", value: "WAV 24-bit" },
-              { trait_type: "License", value: "Commercial" }
-            ]
-          }
-        },
-        stats: {
-          volume24h: 125000,
-          volume7d: 890000,
-          apr: 15.8,
-          tvl: 2500000,
-          fees24h: 1250,
-          price: 0.85,
-          priceChange24h: 12.5
-        }
-      };
+      setGraduationData({
+        finalRaise: eventData.finalRaise,
+        liquidityPoolAddress: eventData.liquidityPoolAddress,
+      })
+      setShowGraduationModal(true)
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setPool(mockPool);
-    } catch (error) {
-      console.error("Error fetching pool detail:", error);
-      setError("Failed to load pool details. Please try again.");
-    } finally {
-      setLoading(false);
+      // Show toast notification
+      const ticker = details?.symbol || "Token"
+      toast.success(`🎓 ${ticker} has graduated to PiperX!`, {
+        duration: 5000,
+        icon: "🎉",
+      })
+
+      // Refresh token data to show new graduated state
+      refreshDetails()
+
+      // Optional: Redirect to PiperX pool page after 5 seconds
+      if (eventData.liquidityPoolAddress) {
+        redirectTimerRef.current = setTimeout(() => {
+          // Construct PiperX DEX URL (adjust based on your DEX structure)
+          const piperXUrl = `https://piperx.io/pool/${eventData.liquidityPoolAddress}`
+          window.open(piperXUrl, "_blank", "noopener,noreferrer")
+        }, 5000)
+      }
+    },
+    [address, details?.symbol, refreshDetails]
+  )
+
+  // Watch for graduation events
+  useGraduationEvent({
+    tokenAddress: address,
+    onGraduation: handleGraduation,
+    enabled: !!address && !details?.launchInfo?.graduated, // Only watch if not already graduated
+  })
+
+  // Check if token is already graduated on mount (handle edge case)
+  useEffect(() => {
+    if (details?.launchInfo?.graduated && !showGraduationModal) {
+      // Token is already graduated - don't show modal automatically
+      // but ensure the UI reflects the graduated state
+      // The modal can still be triggered manually if needed
+      }
+  }, [details?.launchInfo?.graduated, showGraduationModal])
+
+  // Cleanup redirect timer
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current)
+      }
     }
-  };
+  }, [])
 
-  // Load chart data using chartDataService
-  useEffect(() => {
-    const loadChartData = async () => {
-      if (!launchTokenAddress || !isValidAddress(launchTokenAddress)) {
-        return;
-      }
-
-      try {
-        const { priceData, volumeData } = await getChartData(launchTokenAddress, timeRange);
-        setPriceData(priceData);
-        setVolumeData(volumeData);
-      } catch (e) {
-        console.warn("Error loading chart data:", e);
-        // Fallback to empty data
-        setPriceData([]);
-        setVolumeData([]);
-      }
-    };
-
-    loadChartData();
-  }, [launchTokenAddress, timeRange]);
-
-  useEffect(() => {
-    const loadLaunchpadInfo = async () => {
-      if (!pool) return;
-
-      try {
-        const WIP_ADDRESS = "0x1514000000000000000000000000000000000000".toLowerCase();
-        const token0Addr = pool.token0.address?.toLowerCase();
-        const token1Addr = pool.token1.address?.toLowerCase();
-
-        let launchToken = token0Addr;
-        if (token0Addr === WIP_ADDRESS && token1Addr) {
-          launchToken = token1Addr;
-        }
-
-        if (!launchToken || !isValidAddress(launchToken)) return;
-
-        setLaunchTokenAddress(launchToken);
-        const info = await launchpadService.getLaunchInfo(launchToken);
-        if (info) {
-          setLaunchInfo(info);
-          setBondingProgress(launchpadService.getBondingProgress(info));
-        }
-      } catch (e) {
-        console.error("Failed to load launchpad info for pool", e);
-      }
-    };
-
-    loadLaunchpadInfo();
-  }, [pool]);
-
-  const handleHarvestRoyalties = async () => {
-    if (!launchTokenAddress || !primaryWallet) return;
-
-    try {
-      setHarvesting(true);
-      setHarvestError(null);
-      setHarvestSuccess(null);
-
-      const result = await launchpadService.harvestAndPump(launchTokenAddress, primaryWallet);
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to harvest royalties");
-      }
-
-      setHarvestSuccess("Royalties harvested and injected into the bonding curve. Price may update shortly.");
-    } catch (e) {
-      setHarvestError(e instanceof Error ? e.message : "Failed to harvest royalties");
-    } finally {
-      setHarvesting(false);
-    }
-  };
-
+  // Loading state
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex">
-        <Navigation />
-        <div className="flex-1 ml-16 flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading pool analysis...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <TokenDetailSkeleton />
   }
 
-  if (error || !pool) {
+  // Invalid address format - 404
+  if (!isValidAddress) {
+    logError(new Error(`Invalid address format: ${address}`), "TokenDetailPage")
     return (
-      <div className="min-h-screen bg-gray-50 flex">
-        <Navigation />
-        <div className="flex-1 ml-16 flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="text-6xl mb-4">⚠️</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              Pool Not Found
-            </h3>
-            <p className="text-gray-600 mb-6">{error || "This pool doesn't exist or has been removed."}</p>
-            <button 
-              onClick={() => window.history.back()}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-            >
-              Go Back
-            </button>
-          </div>
+      <div className="min-h-screen px-4 md:px-6 py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto">
+          <Card className="max-w-md mx-auto">
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="text-6xl mb-4">404</div>
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>Invalid token address</AlertDescription>
+              </Alert>
+              <p className="text-sm text-zinc-400">
+                The address "{address}" is not a valid Ethereum address.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={() => router.back()} variant="outline">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Go Back
+                </Button>
+                <Button onClick={() => router.push("/")} variant="outline">
+                  <Home className="h-4 w-4 mr-2" />
+                  Go Home
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
-    );
+    )
   }
+
+  // Error state or token not found
+  if (error || !details) {
+    const isNetworkErr = error ? isNetworkError(new Error(error)) : false
+    const isRPCErr = error ? isRPCError(new Error(error)) : false
+    const isTokenNotFound = !error || error.toLowerCase().includes('not found') || error.toLowerCase().includes('does not exist')
+    
+    logError(error || new Error("Token not found"), "TokenDetailPage")
+
+    return (
+      <div className="min-h-screen px-4 md:px-6 py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto">
+          <Card className="max-w-md mx-auto">
+            <CardContent className="p-8 text-center space-y-4">
+              {isTokenNotFound && (
+                <>
+                  <div className="text-6xl mb-4">404</div>
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>Token not found</AlertDescription>
+                  </Alert>
+                  <p className="text-sm text-zinc-400">
+                    The token address you're looking for doesn't exist or couldn't be loaded.
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-2">
+                    If you just created this token, it may take a few moments to appear. Please try again shortly.
+                  </p>
+                </>
+              )}
+              
+              {isNetworkErr && (
+                <>
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>Network error</AlertDescription>
+                  </Alert>
+                  <p className="text-sm text-zinc-400">
+                    Unable to connect to the network. Please check your internet connection.
+                  </p>
+                </>
+              )}
+
+              {isRPCErr && (
+                <>
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>Blockchain network error</AlertDescription>
+                  </Alert>
+                  <p className="text-sm text-zinc-400">
+                    The blockchain network may be congested. Try switching networks or try again in a moment.
+                  </p>
+                </>
+              )}
+
+              {!isTokenNotFound && !isNetworkErr && !isRPCErr && error && (
+                <>
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                  <p className="text-sm text-zinc-400">
+                    An error occurred while loading the token.
+                  </p>
+                </>
+              )}
+
+              <div className="flex gap-3 justify-center flex-wrap">
+                <Button onClick={() => refreshDetails()} variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry
+                </Button>
+                <Button onClick={() => router.back()} variant="outline">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Go Back
+                </Button>
+                <Button onClick={() => router.push("/")} variant="outline">
+                  <Home className="h-4 w-4 mr-2" />
+                  Go Home
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  const bondingProgress = details.bondingProgress || 0
+  const launchInfo = details.launchInfo
+  const ticker = details.symbol || "TOKEN"
+  const tokenName = details.name || ticker
+
+  // Breadcrumb items
+  const breadcrumbItems = [
+    { label: "Home", href: "/" },
+    { label: "Launches", href: "/" },
+    { label: ticker },
+  ]
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <Navigation />
-      <div className="flex-1 ml-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-4">
-              <button
-                onClick={() => window.history.back()}
-                className="mt-1 text-muted-foreground hover:text-foreground transition-colors text-sm"
-              >
-                ← Back
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">
-                  {pool.ipAsset?.metadata.title || pool.ipAsset?.name || `${pool.token1.symbol} / ${pool.token0.symbol}`}
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {pool.token1.symbol} • Shared IP Coin
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Created by{" "}
-                  <span className="font-mono">
-                    {pool.ipAsset?.owner?.slice(0, 8)}…{pool.ipAsset?.owner?.slice(-4)}
-                  </span>
-                </p>
-              </div>
-            </div>
-            <div className="text-right space-y-1">
-              <div className="text-xs text-muted-foreground uppercase tracking-wide">
-                Market Cap (approx)
-              </div>
-              <div className="text-xl font-semibold text-foreground">
-                ${((pool.stats.tvl || 0) / 1_000_000).toFixed(2)}M
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Price ratio {pool.token1.symbol}/{pool.token0.symbol}: {pool.stats.price.toFixed(6)}
-              </div>
-            </div>
+    <ErrorBoundary>
+      <div className="min-h-screen px-4 md:px-6 py-8 sm:py-12">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Breadcrumbs */}
+        <Breadcrumb items={breadcrumbItems} />
+
+        {/* Token Header - Full Width */}
+        <div
+          style={{
+            animation: "fadeIn 0.5s ease-out 0ms both",
+          }}
+        >
+          <TokenHeader details={details} />
+        </div>
+
+        {/* Mobile Layout: Stack vertically with custom order */}
+        <div className="flex flex-col lg:hidden space-y-6">
+          {/* Swap Interface - First on mobile */}
+          <div
+            style={{
+              animation: "fadeIn 0.5s ease-out 100ms both",
+            }}
+          >
+            <SwapInterface
+              tokenAddress={address}
+              tokenSymbol={ticker}
+              isGraduated={launchInfo?.graduated || false}
+              piperXPoolAddress={graduationData?.liquidityPoolAddress}
+            />
           </div>
-          
-          {/* Pool Stats Bar */}
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-            <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-muted-foreground mb-1">TVL</div>
-              <div className="text-sm font-medium text-foreground">
-                ${(pool.stats.tvl / 1_000_000).toFixed(2)}M
-              </div>
+
+          {/* Progress to Graduation - Second on mobile */}
+          {launchInfo && launchInfo.totalRaised && (
+            <div
+              style={{
+                animation: "fadeIn 0.5s ease-out 200ms both",
+              }}
+            >
+              <Card>
+                <CardContent className="p-4 sm:p-6">
+                  <ProgressToGraduation
+                    totalRaised={launchInfo.totalRaised}
+                    tokenTicker={ticker}
+                    tokenName={tokenName}
+                    tokenAddress={address}
+                    isGraduated={launchInfo.graduated}
+                  />
+                </CardContent>
+              </Card>
             </div>
-            <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-muted-foreground mb-1">24h Volume</div>
-              <div className="text-sm font-medium text-foreground">
-                ${(pool.stats.volume24h / 1_000).toFixed(1)}K
-              </div>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-muted-foreground mb-1">APR</div>
-              <div className="text-sm font-medium text-emerald-400">
-                {pool.stats.apr}%
-              </div>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-muted-foreground mb-1">Trades Mode</div>
-              <div className="text-sm font-medium text-foreground">
-                {launchInfo?.graduated ? "DEX (Sovry Router)" : "Bonding Curve (Launchpad)"}
-              </div>
-            </div>
+          )}
+
+          {/* Trading Chart - Third on mobile */}
+          <div
+            style={{
+              animation: "fadeIn 0.5s ease-out 300ms both",
+            }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>Price Chart</CardTitle>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                <TradingChart tokenAddress={address} height={300} />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Activity Feed - Last on mobile */}
+          <div
+            style={{
+              animation: "fadeIn 0.5s ease-out 400ms both",
+            }}
+          >
+            <TransactionHistory tokenAddress={address} limit={20} />
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)] gap-8">
-          {/* Left Column - Chart & Metadata (60-70%) */}
+        {/* Desktop Layout: Two-Column Grid */}
+        <div className="hidden lg:grid grid-cols-[60%_40%] gap-6">
+          {/* Left Column: TradingChart, then ProgressToGraduation */}
           <div className="space-y-6">
-            {/* Enhanced TradingView Chart */}
-            <div className="rounded-xl border border-border/70 bg-card/80 p-4">
-              <BondingCurveChart
-                priceData={priceData}
-                volumeData={volumeData}
-                timeRange={timeRange}
-                onTimeRangeChange={setTimeRange}
-                height={400}
-              />
+            {/* Trading Chart */}
+            <div
+              style={{
+                animation: "fadeIn 0.5s ease-out 100ms both",
+              }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Price Chart</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TradingChart tokenAddress={address} height={500} />
+                </CardContent>
+              </Card>
             </div>
 
-            <div className="rounded-xl border border-border/70 bg-card/80 p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                🔍 IP Asset Analysis
-              </h2>
-              
-              {/* Large IP Image */}
-              <div className="mb-2">
-                <img
-                  src={pool.ipAsset?.image}
-                  alt={pool.ipAsset?.name}
-                  className="w-full h-72 object-cover rounded-lg border border-border/60"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = '/placeholder-ip.png';
-                  }}
-                />
-              </div>
-
-              {/* Metadata */}
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {pool.ipAsset?.metadata.title}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {pool.ipAsset?.metadata.description}
-                </p>
-                
-                {/* Asset Details */}
-                <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
-                  <div>
-                    <div className="text-muted-foreground">Owner</div>
-                    <div className="font-mono text-foreground mt-1">
-                      {pool.ipAsset?.owner}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Token ID</div>
-                    <div className="font-mono text-foreground mt-1">
-                      #{pool.ipAsset?.tokenId}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* PIL Terms - Legal Foundation */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  ⚖️ License Terms (Legal Foundation)
-                </h3>
-                <div className="bg-muted/40 rounded-lg p-4 space-y-3 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-foreground">Commercial Use</span>
-                    <span className={`px-2 py-1 rounded text-[11px] font-medium ${
-                      pool.ipAsset?.licenseTerms.commercialUse 
-                        ? 'bg-emerald-500/20 text-emerald-300' 
-                        : 'bg-red-500/20 text-red-300'
-                    }`}>
-                      {pool.ipAsset?.licenseTerms.commercialUse ? 'Allowed' : 'Restricted'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-foreground">Derivatives Allowed</span>
-                    <span className={`px-2 py-1 rounded text-[11px] font-medium ${
-                      pool.ipAsset?.licenseTerms.derivativesAllowed 
-                        ? 'bg-emerald-500/20 text-emerald-300' 
-                        : 'bg-red-500/20 text-red-300'
-                    }`}>
-                      {pool.ipAsset?.licenseTerms.derivativesAllowed ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-foreground">Royalty Share</span>
-                    <span className="px-2 py-1 rounded text-[11px] font-medium bg-blue-500/20 text-blue-200">
-                      {pool.ipAsset?.licenseTerms.commercialRevShare}% of on-chain revenue
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-foreground">Transferable</span>
-                    <span className={`px-2 py-1 rounded text-[11px] font-medium ${
-                      pool.ipAsset?.licenseTerms.transferable 
-                        ? 'bg-emerald-500/20 text-emerald-300' 
-                        : 'bg-red-500/20 text-red-300'
-                    }`}>
-                      {pool.ipAsset?.licenseTerms.transferable ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between items-start gap-3">
-                    <span className="font-medium text-foreground">Royalty Policy</span>
-                    <span className="text-[11px] text-muted-foreground max-w-xs text-right">
-                      {pool.ipAsset?.licenseTerms.royaltyPolicy}
-                    </span>
-                  </div>
-                  
-                  {pool.ipAsset?.licenseTerms.uri && (
-                    <div className="pt-2 border-t border-border/60">
-                      <a 
-                        href={pool.ipAsset.licenseTerms.uri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
-                      >
-                        📄 View Full License Document
-                        <span>→</span>
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Attributes */}
-              {pool.ipAsset?.metadata.attributes && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-semibold text-foreground mb-3">
-                    🏷️ Asset Attributes
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    {pool.ipAsset.metadata.attributes.map((attr, index) => (
-                      <div key={index} className="bg-muted/40 rounded-lg p-3">
-                        <div className="text-[11px] text-muted-foreground mb-1">{attr.trait_type}</div>
-                        <div className="text-sm font-medium text-foreground">{attr.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          </div>
-
-          {/* Right Column - Trading Interface (30-40%) */}
-          <div className="space-y-6">
-            {/* Bonding Curve Buy/Sell Interface */}
-            {launchTokenAddress && (
-              <BondingCurveTrading
-                tokenAddress={launchTokenAddress}
-                launchInfo={launchInfo}
-                bondingProgress={bondingProgress}
-                onTradeComplete={() => {
-                  // Reload chart data after trade
-                  const reload = async () => {
-                    if (launchTokenAddress) {
-                      const { priceData, volumeData } = await getChartData(launchTokenAddress, timeRange);
-                      setPriceData(priceData);
-                      setVolumeData(volumeData);
-                    }
-                  };
-                  reload();
+            {/* Progress to Graduation */}
+            {launchInfo && launchInfo.totalRaised && (
+              <div
+                style={{
+                  animation: "fadeIn 0.5s ease-out 200ms both",
                 }}
-              />
-            )}
-
-            {/* Harvest Royalties */}
-            {launchInfo && launchTokenAddress && (
-              <div className="rounded-xl border border-border/70 bg-card/80 p-4 space-y-3">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Harvest Royalties</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Claim pending royalties from Story Protocol to this pool's Launchpad vault and inject them into the
-                  bonding curve reserve. This can instantly boost the token price for all holders.
-                </p>
-                <button
-                  onClick={handleHarvestRoyalties}
-                  disabled={harvesting || !primaryWallet}
-                  className="w-full text-xs px-3 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {harvesting ? "Harvesting Royalties…" : "Harvest Royalties"}
-                </button>
-                {harvestSuccess && (
-                  <p className="text-[11px] text-emerald-400 mt-1">{harvestSuccess}</p>
-                )}
-                {harvestError && (
-                  <p className="text-[11px] text-red-400 mt-1">{harvestError}</p>
-                )}
+              >
+                <Card>
+                  <CardContent className="p-6">
+                    <ProgressToGraduation
+                      totalRaised={launchInfo.totalRaised}
+                      tokenTicker={ticker}
+                      tokenName={tokenName}
+                      tokenAddress={address}
+                      isGraduated={launchInfo.graduated}
+                    />
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Bottom Section - Tabs (Full Width) */}
-        {launchTokenAddress && (
-          <div className="mt-8">
-            <Tabs defaultValue="holders" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="holders">Holder Distribution</TabsTrigger>
-                <TabsTrigger value="history">Transaction History</TabsTrigger>
-                <TabsTrigger value="comments">Comments</TabsTrigger>
-              </TabsList>
-              <TabsContent value="holders" className="mt-4">
-                <HolderDistribution tokenAddress={launchTokenAddress} />
-              </TabsContent>
-              <TabsContent value="history" className="mt-4">
-                <TransactionHistory tokenAddress={launchTokenAddress} />
-              </TabsContent>
-              <TabsContent value="comments" className="mt-4">
-                <CommentSection tokenAddress={launchTokenAddress} />
-              </TabsContent>
-            </Tabs>
+          {/* Right Column: SwapInterface, then Activity Feed */}
+          <div className="space-y-6">
+            {/* Swap Interface */}
+            <div
+              style={{
+                animation: "fadeIn 0.5s ease-out 150ms both",
+              }}
+            >
+              <SwapInterface
+                tokenAddress={address}
+                tokenSymbol={ticker}
+                isGraduated={launchInfo?.graduated || false}
+                piperXPoolAddress={graduationData?.liquidityPoolAddress}
+              />
+            </div>
+
+            {/* Activity Feed */}
+            <div
+              style={{
+                animation: "fadeIn 0.5s ease-out 250ms both",
+              }}
+            >
+              <TransactionHistory tokenAddress={address} limit={20} />
+            </div>
           </div>
+        </div>
+          </div>
+
+      {/* Graduation Modal */}
+      {details && (
+        <GraduationModal
+          open={showGraduationModal}
+          onOpenChange={setShowGraduationModal}
+          tokenTicker={details.symbol || "TOKEN"}
+          tokenName={details.name || "Token"}
+          tokenAddress={graduationData?.liquidityPoolAddress || address}
+        />
         )}
       </div>
-    </div>
-  );
+    </ErrorBoundary>
+  )
 }

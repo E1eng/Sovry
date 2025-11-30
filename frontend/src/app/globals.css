@@ -1,48 +1,62 @@
 @import "tailwindcss";
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Sovry Color Scheme */
+  /* Background - Void Black (#09090B / zinc-950) */
+  --background: #09090B;
+  /* Text Main - Hologram White (#FAFAFA / zinc-50) */
+  --foreground: #FAFAFA;
+  /* Surface - Gunmetal (#18181B / zinc-900) */
+  --card: #18181B;
+  --card-foreground: #FAFAFA;
+  --popover: #18181B;
+  --popover-foreground: #FAFAFA;
+  /* Primary/Buy - Toxic Green (#39FF14) */
+  --primary: #39FF14;
+  --primary-foreground: #09090B;
+  /* Secondary/Sell - Hot Pink (#FF10F0) */
+  --secondary: #FF10F0;
+  --secondary-foreground: #FAFAFA;
+  /* Surface variant */
+  --muted: #18181B;
+  /* Text Muted - Ash Grey (#A1A1AA / zinc-400) */
+  --muted-foreground: #A1A1AA;
+  /* Accent uses primary (Toxic Green) */
+  --accent: #39FF14;
+  --accent-foreground: #09090B;
+  /* Destructive uses secondary (Hot Pink) */
+  --destructive: #FF10F0;
+  --destructive-foreground: #FAFAFA;
+  /* Border - Deep Zinc (#27272A / zinc-800) */
+  --border: #27272A;
+  /* Input uses surface (Gunmetal) */
+  --input: #18181B;
+  /* Ring uses primary (Toxic Green) */
+  --ring: #39FF14;
   --radius: 0.625rem;
 }
 
 .dark {
-  --background: #000000;
-  --foreground: #f0f0f0;
-  --card: #1a1a1a;
-  --card-foreground: #f0f0f0;
-  --popover: #1a1a1a;
-  --popover-foreground: #f0f0f0;
-  --primary: #f59e0b;
-  --primary-foreground: #000000;
-  --secondary: #2a2a2a;
-  --secondary-foreground: #f0f0f0;
-  --muted: #3a3a3a;
-  --muted-foreground: #a0a0a0;
-  --accent: #f59e0b;
-  --accent-foreground: #000000;
-  --destructive: #ef4444;
-  --destructive-foreground: #fecaca;
-  --border: #2a2a2a;
-  --input: #1a1a1a;
-  --ring: #f59e0b;
+  /* Same colors for dark mode */
+  --background: #09090B;
+  --foreground: #FAFAFA;
+  --card: #18181B;
+  --card-foreground: #FAFAFA;
+  --popover: #18181B;
+  --popover-foreground: #FAFAFA;
+  --primary: #39FF14;
+  --primary-foreground: #09090B;
+  --secondary: #FF10F0;
+  --secondary-foreground: #FAFAFA;
+  --muted: #18181B;
+  --muted-foreground: #A1A1AA;
+  --accent: #39FF14;
+  --accent-foreground: #09090B;
+  --destructive: #FF10F0;
+  --destructive-foreground: #FAFAFA;
+  --border: #27272A;
+  --input: #18181B;
+  --ring: #39FF14;
   --radius: 0.5rem;
 }
 
@@ -66,6 +80,17 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* Sovry Custom Colors */
+  --color-void-black: #09090B;
+  --color-gunmetal: #18181B;
+  --color-toxic-green: #39FF14;
+  --color-hot-pink: #FF10F0;
+  --color-hologram-white: #FAFAFA;
+  --color-ash-grey: #A1A1AA;
+  --color-deep-zinc: #27272A;
+  /* Sovry Style Guide Colors - Utility Classes */
+  --color-sovry-green: #39FF14;
+  --color-sovry-pink: #FF10F0;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -77,14 +102,14 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-zinc-950 text-foreground;
   }
 }
 
 @layer components {
   /* Enhanced glass-card with better visibility - brighter and more opaque */
   .glass-card {
-    @apply backdrop-blur-xl bg-card/95 border border-border rounded-xl shadow-xl shadow-black/50;
+    @apply backdrop-blur-xl bg-zinc-900/50 border border-zinc-800 rounded-xl shadow-xl shadow-black/50;
   }
 
   /* Improved glass-input with better focus states and transitions */
@@ -92,13 +117,61 @@
     @apply bg-input/90 backdrop-blur-sm border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-accent/70 focus:border-accent/50 focus:bg-input transition-all duration-200;
   }
 
-  /* Enhanced accent-button with better hover and active states */
-  .accent-button {
-    @apply bg-gradient-to-r from-primary via-primary to-primary/90 hover:from-primary/95 hover:to-primary/80 text-black font-semibold rounded-lg py-3 px-6 transition-all duration-300 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-95;
+  /* Buy button - Sovry Green (Primary Action) */
+  .buy-button {
+    @apply bg-sovry-green hover:bg-sovry-green/90 text-black font-bold uppercase tracking-wide rounded-lg py-3 px-6 transition-colors;
   }
 
-  /* Updated apy-badge with warm green */
+  /* Sell button - Sovry Pink (Destructive Action) */
+  .sell-button {
+    @apply bg-sovry-pink hover:bg-sovry-pink/90 text-white font-bold uppercase tracking-wide rounded-lg py-3 px-6 transition-colors;
+  }
+
+  /* Enhanced accent-button with Toxic Green */
+  .accent-button {
+    @apply bg-gradient-to-r from-[#39FF14] via-[#39FF14] to-[#39FF14]/90 hover:from-[#39FF14]/95 hover:to-[#39FF14]/80 text-[#09090B] font-semibold rounded-lg py-3 px-6 transition-all duration-300 shadow-lg shadow-[#39FF14]/20 hover:shadow-xl hover:shadow-[#39FF14]/30 active:scale-95;
+  }
+
+  /* Positive PnL / Up charts - Toxic Green */
+  .positive-pnl {
+    @apply text-[#39FF14];
+  }
+
+  /* Negative PnL / Down charts - Hot Pink */
+  .negative-pnl {
+    @apply text-[#FF10F0];
+  }
+
+  /* Updated apy-badge with Toxic Green */
   .apy-badge {
-    @apply inline-flex items-center gap-1 bg-emerald-500/25 text-emerald-300 px-3 py-1 rounded-full text-xs font-medium border border-emerald-500/40;
+    @apply inline-flex items-center gap-1 bg-[#39FF14]/25 text-[#39FF14] px-3 py-1 rounded-full text-xs font-medium border border-[#39FF14]/40;
+  }
+}
+
+@layer utilities {
+  /* Shimmer animation for loading states */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+
+  /* Fade in animation for skeleton transitions */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

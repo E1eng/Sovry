@@ -5,7 +5,6 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { ethers } from "ethers";
 import { useSearchParams } from "next/navigation";
 
-import { Navigation } from "@/components/navigation/Navigation";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -292,58 +291,56 @@ export default function ProfilePage() {
   const poolCount = userPools.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-background/95 flex">
-      <Navigation />
-      <main className="flex-1 ml-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <section className="mb-10">
-          <div className="h-40 sm:h-48 md:h-56 w-full rounded-3xl bg-gradient-to-r from-purple-700 via-fuchsia-600 to-indigo-700 shadow-lg" />
+    <>
+        <section className="mb-8">
+          <div className="h-40 sm:h-48 md:h-56 w-full rounded-3xl bg-gradient-to-r from-sovry-green/20 via-sovry-green/10 to-sovry-pink/20 shadow-lg border border-zinc-800" />
           <div className="-mt-12 sm:-mt-16 flex flex-col gap-4 md:flex-row md:items-end md:justify-between px-2 sm:px-4">
             <div className="flex items-end gap-4">
-              <div className="flex h-20 w-20 md:h-24 md:w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary via-amber-400 to-primary/80 border-4 border-background shadow-xl text-2xl font-bold text-background">
+              <div className="flex h-20 w-20 md:h-24 md:w-24 items-center justify-center rounded-full bg-gradient-to-br from-sovry-green via-sovry-green/80 to-sovry-green/60 border-4 border-zinc-950 shadow-xl text-2xl font-bold text-black">
                 {getInitials()}
               </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">
+                  <h1 className="text-2xl sm:text-3xl font-semibold text-zinc-50">
                     {displayAddress}
                   </h1>
                 </div>
-                <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                  <span className="px-2 py-1 rounded-full bg-background/40 border border-border/60">
+                <div className="flex flex-wrap gap-2 text-xs text-zinc-400">
+                  <span className="px-2 py-1 rounded-full bg-zinc-900/50 border border-zinc-800">
                     Sovry collector
                   </span>
-                  <span className="px-2 py-1 rounded-full bg-background/30 border border-border/40">
+                  <span className="px-2 py-1 rounded-full bg-zinc-900/50 border border-zinc-800">
                     Story Aeneid Testnet
                   </span>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mt-4 md:mt-0">
-              <div className="rounded-2xl bg-background/70 border border-border/60 px-3 py-2">
-                <div className="text-muted-foreground mb-1">Portfolio value</div>
-                <div className="text-sm font-semibold">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs mt-4 md:mt-0">
+              <div className="rounded-xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 px-3 py-2">
+                <div className="text-zinc-400 text-xs uppercase tracking-wide mb-1">Portfolio value</div>
+                <div className="text-sm font-semibold text-zinc-50">
                   {new Intl.NumberFormat("en-US", {
                     style: "currency",
                     currency: "USD",
                   }).format(netWorth)}
                 </div>
               </div>
-              <div className="rounded-2xl bg-background/70 border border-border/60 px-3 py-2">
-                <div className="text-muted-foreground mb-1">Claimable rewards</div>
-                <div className="text-sm font-semibold text-emerald-400">
+              <div className="rounded-xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 px-3 py-2">
+                <div className="text-zinc-400 text-xs uppercase tracking-wide mb-1">Claimable rewards</div>
+                <div className="text-sm font-semibold text-sovry-green">
                   {new Intl.NumberFormat("en-US", {
                     style: "currency",
                     currency: "USD",
                   }).format(totalClaimable)}
                 </div>
               </div>
-              <div className="rounded-2xl bg-background/70 border border-border/60 px-3 py-2">
-                <div className="text-muted-foreground mb-1">IP tokens</div>
-                <div className="text-sm font-semibold">{assetCount}</div>
+              <div className="rounded-xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 px-3 py-2">
+                <div className="text-zinc-400 text-xs uppercase tracking-wide mb-1">IP tokens</div>
+                <div className="text-sm font-semibold text-zinc-50">{assetCount}</div>
               </div>
-              <div className="rounded-2xl bg-background/70 border border-border/60 px-3 py-2">
-                <div className="text-muted-foreground mb-1">Pools</div>
-                <div className="text-sm font-semibold">{poolCount}</div>
+              <div className="rounded-xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 px-3 py-2">
+                <div className="text-zinc-400 text-xs uppercase tracking-wide mb-1">Pools</div>
+                <div className="text-sm font-semibold text-zinc-50">{poolCount}</div>
               </div>
             </div>
           </div>
@@ -360,39 +357,39 @@ export default function ProfilePage() {
           <TabsContent value="holdings" className="space-y-6">
             {holdingsLoading ? (
               <div className="py-16 text-center">
-                <Coins className="h-10 w-10 text-primary mx-auto mb-4 animate-pulse" />
-                <p className="text-muted-foreground">Loading your holdings...</p>
+                <Coins className="h-10 w-10 text-sovry-green mx-auto mb-4 animate-pulse" />
+                <p className="text-zinc-400">Loading your holdings...</p>
               </div>
             ) : (
               <>
                 {/* Net Worth */}
-                <Card className="glass-card border-primary/30">
+                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                   <CardContent className="p-8 flex items-center justify-between">
                     <div>
-                      <p className="text-muted-foreground text-lg mb-2">Net Worth</p>
-                      <p className="text-4xl md:text-5xl font-bold text-primary">
+                      <p className="text-zinc-400 text-sm uppercase tracking-wide mb-2">Net Worth</p>
+                      <p className="text-4xl md:text-5xl font-bold text-zinc-50 tracking-tight">
                         {new Intl.NumberFormat("en-US", {
                           style: "currency",
                           currency: "USD",
                         }).format(calculateNetWorth())}
                       </p>
-                      <p className="text-muted-foreground mt-2">
+                      <p className="text-zinc-400 text-base leading-relaxed mt-2">
                         Total value of all your IP assets
                       </p>
                     </div>
-                    <DollarSign className="h-16 w-16 text-primary/40" />
+                    <DollarSign className="h-16 w-16 text-sovry-green/40" />
                   </CardContent>
                 </Card>
 
                 {/* Claim All */}
-                <Card className="glass-card border-emerald-500/30">
+                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-sovry-green/30 rounded-xl">
                   <CardContent className="p-6 flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <Gift className="h-6 w-6 text-emerald-400" />
-                        <h3 className="text-lg font-semibold">Available to Claim</h3>
+                        <Gift className="h-6 w-6 text-sovry-green" />
+                        <h3 className="text-lg font-semibold text-zinc-50">Available to Claim</h3>
                       </div>
-                      <p className="text-2xl font-bold text-emerald-400">
+                      <p className="text-2xl font-bold text-sovry-green">
                         {new Intl.NumberFormat("en-US", {
                           style: "currency",
                           currency: "USD",
@@ -402,7 +399,8 @@ export default function ProfilePage() {
                     <Button
                       onClick={handleClaimAll}
                       disabled={claiming || calculateTotalClaimable() === 0}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-black px-8 py-4 text-lg font-bold"
+                      variant="default"
+                      size="lg"
                     >
                       {claiming ? (
                         <>
@@ -419,9 +417,9 @@ export default function ProfilePage() {
                   </CardContent>
                   {lastClaimTime && (
                     <CardContent className="pt-0">
-                      <Alert className="mt-4 border-emerald-500/30 bg-emerald-500/10">
-                        <CheckCircle className="h-4 w-4 text-emerald-400" />
-                        <AlertDescription className="text-emerald-300">
+                      <Alert className="mt-4 border-sovry-green/30 bg-sovry-green/10">
+                        <CheckCircle className="h-4 w-4 text-sovry-green" />
+                        <AlertDescription className="text-zinc-400">
                           Successfully claimed rewards at {lastClaimTime.toLocaleTimeString()}
                         </AlertDescription>
                       </Alert>
@@ -430,10 +428,10 @@ export default function ProfilePage() {
                 </Card>
 
                 {/* Assets Table */}
-                <Card className="glass-card">
+                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-primary" />
+                    <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
+                      <TrendingUp className="h-5 w-5 text-sovry-green" />
                       My Assets
                     </CardTitle>
                   </CardHeader>
@@ -441,20 +439,20 @@ export default function ProfilePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className="border-b border-border/30">
-                            <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
+                          <tr className="border-b border-zinc-800">
+                            <th className="text-left py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
                               Asset
                             </th>
-                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">
+                            <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
                               Balance
                             </th>
-                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">
+                            <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
                               Value
                             </th>
-                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">
+                            <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
                               Claimable Revenue
                             </th>
-                            <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">
+                            <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
                               APY
                             </th>
                           </tr>
@@ -463,11 +461,11 @@ export default function ProfilePage() {
                           {assets.map((asset) => (
                             <tr
                               key={asset.id}
-                              className="border-b border-border/20 hover:bg-muted/10"
+                              className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
                             >
                               <td className="py-4 px-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-muted/20 rounded-lg overflow-hidden border border-border/30">
+                                  <div className="w-10 h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
                                     <img
                                       src={asset.image}
                                       alt={asset.name}
@@ -475,15 +473,15 @@ export default function ProfilePage() {
                                     />
                                   </div>
                                   <div>
-                                    <p className="font-medium">{asset.symbol}</p>
-                                    <p className="text-sm text-muted-foreground">{asset.name}</p>
+                                    <p className="font-medium text-zinc-50">{asset.symbol}</p>
+                                    <p className="text-sm text-zinc-400">{asset.name}</p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="text-right py-4 px-4">
+                              <td className="text-right py-4 px-4 text-zinc-50">
                                 {asset.balance.toFixed(2)}
                               </td>
-                              <td className="text-right py-4 px-4">
+                              <td className="text-right py-4 px-4 text-zinc-50">
                                 {new Intl.NumberFormat("en-US", {
                                   style: "currency",
                                   currency: "USD",
@@ -491,18 +489,18 @@ export default function ProfilePage() {
                               </td>
                               <td className="text-right py-4 px-4">
                                 {asset.claimableRevenue > 0 ? (
-                                  <span className="apy-badge">
+                                  <span className="inline-flex items-center gap-1 bg-sovry-green/25 text-sovry-green px-3 py-1 rounded-full text-xs font-medium border border-sovry-green/40">
                                     {new Intl.NumberFormat("en-US", {
                                       style: "currency",
                                       currency: "USD",
                                     }).format(asset.claimableRevenue)}
                                   </span>
                                 ) : (
-                                  <span className="text-muted-foreground">-</span>
+                                  <span className="text-zinc-400">-</span>
                                 )}
                               </td>
                               <td className="text-right py-4 px-4">
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-sovry-green/20 text-sovry-green border border-sovry-green/30">
                                   {asset.apy}
                                 </span>
                               </td>
@@ -544,25 +542,25 @@ export default function ProfilePage() {
               </Card>
             ) : (
               <>
-                <Card className="glass-card">
+                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Droplets className="h-5 w-5 text-cyan-400" />
+                    <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
+                      <Droplets className="h-5 w-5 text-sovry-green" />
                       Your Liquidity Pools
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {poolsLoading ? (
                       <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
-                        <span className="ml-3 text-slate-300">Loading your pools...</span>
+                        <Loader2 className="h-6 w-6 animate-spin text-sovry-green" />
+                        <span className="ml-3 text-zinc-400">Loading your pools...</span>
                       </div>
                     ) : poolsError ? (
                       <Alert variant="destructive">
                         <AlertDescription>{poolsError}</AlertDescription>
                       </Alert>
                     ) : userPools.length === 0 ? (
-                      <div className="p-8 text-center text-muted-foreground">
+                      <div className="p-8 text-center text-zinc-400">
                         You don't have any liquidity positions yet.
                       </div>
                     ) : (
@@ -571,63 +569,64 @@ export default function ProfilePage() {
                           {userPools.map((pool) => (
                             <Card
                               key={pool.id}
-                              className="glass-card hover:border-cyan-500/50 transition-all duration-300"
+                              className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl hover:border-sovry-green/50 transition-all duration-300"
                             >
                               <CardContent className="p-5 space-y-4">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-cyan-500/20 rounded-lg border border-cyan-500/30">
-                                      <Droplets className="h-4 w-4 text-cyan-400" />
+                                    <div className="p-2 bg-sovry-green/20 rounded-lg border border-sovry-green/30">
+                                      <Droplets className="h-4 w-4 text-sovry-green" />
                                     </div>
                                     <div>
-                                      <h3 className="font-semibold text-white text-sm">
+                                      <h3 className="font-semibold text-zinc-50 text-sm">
                                         {pool.token0?.symbol ?? "UNKNOWN"} / {pool.token1?.symbol ?? "UNKNOWN"}
                                       </h3>
                                       <div className="flex items-center gap-2 mt-1">
-                                        <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                                        <span className="text-xs text-green-400">Active</span>
+                                        <span className="w-2 h-2 bg-sovry-green rounded-full animate-pulse" />
+                                        <span className="text-xs text-sovry-green">Active</span>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
 
-                                <div className="space-y-2 text-xs text-slate-300">
+                                <div className="space-y-2 text-xs text-zinc-400">
                                   <div className="flex justify-between">
                                     <span>Reserve 0</span>
-                                    <span>{formatNumber(pool.reserve0)}</span>
+                                    <span className="text-zinc-50">{formatNumber(pool.reserve0)}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Reserve 1</span>
-                                    <span>{formatNumber(pool.reserve1)}</span>
+                                    <span className="text-zinc-50">{formatNumber(pool.reserve1)}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Volume USD</span>
-                                    <span className="text-green-400">
+                                    <span className="text-sovry-green">
                                       ${formatNumber(pool.volumeUSD)}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Your LP Balance</span>
-                                    <span className="text-cyan-400">
+                                    <span className="text-zinc-50">
                                       {pool.userLpBalance || "0"} LP
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Your Share</span>
-                                    <span className="text-purple-400">
+                                    <span className="text-sovry-green">
                                       {pool.userLpPercentage?.toFixed(2) || "0.00"}%
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Created</span>
-                                    <span>{formatDate(pool.createdAtTimestamp)}</span>
+                                    <span className="text-zinc-50">{formatDate(pool.createdAtTimestamp)}</span>
                                   </div>
                                 </div>
 
-                                <div className="pt-3 border-t border-slate-600/30 space-y-2">
+                                <div className="pt-3 border-t border-zinc-800 space-y-2">
                                   <Button
                                     size="sm"
-                                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600"
+                                    variant="default"
+                                    className="w-full"
                                     onClick={() => {
                                       setSelectedPoolForLiquidity(pool);
                                       setLiquidityMode("add");
@@ -643,7 +642,7 @@ export default function ProfilePage() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="w-full border-orange-500/60 text-orange-300"
+                                    className="w-full"
                                     onClick={() => {
                                       setSelectedPoolForLiquidity(pool);
                                       setLiquidityMode("remove");
@@ -663,12 +662,12 @@ export default function ProfilePage() {
                         </div>
 
                         {selectedPoolForLiquidity && (
-                          <Card className="glass-card border-cyan-500/40">
+                          <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                             <CardHeader>
-                              <CardTitle className="flex items-center gap-2">
-                                <Droplets className="h-5 w-5 text-cyan-400" />
+                              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
+                                <Droplets className="h-5 w-5 text-sovry-green" />
                                 Manage Liquidity
-                                <span className="text-xs text-muted-foreground font-normal">
+                                <span className="text-xs text-zinc-400 font-normal">
                                   {selectedPoolForLiquidity.token0.symbol}/
                                   {selectedPoolForLiquidity.token1.symbol}
                                 </span>
@@ -749,9 +748,9 @@ export default function ProfilePage() {
                                           ((maxLP * percentage) / 100).toString()
                                         );
                                       }}
-                                      className="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer"
+                                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
                                     />
-                                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                    <div className="flex justify-between text-xs text-zinc-500 mt-1">
                                       <span>0%</span>
                                       <span>25%</span>
                                       <span>50%</span>
@@ -761,7 +760,7 @@ export default function ProfilePage() {
                                   </div>
 
                                   <div>
-                                    <Label>LP Token Amount</Label>
+                                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide mb-2">LP Token Amount</Label>
                                     <Input
                                       type="number"
                                       placeholder="0.0"
@@ -779,6 +778,7 @@ export default function ProfilePage() {
                                         );
                                         setLiquidityPercentage(percentage);
                                       }}
+                                      className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                                     />
                                   </div>
 
@@ -812,7 +812,6 @@ export default function ProfilePage() {
             )}
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </>
   );
 }

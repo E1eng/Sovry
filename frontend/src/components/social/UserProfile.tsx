@@ -89,12 +89,12 @@ const UserProfile = () => {
 
   if (!walletAddress) {
     return (
-      <Card className="glass-card">
+      <Card>
         <CardHeader>
           <CardTitle>Social Profile</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-zinc-400">
             Connect your wallet to create a Sovry profile and attach a username to your comments.
           </p>
         </CardContent>
@@ -103,21 +103,21 @@ const UserProfile = () => {
   }
 
   return (
-    <Card className="glass-card">
+    <Card>
       <CardHeader>
         <CardTitle>Social Profile</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {loading ? (
-          <p className="text-muted-foreground">Loading profile...</p>
+          <p className="text-zinc-400">Loading profile...</p>
         ) : (
           <>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Wallet</p>
-              <p className="font-mono text-xs break-all">{walletAddress}</p>
+              <p className="text-xs text-zinc-400 mb-1">Wallet</p>
+              <p className="font-mono text-xs break-all text-zinc-50">{walletAddress}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Username</p>
+              <p className="text-xs text-zinc-400">Username</p>
               <Input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -126,7 +126,7 @@ const UserProfile = () => {
               />
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Bio</p>
+              <p className="text-xs text-zinc-400">Bio</p>
               <Input
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
@@ -144,10 +144,10 @@ const UserProfile = () => {
                 {saving ? "Saving..." : "Save Profile"}
               </Button>
               {message && (
-                <span className="text-[11px] text-emerald-400">{message}</span>
+                <span className="text-[11px] text-sovry-green">{message}</span>
               )}
               {error && (
-                <span className="text-[11px] text-red-400">{error}</span>
+                <span className="text-[11px] text-sovry-pink">{error}</span>
               )}
             </div>
           </>

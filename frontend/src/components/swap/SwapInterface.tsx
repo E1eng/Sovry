@@ -576,7 +576,7 @@ export default function SwapInterface({
             </div>
             {launchpadMode === "bonding" && launchInfo && (
               <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between text-xs text-blue-200">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
                   <span className="font-medium">Bonding Curve Phase (SovryLaunchpad)</span>
                   <span>
                     {(
@@ -584,16 +584,16 @@ export default function SwapInterface({
                     ).toFixed(2)} IP / 100 IP
                   </span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-blue-500/20 overflow-hidden">
+                <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
                   <div
-                    className="h-2 bg-blue-400"
+                    className="h-2 bg-sovry-green"
                     style={{ width: `${bondingProgress}%` }}
                   />
                 </div>
               </div>
             )}
             {launchpadMode === "dex" && launchInfo?.graduated && (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-xs text-emerald-200">
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-sovry-green/40 bg-sovry-green/10 text-xs text-sovry-green">
                 <CheckCircle className="h-3 w-3" />
                 Graduated to DEX (Sovry Router)
               </div>
@@ -610,15 +610,15 @@ export default function SwapInterface({
             )}
 
             {selectedPool && (
-              <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg">
-                <p className="text-sm text-foreground font-medium">
+              <div className="p-3 bg-sovry-green/10 border border-sovry-green/30 rounded-lg">
+                <p className="text-sm text-zinc-50 font-medium">
                   Pool: {selectedPool.token0.symbol} / {selectedPool.token1.symbol}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-zinc-400 mt-1">
                   Reserves: {parseFloat(selectedPool.reserve0).toFixed(2)} {selectedPool.token0.symbol} • {parseFloat(selectedPool.reserve1).toFixed(2)} {selectedPool.token1.symbol}
                 </p>
                 {(fromToken === "IP" || toToken === "IP") && (
-                  <p className="text-xs text-primary mt-1">
+                  <p className="text-xs text-sovry-green mt-1">
                     ⚡ Native IP will be auto-wrapped to WIP for this swap
                   </p>
                 )}
@@ -626,7 +626,7 @@ export default function SwapInterface({
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">From</label>
+              <label className="text-sm font-medium text-zinc-50 uppercase tracking-wide">From</label>
               <div className="flex gap-2">
                 <Select 
                   value={fromToken} 
@@ -641,7 +641,7 @@ export default function SwapInterface({
                       <SelectItem key={token.id} value={token.symbol}>
                         <div className="flex items-center gap-2">
                           <span>{token.symbol}</span>
-                          <span className="text-xs text-gray-500">{token.name}</span>
+                          <span className="text-xs text-zinc-500">{token.name}</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -657,7 +657,7 @@ export default function SwapInterface({
                 />
               </div>
               {fromToken && availableTokens.length > 0 && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-zinc-400">
                   {availableTokens.find(t => t.symbol === fromToken)?.name}
                 </p>
               )}
@@ -676,7 +676,7 @@ export default function SwapInterface({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">To</label>
+              <label className="text-sm font-medium text-zinc-50 uppercase tracking-wide">To</label>
               <div className="flex gap-2">
                 <Select 
                   value={toToken} 
@@ -709,18 +709,18 @@ export default function SwapInterface({
                 />
               </div>
               {toToken && availableTokens.length > 0 && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-zinc-400">
                   {availableTokens.find(t => t.symbol === toToken)?.name}
                 </p>
               )}
             </div>
 
             {showSettings && (
-              <div className="border border-border/50 rounded-lg p-4 space-y-3 bg-muted/10">
-                <h3 className="font-medium text-sm text-foreground">Transaction Settings</h3>
+              <div className="border border-zinc-800 rounded-lg p-4 space-y-3 bg-zinc-800/30">
+                <h3 className="font-medium text-sm text-zinc-50">Transaction Settings</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-muted-foreground">Slippage (%)</label>
+                    <label className="text-xs text-zinc-400 uppercase tracking-wide">Slippage (%)</label>
                     <Input
                       type="number"
                       value={slippage}
@@ -730,7 +730,7 @@ export default function SwapInterface({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Deadline (min)</label>
+                    <label className="text-xs text-zinc-400 uppercase tracking-wide">Deadline (min)</label>
                     <Input
                       type="number"
                       value={deadline}
@@ -763,9 +763,9 @@ export default function SwapInterface({
                 )}
                 
                 {simulationSuccess && (
-                  <Alert className="border-emerald-500/30 bg-emerald-500/10">
-                    <CheckCircle className="h-4 w-4 text-emerald-400" />
-                    <AlertDescription className="text-emerald-300">
+                  <Alert className="border-sovry-green/30 bg-sovry-green/10">
+                    <CheckCircle className="h-4 w-4 text-sovry-green" />
+                    <AlertDescription className="text-zinc-400">
                       Swap calculation complete! Ready to execute.
                     </AlertDescription>
                   </Alert>

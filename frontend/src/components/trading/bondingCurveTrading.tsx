@@ -244,9 +244,9 @@ export default function BondingCurveTrading({
   }
 
   return (
-    <Card className="bg-card/80 border-border/80">
+    <Card className="bg-zinc-900/50 border-zinc-800">
       <CardHeader>
-        <CardTitle className="text-sm font-semibold flex items-center justify-between">
+        <CardTitle className="text-sm font-semibold text-zinc-50 flex items-center justify-between">
           <span>Bonding Curve Trading</span>
           {currentPrice && (
             <span className="text-xs font-normal text-muted-foreground">
@@ -353,6 +353,7 @@ export default function BondingCurveTrading({
             <Button
               onClick={handleBuy}
               disabled={!primaryWallet || !buyAmount || buying || !estimatedTokens}
+              variant="buy"
               className="w-full"
             >
               {buying ? (
@@ -423,7 +424,7 @@ export default function BondingCurveTrading({
             <Button
               onClick={handleSell}
               disabled={!primaryWallet || !sellAmount || selling || !estimatedIP}
-              variant="destructive"
+              variant="sell"
               className="w-full"
             >
               {selling ? (
