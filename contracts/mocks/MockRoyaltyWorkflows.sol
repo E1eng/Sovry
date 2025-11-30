@@ -11,10 +11,10 @@ contract MockRoyaltyWorkflows {
      * @dev Returns array of amounts claimed (1 ETH for each currency token)
      */
     function claimAllRevenue(
-        address ancestorIpId,
+        address,
         address claimer,
-        address[] calldata childIpIds,
-        address[] calldata royaltyPolicies,
+        address[] calldata,
+        address[] calldata,
         address[] calldata currencyTokens
     ) external returns (uint256[] memory amountsClaimed) {
         // Create return array with same length as currencyTokens

@@ -66,7 +66,8 @@ describe("SovryLaunchpad", function () {
     it("Should launch a new wrapper token correctly", async function () {
       const { launchpad, royaltyToken, creator } = await deployLaunchpadFixture();
       
-      const amountToLock = ethers.BigNumber.from("100"); // 100 RT
+      const RT_UNIT = ethers.BigNumber.from("1000000"); // 1 RT (6 decimals)
+      const amountToLock = RT_UNIT.mul(100); // 100 RT
       
       // Transfer RT ke Creator & Approve Launchpad
       await royaltyToken.transfer(creator.address, amountToLock);
@@ -574,7 +575,8 @@ describe("SovryLaunchpad", function () {
         .updateGraduationThreshold(ethers.utils.parseEther("1000000"));
 
       // --- Setup Launch ---
-      const amountToLock = ethers.BigNumber.from("10000");
+      const RT_UNIT = ethers.BigNumber.from("1000000");
+      const amountToLock = RT_UNIT.mul(100); // 100 RT
       await royaltyToken.transfer(creator.address, amountToLock);
       await royaltyToken.connect(creator).approve(launchpad.address, amountToLock);
 
@@ -634,7 +636,8 @@ describe("SovryLaunchpad", function () {
     it("Should revert when owner tries to emergencyWithdraw wrapper token", async function () {
       const { launchpad, royaltyToken, creator, owner } = await deployLaunchpadFixture();
 
-      const amountToLock = ethers.BigNumber.from("100");
+      const RT_UNIT = ethers.BigNumber.from("1000000");
+      const amountToLock = RT_UNIT.mul(100); // 100 RT
       await royaltyToken.transfer(creator.address, amountToLock);
       await royaltyToken
         .connect(creator)
@@ -662,7 +665,8 @@ describe("SovryLaunchpad", function () {
     it("Should revert when owner tries to emergencyWithdraw underlying RT vault tokens", async function () {
       const { launchpad, royaltyToken, creator, owner } = await deployLaunchpadFixture();
 
-      const amountToLock = ethers.BigNumber.from("100");
+      const RT_UNIT = ethers.BigNumber.from("1000000");
+      const amountToLock = RT_UNIT.mul(100); // 100 RT
       await royaltyToken.transfer(creator.address, amountToLock);
       await royaltyToken
         .connect(creator)
@@ -688,7 +692,8 @@ describe("SovryLaunchpad", function () {
       const { launchpad, royaltyToken, creator, owner } = await deployLaunchpadFixture();
 
       // Lock 100 RT and launch a token
-      const amountToLock = ethers.BigNumber.from("100");
+      const RT_UNIT = ethers.BigNumber.from("1000000");
+      const amountToLock = RT_UNIT.mul(100); // 100 RT
       await royaltyToken.transfer(creator.address, amountToLock);
       await royaltyToken
         .connect(creator)

@@ -2,7 +2,8 @@ import { expect } from "chai";
 import { ethers, network } from "hardhat";
 import * as dotenv from "dotenv";
 
-// Load .env.testnet but don't override existing env vars
+// Load .env (runtime Aeneid deployment) first, then .env.testnet for any extra test-only vars
+dotenv.config({ path: ".env", override: false });
 dotenv.config({ path: ".env.testnet", override: false });
 
 /**
@@ -19,56 +20,30 @@ dotenv.config({ path: ".env.testnet", override: false });
 
 describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
   // ============================================================================
+  // NETWORK GUARD: Hardhat-only comprehensive suite
+  // ============================================================================
+
+  before(async function () {
+    const networkInfo = await ethers.provider.getNetwork();
+    if (networkInfo.chainId === 1315) {
+      console.log(
+        `Skipping Comprehensive Suite on Aeneid (chainId=1315). This suite is intended for local Hardhat only.`,
+      );
+      this.skip();
+    }
+  });
+
+  // ============================================================================
   // SETUP & FIXTURES
   // ============================================================================
 
   async function deployLaunchpadFixture() {
-    const networkInfo = await ethers.provider.getNetwork();
-    const isAeneid = networkInfo.chainId === 1315;
-
     const signers = await ethers.getSigners();
-    const [owner, creator, trader1, trader2] = signers;
+    const owner = signers[0];
+    const creator = signers[1] || owner;
+    const trader1 = signers[2] || owner;
+    const trader2 = signers[3] || owner;
     const treasury = signers[4] || owner;
-
-    // ON AENEID: Load contracts from .env.testnet with signer
-    if (isAeneid) {
-      const launchpadAddr = process.env.SOVRY_LAUNCHPAD;
-      const rtAddr = process.env.MOCK_RT_TOKEN;
-      const wipAddr = process.env.MOCK_WIP_TOKEN;
-      const piperXAddr = process.env.PIPERX_ROUTER;
-      const royaltyAddr = process.env.ROYALTY_WORKFLOWS;
-
-      if (!launchpadAddr || !rtAddr || !wipAddr || !piperXAddr || !royaltyAddr) {
-        throw new Error("❌ Missing .env.testnet addresses");
-      }
-
-      // Load contracts and connect with signer for write operations
-      const launchpad = await ethers.getContractAt("SovryLaunchpad", launchpadAddr, owner);
-      const wipToken = await ethers.getContractAt("MockERC20", wipAddr, owner);
-      const royaltyToken = await ethers.getContractAt("MockERC20_6", rtAddr, owner);
-      const piperXRouter = await ethers.getContractAt("MockPiperXRouter", piperXAddr, owner);
-      const royaltyWorkflows = await ethers.getContractAt("MockRoyaltyWorkflows", royaltyAddr, owner);
-
-      const graduationThreshold = ethers.utils.parseEther("1.0");
-
-      console.log("\n✅ AENEID: USING DEPLOYED CONTRACTS WITH SIGNER");
-      console.log(`   Launchpad: ${launchpadAddr}`);
-      console.log(`   RT: ${rtAddr}`);
-
-      return {
-        launchpad,
-        wipToken,
-        royaltyToken,
-        piperXRouter,
-        royaltyWorkflows,
-        owner,
-        creator,
-        trader1,
-        trader2,
-        treasury,
-        graduationThreshold,
-      };
-    }
 
     // ON HARDHAT: Deploy fresh contracts
     // Deploy Mocks
@@ -416,14 +391,13 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
       console.log("   Amount Locked:", ethers.utils.formatUnits(amountToLock, 6), "RT");
     });
 
-    it("❌ Launch - Validasi 10% (MinListingRequired)", async function () {
+    it("❌ Launch - Validasi Min 10 RT (MinListingRequired)", async function () {
       const { launchpad, royaltyToken, creator } = await deployLaunchpadFixture();
 
       const RT_UNIT = ethers.BigNumber.from("1000000");
-      const creatorBalance = await royaltyToken.balanceOf(creator.address);
       
-      // Try to launch with less than 10%
-      const tooSmallAmount = creatorBalance.mul(5).div(100); // 5% only
+      // Try to launch with less than 10 RT
+      const tooSmallAmount = RT_UNIT.mul(5); // 5 RT only
 
       await royaltyToken.connect(creator).approve(launchpad.address, tooSmallAmount);
 
@@ -438,7 +412,11 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
         )
       ).to.be.revertedWithCustomError(launchpad, "MinListingRequired");
 
-      console.log("✅ 10% Validation: Correctly rejected", ethers.utils.formatUnits(tooSmallAmount, 6), "RT");
+      console.log(
+        "✅ Min 10 RT Validation: Correctly rejected",
+        ethers.utils.formatUnits(tooSmallAmount, 6),
+        "RT"
+      );
     });
 
     it("❌ Launch - Tanpa Approve (ERC20 allowance error)", async function () {
@@ -653,12 +631,61 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
       console.log("✅ Slippage Protection: Correctly rejected");
     });
 
-    it("❌ Buy - Purchase Cooldown (< 5 seconds)", async function () {
+    it("✅ Buy - No Purchase Cooldown (multiple buys allowed)", async function () {
       const { launchpad, royaltyToken, creator, trader1 } = await deployLaunchpadFixture();
 
       const wrapperAddress = await launchTokenHelper(launchpad, royaltyToken, creator);
       const WRAP_UNIT = await launchpad.WRAP_UNIT();
       const buyAmount = WRAP_UNIT.mul(1);
+
+      const price1 = await launchpad.calculateBuyPrice(wrapperAddress, buyAmount);
+      const fee1 = price1.div(100);
+      const totalCost1 = price1.add(fee1);
+
+      const deadline = Math.floor(Date.now() / 1000) + 600;
+
+      const SovryToken = await ethers.getContractFactory("SovryToken");
+      const wrapper = SovryToken.attach(wrapperAddress);
+
+      const balanceBefore = await wrapper.balanceOf(trader1.address);
+
+      // First buy - should succeed
+      await launchpad.connect(trader1).buy(
+        wrapperAddress,
+        buyAmount,
+        totalCost1,
+        deadline,
+        { value: totalCost1 }
+      );
+
+      // Second buy immediately - should also succeed (no cooldown anymore)
+      const price2 = await launchpad.calculateBuyPrice(wrapperAddress, buyAmount);
+      const fee2 = price2.div(100);
+      const totalCost2 = price2.add(fee2);
+
+      await launchpad.connect(trader1).buy(
+        wrapperAddress,
+        buyAmount,
+        totalCost2,
+        deadline,
+        { value: totalCost2 }
+      );
+
+      const balanceAfter = await wrapper.balanceOf(trader1.address);
+      expect(balanceAfter.sub(balanceBefore)).to.equal(buyAmount.mul(2));
+
+      console.log("✅ No Purchase Cooldown: multiple buys allowed within 5 seconds");
+    });
+
+    it("✅ Buy - No Daily Limit (> 20% supply allowed)", async function () {
+      const { launchpad, royaltyToken, creator, trader1 } = await deployLaunchpadFixture();
+
+      const wrapperAddress = await launchTokenHelper(launchpad, royaltyToken, creator);
+      const WRAP_UNIT = await launchpad.WRAP_UNIT();
+      
+      // Use a moderately large buy (5 whole tokens) to demonstrate that
+      // there is no per-day cap enforced by the contract anymore.
+      const buyAmount = WRAP_UNIT.mul(5);
 
       const price = await launchpad.calculateBuyPrice(wrapperAddress, buyAmount);
       const fee = price.div(100);
@@ -666,7 +693,11 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
 
       const deadline = Math.floor(Date.now() / 1000) + 600;
 
-      // First buy - should succeed
+      const SovryToken = await ethers.getContractFactory("SovryToken");
+      const wrapper = SovryToken.attach(wrapperAddress);
+
+      const balanceBefore = await wrapper.balanceOf(trader1.address);
+
       await launchpad.connect(trader1).buy(
         wrapperAddress,
         buyAmount,
@@ -675,45 +706,10 @@ describe("🎯 SovryLaunchpad - Comprehensive Test Suite", function () {
         { value: totalCost }
       );
 
-      // Second buy immediately - should fail
-      await expect(
-        launchpad.connect(trader1).buy(
-          wrapperAddress,
-          buyAmount,
-          ethers.utils.parseEther("10"),
-          deadline,
-          { value: ethers.utils.parseEther("10") }
-        )
-      ).to.be.revertedWithCustomError(launchpad, "CooldownActive");
+      const balanceAfter = await wrapper.balanceOf(trader1.address);
+      expect(balanceAfter.sub(balanceBefore)).to.equal(buyAmount);
 
-      console.log("✅ Purchase Cooldown: Correctly enforced");
-    });
-
-    it("❌ Buy - Daily Limit (> 20% supply per day)", async function () {
-      const { launchpad, royaltyToken, creator, trader1 } = await deployLaunchpadFixture();
-
-      const wrapperAddress = await launchTokenHelper(launchpad, royaltyToken, creator);
-      const WRAP_UNIT = await launchpad.WRAP_UNIT();
-      
-      const tokenInfo = await launchpad.getTokenInfo(wrapperAddress);
-      const maxDailyAmount = tokenInfo.initialCurveSupply.mul(2000).div(10000); // 20%
-      
-      // Try to buy more than 20%
-      const excessAmount = maxDailyAmount.add(WRAP_UNIT);
-
-      const deadline = Math.floor(Date.now() / 1000) + 600;
-
-      await expect(
-        launchpad.connect(trader1).buy(
-          wrapperAddress,
-          excessAmount,
-          ethers.utils.parseEther("1000"),
-          deadline,
-          { value: ethers.utils.parseEther("1000") }
-        )
-      ).to.be.revertedWithCustomError(launchpad, "SupplyExceeded");
-
-      console.log("✅ Daily Limit: Correctly enforced");
+      console.log("✅ No Daily Limit: able to buy a larger amount of tokens in a single tx (no per-day cap)");
     });
 
     it("✅ Sell - Happy Path (tokens sold, ETH received)", async function () {

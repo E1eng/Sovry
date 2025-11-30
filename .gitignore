@@ -29,6 +29,7 @@ contracts/artifacts/
 contracts/cache/
 contracts/broadcast/
 contracts/typechain-types/
+contracts/.env.testnet
 
 # Build outputs
 dist/
