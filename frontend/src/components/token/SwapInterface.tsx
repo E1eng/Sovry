@@ -26,7 +26,6 @@ import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
 import { erc20Abi } from "viem"
 import { parseTransactionError, logError, isSlippageError, isBalanceError } from "@/lib/errorUtils"
 import { trackTrade, trackApproval, trackEvent } from "@/lib/analytics"
-import { estimateGas } from "@/lib/bondingCurve"
 import { memo, useEffect as useReactEffect } from "react"
 
 export interface SwapInterfaceProps {
@@ -77,8 +76,6 @@ function SwapInterfaceComponent({
   const [isApproving, setIsApproving] = useState(false)
   const [balanceError, setBalanceError] = useState<string | null>(null)
   const [slippageError, setSlippageError] = useState<string | null>(null)
-  const [estimatedGasCost, setEstimatedGasCost] = useState<string | null>(null)
-  const [isEstimatingGas, setIsEstimatingGas] = useState(false)
   const [curveParams, setCurveParams] = useState<any | null>(null)
 
   // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
@@ -224,31 +221,10 @@ function SwapInterfaceComponent({
     debounceTimerRef.current = setTimeout(() => {
       if (fromAmount) {
         calculateOutput(fromAmount, activeTab === "buy")
-
-        // Estimate gas cost
-        if (tokenAddress && currentSupply > 0n) {
-          setIsEstimatingGas(true)
-          try {
-            const amountBigInt = parseEther(fromAmount)
-            const gasEstimate = estimateGas(amountBigInt)
-            // Estimate gas price (in wei) - using a reasonable default
-            const gasPrice = 20000000000n // 20 gwei (adjust based on network)
-            const gasCost = gasEstimate * gasPrice
-            setEstimatedGasCost(formatEther(gasCost))
-          } catch (error) {
-            console.error("Error estimating gas:", error)
-            setEstimatedGasCost(null)
-          } finally {
-            setIsEstimatingGas(false)
-          }
-        } else {
-          setEstimatedGasCost(null)
-        }
       } else {
         setToAmount("")
         setPriceImpact(null)
         setExchangeRate("")
-        setEstimatedGasCost(null)
       }
     }, 300) // 300ms debounce
 
@@ -786,7 +762,7 @@ function SwapInterfaceComponent({
           <label className="text-xs text-zinc-400 font-medium">You Pay</label>
           <div className="flex flex-col sm:flex-row gap-2">
             <Input
-              type="number"
+              type="text"
               value={fromAmount}
               onChange={(e) => {
                 setFromAmount(e.target.value)
@@ -919,7 +895,7 @@ function SwapInterfaceComponent({
         </div>
 
         {/* Exchange Rate and Price Impact */}
-        {(exchangeRate || priceImpact !== null || estimatedGasCost) && (
+        {(exchangeRate || priceImpact !== null) && (
           <div className="pt-2 border-t border-zinc-800 space-y-2">
             {exchangeRate && (
               <p className="text-xs text-zinc-400 text-center">{exchangeRate}</p>
@@ -941,18 +917,6 @@ function SwapInterfaceComponent({
                   High price impact! This trade will significantly affect the token price.
                 </AlertDescription>
               </Alert>
-            )}
-            {/* Gas Estimation */}
-            {estimatedGasCost && isConnected && (
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-xs text-zinc-500">
-                  Est. Gas: {isEstimatingGas ? (
-                    <Loader2 className="h-3 w-3 inline animate-spin" />
-                  ) : (
-                    `${parseFloat(estimatedGasCost).toFixed(6)} IP`
-                  )}
-                </span>
-              </div>
             )}
           </div>
         )}
