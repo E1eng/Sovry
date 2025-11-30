@@ -15,6 +15,7 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { primaryWallet } = useDynamicContext();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-16 hover:w-64 flex-col bg-black/50 backdrop-blur-md border-r border-border transition-[width] duration-200 group">
@@ -61,8 +62,26 @@ export function Sidebar() {
             );
           })}
         </nav>
+
+        {/* Wallet summary (aligned with nav items) */}
+        <div className="mt-auto border-t border-border px-3 pt-4 pb-2 flex flex-col gap-3">
+          {primaryWallet && (
+            <div className="flex items-center gap-3 mb-1">
+              {/* Icon bubble always visible, like nav icons */}
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary via-amber-400 to-primary/80 text-xs font-bold text-background flex-shrink-0">
+                {primaryWallet.address?.slice(2, 4).toUpperCase()}
+              </div>
+              {/* Text fades in when sidebar expands (group-hover), same as nav labels */}
+              <div className="flex flex-col min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <span className="text-xs font-medium">Wallet</span>
+                <span className="truncate text-[11px] text-muted-foreground">
+                  {primaryWallet.address?.slice(0, 6)}…{primaryWallet.address?.slice(-4)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </aside>
   );
 }
-

@@ -4,6 +4,13 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
+const BAR_HEIGHTS = [
+	72, 45, 60, 35, 80,
+	50, 65, 40, 55, 30,
+	75, 52, 48, 68, 38,
+	62, 44, 58, 33, 70,
+]
+
 export interface ChartSkeletonProps {
   height?: number
   className?: string
@@ -58,7 +65,7 @@ export function ChartSkeleton({ height = 400, className, delay = 100 }: ChartSke
                   key={i}
                   className="w-3 rounded-sm"
                   style={{
-                    height: `${Math.random() * 60 + 20}%`,
+                    height: `${BAR_HEIGHTS[i % BAR_HEIGHTS.length]}%`,
                   }}
                 />
               ))}

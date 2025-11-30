@@ -93,7 +93,10 @@ const contractVersionCache = new Map<string, "new" | "old">();
 
 // Cache for token data
 const tokenDataCache = new Map<string, { data: EnrichedLaunchData; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// During active development we want marketCap and bondingProgress to update
+// immediately after trades, so we effectively disable caching by setting the
+// duration to 0. Increase this later if RPC load becomes a concern.
+const CACHE_DURATION = 0; // milliseconds
 
 export interface EnrichedLaunchData {
   symbol?: string;
@@ -114,21 +117,12 @@ async function detectContractVersion(launchpadAddress: string): Promise<"new" | 
   const cached = contractVersionCache.get(launchpadAddress);
   if (cached) return cached;
 
-  try {
-    // Try to call getMarketCap - if it exists, it's the new contract
-    await publicClient.readContract({
-      address: launchpadAddress as Address,
-      abi: newLaunchpadAbi,
-      functionName: "getMarketCap",
-      args: ["0x0000000000000000000000000000000000000001" as Address], // dummy address
-    });
-    contractVersionCache.set(launchpadAddress, "new");
-    return "new";
-  } catch {
-    // If it fails, assume old contract
-    contractVersionCache.set(launchpadAddress, "old");
-    return "old";
-  }
+  // Frontend is wired against latest SovryLaunchpad deployment on Aeneid
+  // which exposes getMarketCap/getBondingCurve/getTokenInfo. To avoid
+  // false "old" detection from probing a dummy wrapper, we always
+  // treat this address as the new contract.
+  contractVersionCache.set(launchpadAddress, "new");
+  return "new";
 }
 
 /**
@@ -348,7 +342,7 @@ export async function enrichLaunchData(
 ): Promise<EnrichedLaunchData> {
   // Check cache
   const cached = tokenDataCache.get(wrapperToken);
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+  if (CACHE_DURATION > 0 && cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return cached.data;
   }
 

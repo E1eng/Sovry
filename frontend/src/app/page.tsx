@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
-import { PlusCircle, Search, Rocket, ArrowRight } from "lucide-react";
+import { Search, Rocket, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { enrichLaunchesData } from "@/services/launchDataService";
 import { CategoryPills } from "@/components/marketplace/CategoryPills";
@@ -18,7 +18,7 @@ import { formatMarketCap } from "@/lib/utils";
 
 const SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn";
+  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/Sovry-Aeneid/1.0.0/gn";
 
 interface BasicLaunch {
   id: string;
@@ -161,12 +161,11 @@ function LatestLaunchesSection() {
 async function fetchLaunches(first: number, skip: number): Promise<BasicLaunch[]> {
   try {
     const query = `
-      query GetLaunches($first: Int!, $skip: Int!) {
-        launches(first: $first, skip: $skip, orderBy: createdAt, orderDirection: desc) {
+      query GetWrapperTokens($first: Int!, $skip: Int!) {
+        wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
           id
-          token
           creator
-          createdAt
+          launchTime
         }
       }
     `;
@@ -180,13 +179,13 @@ async function fetchLaunches(first: number, skip: number): Promise<BasicLaunch[]
     if (!res.ok) return [];
 
     const json = await res.json();
-    const raw = json?.data?.launches || [];
+    const raw = json?.data?.wrapperTokens || [];
 
     return raw.map((l: any) => ({
       id: l.id as string,
-      token: (l.token as string) || (l.id as string),
+      token: l.id as string,
       creator: l.creator as string,
-      createdAt: Number(l.createdAt || 0),
+      createdAt: Number(l.launchTime || 0),
     }));
   } catch {
     return [];
@@ -200,6 +199,7 @@ export default function Home() {
   const [enriching, setEnriching] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<Category>("All");
+  const { launches: launchesFromHook } = useLaunches(24);
 
   // Fetch basic launch data from subgraph
   useEffect(() => {
@@ -299,23 +299,20 @@ export default function Home() {
 
   const isLoading = loading || enriching;
 
+  // Use launches from useLaunches hook (same data as Latest Launches) for hero count
+  const totalTokens = launchesFromHook.length;
+
   return (
     <>
-      {/* Floating Top-Right Buttons */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
-        <Link href="/create">
-          <Button variant="buy" className="text-sm px-4 py-2">
-            <PlusCircle className="h-4 w-4 mr-2" />
-            Create
-          </Button>
-        </Link>
+      {/* Floating Top-Right Wallet */}
+      <div className="fixed top-4 right-4 z-50">
         <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
           <DynamicWidget variant="dropdown" />
         </div>
       </div>
 
       {/* Hero Section */}
-      <ImmersiveHero />
+      <ImmersiveHero tokenCount={totalTokens} />
 
       {/* Latest Launches Section */}
       <LatestLaunchesSection />

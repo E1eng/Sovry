@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import * as LightweightCharts from "lightweight-charts"
+import { createChart, ColorType, LineStyle, CandlestickSeries } from "lightweight-charts"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -28,9 +28,9 @@ function TradingChartComponent({
   const { data, isLoading, error, refetch } = useTradeHistory(tokenAddress, timeframe)
   
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const chartRef = useRef<ReturnType<typeof LightweightCharts.createChart> | null>(null)
-  const candlestickSeriesRef = useRef<ReturnType<typeof LightweightCharts.IChartApi.createCandlestickSeries> | null>(null)
-  const lastPriceLineRef = useRef<ReturnType<typeof LightweightCharts.IChartApi.createPriceLine> | null>(null)
+  const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
+  const candlestickSeriesRef = useRef<any | null>(null)
+  const lastPriceLineRef = useRef<any | null>(null)
   const [chartInitialized, setChartInitialized] = useState(false)
   
   // Auto-refresh every 30 seconds
@@ -51,21 +51,21 @@ function TradingChartComponent({
     const container = containerRef.current
 
     // Create chart with dark theme
-    const chart = LightweightCharts.createChart(container, {
+    const chart = createChart(container, {
       layout: {
-        background: { type: LightweightCharts.ColorType.Solid, color: "transparent" },
+        background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#e5e7eb", // zinc-200
       },
       grid: {
         vertLines: {
           visible: true,
           color: "rgba(255, 255, 255, 0.1)",
-          style: LightweightCharts.LineStyle.Solid,
+          style: LineStyle.Solid,
         },
         horzLines: {
           visible: true,
           color: "rgba(255, 255, 255, 0.1)",
-          style: LightweightCharts.LineStyle.Solid,
+          style: LineStyle.Solid,
         },
       },
       rightPriceScale: {
@@ -84,8 +84,8 @@ function TradingChartComponent({
       height: height,
     })
 
-    // Create candlestick series with green/red colors
-    const candlestickSeries = chart.addCandlestickSeries({
+    // Create candlestick series with green/red colors (v5 API)
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#22c55e", // green-500
       downColor: "#ef4444", // red-500
       borderVisible: false,
@@ -164,7 +164,7 @@ function TradingChartComponent({
           price: lastPrice,
           color: "#3b82f6", // blue-500
           lineWidth: 2,
-          lineStyle: LightweightCharts.LineStyle.Dashed,
+          lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
           title: "Last Price",
         })

@@ -83,36 +83,21 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
     const version = await detectContractVersion(SOVRY_LAUNCHPAD_ADDRESS);
     if (version === "new") {
       try {
-        // Read LaunchedToken + BondingCurve + MarketCap in parallel
-        const [tokenInfo, curve, marketCap] = await Promise.all([
+        // Read LaunchedToken + BondingCurve + MarketCap in parallel.
+        // viem returns structs as objects with named fields, not iterable tuples.
+        const [rawTokenInfo, rawCurve, marketCap] = await Promise.all([
           publicClient.readContract({
             address: SOVRY_LAUNCHPAD_ADDRESS as Address,
             abi: newLaunchpadAbi,
             functionName: "getTokenInfo",
             args: [tokenAddress as Address],
-          }) as Promise<[
-            string,
-            string,
-            string,
-            bigint,
-            bigint,
-            boolean,
-            bigint,
-            string,
-            bigint,
-          ]>,
+          }) as Promise<any>,
           publicClient.readContract({
             address: SOVRY_LAUNCHPAD_ADDRESS as Address,
             abi: newLaunchpadAbi,
             functionName: "getBondingCurve",
             args: [tokenAddress as Address],
-          }) as Promise<[
-            bigint,
-            bigint,
-            bigint,
-            bigint,
-            boolean,
-          ]>,
+          }) as Promise<any>,
           publicClient.readContract({
             address: SOVRY_LAUNCHPAD_ADDRESS as Address,
             abi: newLaunchpadAbi,
@@ -121,29 +106,27 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
           }) as Promise<bigint>,
         ]);
 
-        const [
-          rtAddress,
-          wrapperAddress,
-          creator,
-          _launchTime,
-          totalLocked,
-          graduated,
-          _totalRoyaltiesHarvested,
-          vaultAddress,
-          dexReserve,
-        ] = tokenInfo;
+        const tokenInfo = rawTokenInfo as any;
+        const curve = rawCurve as any;
+
+        const rtAddress = tokenInfo.rtAddress as string;
+        const wrapperAddress = tokenInfo.wrapperAddress as string;
+        const creator = tokenInfo.creator as string;
+        const totalLocked = BigInt(tokenInfo.totalLocked ?? 0n);
+        const graduated = Boolean(tokenInfo.graduated);
+        const vaultAddress = tokenInfo.vaultAddress as string;
+        const dexReserve = BigInt(tokenInfo.dexReserve ?? 0n);
 
         // If the wrapper was never launched, wrapperAddress will be zero
         if (!wrapperAddress || wrapperAddress === "0x0000000000000000000000000000000000000000") {
           return null;
         }
-
-        const [_basePrice, _priceIncrement, currentSupply, _reserveBalance, _isActive] = curve;
+        const currentSupply = BigInt(curve.currentSupply ?? 0n);
 
         // Only the bonding-curve portion is actually tradable on the curve:
         // initialCurveSupply = totalLocked - dexReserve
         const initialCurveSupply =
-          totalLocked > dexReserve ? (totalLocked as bigint) - (dexReserve as bigint) : 0n;
+          totalLocked > dexReserve ? totalLocked - dexReserve : 0n;
 
         // tokensSold = initialCurveSupply - currentSupply (never negative)
         const tokensSold =
@@ -470,21 +453,12 @@ export async function detectContractVersion(
   const cached = contractVersionCache.get(launchpadAddress);
   if (cached) return cached;
 
-  try {
-    // Try to call getMarketCap - if it exists, it's the new contract
-    await publicClient.readContract({
-      address: launchpadAddress as Address,
-      abi: newLaunchpadAbi,
-      functionName: "getMarketCap",
-      args: ["0x0000000000000000000000000000000000000001" as Address], // dummy address
-    });
-    contractVersionCache.set(launchpadAddress, "new");
-    return "new";
-  } catch {
-    // If it fails, assume old contract
-    contractVersionCache.set(launchpadAddress, "old");
-    return "old";
-  }
+  // This frontend is wired against the latest SovryLaunchpad deployment
+  // on Story Aeneid, which exposes getMarketCap/getBondingCurve/getTokenInfo.
+  // To avoid false "old" detection (due to calling getMarketCap on a dummy
+  // wrapper address that reverts), we explicitly treat this contract as "new".
+  contractVersionCache.set(launchpadAddress, "new");
+  return "new";
 }
 
 /**

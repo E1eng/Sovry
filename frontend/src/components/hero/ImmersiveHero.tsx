@@ -6,7 +6,11 @@ import Link from "next/link";
 import { PlusCircle } from "lucide-react";
 import { TrendingFloat } from "./TrendingFloat";
 
-export function ImmersiveHero() {
+interface ImmersiveHeroProps {
+  tokenCount?: number;
+}
+
+export function ImmersiveHero({ tokenCount }: ImmersiveHeroProps) {
   const targetValue = 98375.19;
   const [displayValue, setDisplayValue] = useState(0);
 
@@ -33,7 +37,6 @@ export function ImmersiveHero() {
       }
     };
 
-    // Start animation after a small delay
     const timeout = setTimeout(() => {
       requestAnimationFrame(animate);
     }, 300);
@@ -57,7 +60,7 @@ export function ImmersiveHero() {
         {/* Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-r from-zinc-950 via-zinc-950/60 to-transparent z-10" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-zinc-950/30 to-zinc-950 z-10" />
-        
+
         {/* Background Image - Using CSS background for better compatibility */}
         <div
           className="absolute inset-0 bg-center bg-no-repeat"
@@ -67,7 +70,7 @@ export function ImmersiveHero() {
             backgroundSize: "100% 100%", // Stretches to fill
           }}
         />
-        
+
         {/* Fallback gradient if image fails to load */}
         <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 opacity-0 hover:opacity-0" />
       </div>
@@ -83,7 +86,11 @@ export function ImmersiveHero() {
             <div className="mb-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900/50 backdrop-blur-sm border border-zinc-800">
                 <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="text-xs text-zinc-400">4292 Tokens Created</span>
+                <span className="text-xs text-zinc-400">
+                  {typeof tokenCount === "number"
+                    ? `${tokenCount.toLocaleString("en-US")} Tokens Created`
+                    : "Tokens Created"}
+                </span>
               </div>
             </div>
 

@@ -5,13 +5,14 @@ import { enrichLaunchesData } from "@/services/launchDataService"
 
 const SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn"
+  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/Sovry-Aeneid/1.0.0/gn"
 
 interface BasicLaunch {
   id: string
   token: string
   creator: string
   createdAt: number
+  graduated: boolean
 }
 
 export interface LaunchData {
@@ -31,12 +32,12 @@ export interface LaunchData {
 async function fetchLaunches(first: number, skip: number): Promise<BasicLaunch[]> {
   try {
     const query = `
-      query GetLaunches($first: Int!, $skip: Int!) {
-        launches(first: $first, skip: $skip, orderBy: createdAt, orderDirection: desc) {
+      query GetWrapperTokens($first: Int!, $skip: Int!) {
+        wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
           id
-          token
           creator
-          createdAt
+          launchTime
+          graduated
         }
       }
     `
@@ -50,13 +51,14 @@ async function fetchLaunches(first: number, skip: number): Promise<BasicLaunch[]
     if (!res.ok) return []
 
     const json = await res.json()
-    const raw = json?.data?.launches || []
+    const raw = json?.data?.wrapperTokens || []
 
     return raw.map((l: any) => ({
       id: l.id as string,
-      token: (l.token as string) || (l.id as string),
+      token: l.id as string,
       creator: l.creator as string,
-      createdAt: Number(l.createdAt || 0),
+      createdAt: Number(l.launchTime || 0),
+      graduated: Boolean(l.graduated),
     }))
   } catch {
     return []
@@ -86,20 +88,14 @@ export function useLaunches(limit: number = 8) {
       const wrapperTokens = basicLaunches.map((l) => l.token || l.id)
       const enrichedData = await enrichLaunchesData(wrapperTokens)
 
-      // Fetch launch info to get graduated status
-      const { getLaunchInfo } = await import("@/services/launchpadService")
-      const launchInfoPromises = wrapperTokens.map((token) => getLaunchInfo(token))
-      const launchInfos = await Promise.all(launchInfoPromises)
-
-      // Merge basic launch data with enriched data and graduated status
-      const merged: LaunchData[] = basicLaunches.map((basic, index) => {
+      // Merge basic launch data with enriched data and graduated status from subgraph
+      const merged: LaunchData[] = basicLaunches.map((basic) => {
         const token = basic.token || basic.id
         const enriched = enrichedData.get(token) || {}
-        const launchInfo = launchInfos[index]
         return {
           ...basic,
           ...enriched,
-          graduated: launchInfo?.graduated || false,
+          graduated: basic.graduated,
         }
       })
 

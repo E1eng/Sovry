@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useDynamicContext, DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { ExternalLink } from "lucide-react";
 
 export function StatusBar() {
   const { primaryWallet } = useDynamicContext();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 h-10 bg-zinc-950/80 backdrop-blur-md border-t border-border flex items-center justify-between px-4">
+    <div className="fixed bottom-0 left-16 right-0 z-30 h-10 bg-zinc-950/80 backdrop-blur-md border-t border-border flex items-center justify-between px-4">
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         {primaryWallet && (
           <div className="flex items-center gap-2">
@@ -50,4 +50,3 @@ export function StatusBar() {
     </div>
   );
 }
-
