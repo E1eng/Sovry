@@ -457,7 +457,6 @@ function SwapInterfaceComponent({
             setPriceImpact(null)
             setExchangeRate("")
             setTradeSuccess(false)
-            setEstimatedGasCost(null)
           }, 2000)
         } else {
           trackTrade("buy", tokenAddress, fromAmount, false, result.error)
@@ -685,7 +684,6 @@ function SwapInterfaceComponent({
           setExchangeRate("")
           setTradeSuccess(false)
           setIsApproved(false) // Reset approval status
-          setEstimatedGasCost(null)
         }, 2000)
       } else {
         trackTrade("sell", tokenAddress, fromAmount, false, result.error)

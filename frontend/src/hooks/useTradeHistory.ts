@@ -9,24 +9,22 @@ const SUBGRAPH_URL =
 
 export type Timeframe = "1H" | "24H" | "7D" | "ALL"
 
+// Shape aligned with current Trade entity in the subgraph
 export interface RawTrade {
   timestamp: string
-  isBuy: boolean
-  amountIP: string
-  amountTokens: string
-  trader: string
+  type: "BUY" | "SELL"
+  amount: string
+  value: string
+  fee: string
   txHash: string
 }
 
 export interface ProcessedTrade {
   timestamp: number
-  isBuy: boolean
   ipAmount: bigint
   tokenAmount: bigint
   price: number
   volume: number
-  trader: string
-  txHash: string
 }
 
 export interface CandlestickData {
@@ -74,17 +72,17 @@ async function fetchTradesFromSubgraph(
   const from = timeframe === "ALL" ? 0 : now - TIME_RANGE_SECONDS[timeframe]
 
   const query = `
-    query TradesForToken($token: Bytes!, $from: BigInt!) {
+    query TradesForToken($token: String!, $from: BigInt!) {
       trades(
-        where: { token: $token, timestamp_gte: $from }
+        where: { wrapper: $token, timestamp_gte: $from }
         orderBy: timestamp
         orderDirection: asc
       ) {
         timestamp
-        isBuy
-        amountIP
-        amountTokens
-        trader
+        type
+        amount
+        value
+        fee
         txHash
       }
     }
@@ -122,27 +120,29 @@ async function fetchTradesFromSubgraph(
 function processTrades(rawTrades: RawTrade[]): ProcessedTrade[] {
   return rawTrades.map((trade) => {
     const timestamp = Number(trade.timestamp || 0)
-    const ipAmount = BigInt(trade.amountIP || "0")
-    const tokenAmount = BigInt(trade.amountTokens || "0")
 
-    // Calculate price: IP per token (both in 18 decimals)
-    const price =
-      tokenAmount > 0n
-        ? Number(formatEther(ipAmount)) / Number(formatEther(tokenAmount))
-        : 0
+    // amount = wrapper token amount (6 decimals), value + fee = IP in 18 decimals
+    const amountRaw = BigInt(trade.amount || "0")
+    const valueRaw = BigInt(trade.value || "0")
+    const feeRaw = BigInt(trade.fee || "0")
 
-    // Volume in IP
-    const volume = Number(formatEther(ipAmount))
+    const ipAmount = valueRaw + feeRaw
+    const tokenAmount = amountRaw
+
+    // Convert to floating point for price & volume using 18-decimals
+    const tokenWei = tokenAmount * (10n ** 12n) // 6 -> 18 decimals
+    const ipFloat = Number(formatEther(ipAmount))
+    const tokenFloat = Number(formatEther(tokenWei))
+
+    const price = tokenFloat > 0 ? ipFloat / tokenFloat : 0
+    const volume = ipFloat
 
     return {
       timestamp,
-      isBuy: trade.isBuy,
       ipAmount,
       tokenAmount,
       price,
       volume,
-      trader: trade.trader || "",
-      txHash: trade.txHash || "",
     }
   })
 }

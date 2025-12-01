@@ -4,6 +4,17 @@ const SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
   "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn";
 
+// Raw shape aligned with current Trade entity in the subgraph
+interface RawTrade {
+  timestamp: string;
+  type: "BUY" | "SELL";
+  amount: string;
+  value: string;
+  fee: string;
+  txHash: string;
+  user?: { id?: string | null } | null;
+}
+
 export interface TradeData {
   timestamp: number;
   price: number;
@@ -52,19 +63,19 @@ export async function fetchTrades(
     const from = timeRange === "ALL" ? 0 : now - TIME_RANGE_SECONDS[timeRange];
 
     const query = `
-      query TradesForToken($token: Bytes!, $from: BigInt!) {
+      query TradesForToken($token: String!, $from: BigInt!) {
         trades(
-          where: { token: $token, timestamp_gte: $from }
+          where: { wrapper: $token, timestamp_gte: $from }
           orderBy: timestamp
           orderDirection: asc
         ) {
-          id
           timestamp
-          amountIP
-          amountTokens
-          isBuy
-          trader
+          type
+          amount
+          value
+          fee
           txHash
+          user { id }
         }
       }
     `;
@@ -86,40 +97,36 @@ export async function fetchTrades(
     }
 
     const json = await response.json();
-        const trades = (json?.data?.trades || []) as Array<{
-          timestamp: string;
-          amountIP: string;
-          amountTokens: string;
-          isBuy: boolean;
-          trader: string;
-          txHash: string;
-        }>;
+    const trades = (json?.data?.trades || []) as RawTrade[];
 
-        return trades.map((t) => {
-          const timestamp = Number(t.timestamp || 0);
-          const amountIP = BigInt(t.amountIP || "0");
-          const amountTokens = BigInt(t.amountTokens || "0");
+    return trades.map((t) => {
+      const timestamp = Number(t.timestamp || 0);
 
-          // Calculate price: IP per token (both in 18 decimals)
-          const price =
-            amountTokens > 0n
-              ? Number(formatEther(amountIP)) / Number(formatEther(amountTokens))
-              : 0;
+      const amountRaw = BigInt(t.amount || "0");
+      const valueRaw = BigInt(t.value || "0");
+      const feeRaw = BigInt(t.fee || "0");
 
-          // Volume in IP
-          const volume = Number(formatEther(amountIP));
+      const amountIP = valueRaw + feeRaw;
+      const amountTokens = amountRaw;
 
-          return {
-            timestamp,
-            price,
-            volume,
-            amountIP,
-            amountTokens,
-            isBuy: t.isBuy,
-            trader: t.trader || "",
-            txHash: t.txHash || "",
-          };
-        });
+      const tokenWei = amountTokens * (10n ** 12n);
+      const ipFloat = Number(formatEther(amountIP));
+      const tokenFloat = Number(formatEther(tokenWei));
+
+      const price = tokenFloat > 0 ? ipFloat / tokenFloat : 0;
+      const volume = ipFloat;
+
+      return {
+        timestamp,
+        price,
+        volume,
+        amountIP,
+        amountTokens,
+        isBuy: t.type === "BUY",
+        trader: t.user?.id || "",
+        txHash: t.txHash || "",
+      };
+    });
   } catch (error) {
     console.error("Error fetching trades:", error);
     return [];
