@@ -21,32 +21,10 @@ export async function GET(
     
     if (!ipAsset) {
       console.log(`❌ IP Asset not found: ${ipId}`);
-      // Return mock data for development instead of 404
-      const mockData = {
-        ipId: ipId,
-        name: 'Mock IP Asset',
-        description: 'This is a mock IP asset for development purposes',
-        image: '/placeholder-ip.png',
-        thumbnail: '/placeholder-ip.png',
-        category: 'IP Asset',
-        owner: '0x0000000000000000000000000000000000000000',
-        tokenId: '1',
-        collection: {
-          name: 'Mock Collection',
-          slug: 'mock-collection',
-          bannerImageUrl: '/placeholder-banner.png'
-        },
-        attributes: [],
-        licenseTerms: null,
-        createdAt: new Date().toISOString(),
-        registrationDate: new Date().toISOString(),
-        uri: `https://example.com/ip/${ipId}`,
-        metadataUri: `https://example.com/metadata/${ipId}`,
-        animation: null,
-        externalUrl: null
-      };
-      
-      return NextResponse.json(mockData);
+      return NextResponse.json(
+        { error: 'IP Asset not found' },
+        { status: 404 }
+      );
     }
 
     // Format metadata for frontend consumption
@@ -54,15 +32,15 @@ export async function GET(
       ipId: ipAsset.ipId,
       name: ipAsset.name || ipAsset.title || 'Untitled IP Asset',
       description: ipAsset.description || 'No description available',
-      image: ipAsset.nftMetadata?.image?.cachedUrl || ipAsset.nftMetadata?.image?.originalUrl || '/placeholder-ip.png',
-      thumbnail: ipAsset.nftMetadata?.image?.thumbnailUrl || ipAsset.nftMetadata?.image?.cachedUrl || '/placeholder-ip.png',
+      image: ipAsset.nftMetadata?.image?.cachedUrl || ipAsset.nftMetadata?.image?.originalUrl || "",
+      thumbnail: ipAsset.nftMetadata?.image?.thumbnailUrl || ipAsset.nftMetadata?.image?.cachedUrl || "",
       category: 'IP Asset', // Can be derived from metadata attributes
       owner: ipAsset.ownerAddress,
       tokenId: ipAsset.tokenId,
       collection: {
         name: ipAsset.nftMetadata?.collection?.name || 'Unknown Collection',
         slug: ipAsset.nftMetadata?.collection?.slug || 'unknown',
-        bannerImageUrl: ipAsset.nftMetadata?.collection?.bannerImageUrl || '/placeholder-banner.png'
+        bannerImageUrl: ipAsset.nftMetadata?.collection?.bannerImageUrl || ""
       },
       attributes: (ipAsset.nftMetadata as any)?.raw?.attributes || [],
       licenseTerms: ipAsset.licenses?.[0]?.terms || null,

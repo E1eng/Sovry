@@ -62,6 +62,9 @@ export default function CreatePage() {
   const [launchDescription, setLaunchDescription] = useState("");
   const [launchPercentage, setLaunchPercentage] = useState<number>(100);
   const [launchLogoFile, setLaunchLogoFile] = useState<File | null>(null);
+  const [twitterUrl, setTwitterUrl] = useState("");
+  const [telegramUrl, setTelegramUrl] = useState("");
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const displayIPAssets = ipAssets;
@@ -249,6 +252,7 @@ export default function CreatePage() {
           symbol: symbolForLaunch,
           description:
             launchDescription || selectedIPAsset?.description || "",
+          external_url: websiteUrl || undefined,
           image: imageUrl || undefined,
           attributes: [
             {
@@ -260,6 +264,11 @@ export default function CreatePage() {
               value: ipAsset.ipId,
             },
           ],
+          links: {
+            twitter: twitterUrl || undefined,
+            telegram: telegramUrl || undefined,
+            website: websiteUrl || undefined,
+          },
         };
 
         const metaRes = await pinJSONToIPFS(
@@ -312,6 +321,9 @@ export default function CreatePage() {
           (lockMessage || "")
       );
 
+      setTwitterUrl("");
+      setTelegramUrl("");
+      setWebsiteUrl("");
       setSelectedIP("");
 
       setTimeout(() => {
@@ -401,7 +413,7 @@ export default function CreatePage() {
           </div>
 
           {/* Other Available IPs to Launch */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <p className="text-sm text-zinc-400 mb-4">
               Browse and select an IP asset from your connected wallet to launch.
             </p>
@@ -411,7 +423,7 @@ export default function CreatePage() {
                 <span>Loading your IP assets...</span>
               </div>
             ) : displayIPAssets.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/70 px-6 py-8 text-center space-y-3">
+              <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/70 px-4 py-6 text-center space-y-3">
                 <p className="text-sm text-zinc-300 font-medium">No IP assets found in your connected wallet.</p>
                 <p className="text-xs text-zinc-500">
                   Register an IP on Story Protocol to start launching tokens on Sovry.
@@ -430,7 +442,7 @@ export default function CreatePage() {
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[600px] overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
                   {displayIPAssets.slice(0, 6).map((ipAsset) => {
                     const tokenBalance = tokenBalances[ipAsset.ipId];
                     const hasTokens = tokenBalance && Number(tokenBalance.balance) > 0.000001;
@@ -441,11 +453,11 @@ export default function CreatePage() {
                         onClick={() => setSelectedIP(ipAsset.ipId)}
                       >
                         {ipAsset.imageUrl && (
-                          <div className="relative">
+                          <div className="relative h-24">
                             <img
                               src={ipAsset.imageUrl}
                               alt={ipAsset.name}
-                              className="w-full aspect-square object-cover"
+                              className="w-full h-full object-cover"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = "none";
@@ -453,7 +465,7 @@ export default function CreatePage() {
                             />
                           </div>
                         )}
-                        <div className="p-3 space-y-1">
+                        <div className="p-2.5 space-y-1">
                           <div className="flex items-center justify-between gap-2">
                             <h3 className="font-semibold text-zinc-50 truncate text-sm">{ipAsset.name}</h3>
                             {hasTokens && (
@@ -566,25 +578,27 @@ export default function CreatePage() {
                 {selectedIPAsset.imageUrl && (
                   <div className="space-y-2">
                     <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Logo Preview</Label>
-                    <div className="relative">
-                      <img
-                        src={launchImageUrl || selectedIPAsset.imageUrl}
-                        alt="Token logo preview"
-                        className="w-full h-32 rounded-lg object-cover border border-zinc-800 bg-zinc-900/40"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = selectedIPAsset.imageUrl || "/placeholder-ip.png";
-                        }}
-                      />
-                      {launchLogoFile && (
-                        <div className="absolute top-2 right-2 px-2 py-1 bg-sovry-green/90 rounded text-xs text-black font-medium">
-                          Custom Upload
-                        </div>
-                      )}
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900/40">
+                        <img
+                          src={launchImageUrl || selectedIPAsset.imageUrl}
+                          alt="Token logo preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = "none";
+                          }}
+                        />
+                        {launchLogoFile && (
+                          <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-sovry-green/90 rounded text-[10px] text-black font-medium">
+                            Custom
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-zinc-500">
+                        Using image from Story Protocol. You can override with a custom image below if needed.
+                      </p>
                     </div>
-                    <p className="text-xs text-zinc-500">
-                      Using image from Story Protocol. You can override with a custom image below if needed.
-                    </p>
                   </div>
                 )}
 
@@ -647,6 +661,42 @@ export default function CreatePage() {
                       onChange={(e) => setLaunchDescription(e.target.value)}
                       placeholder="Short description for this wrapped IP token"
                       className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-zinc-500 text-xs font-medium uppercase tracking-wide">
+                      Twitter
+                    </Label>
+                    <Input
+                      value={twitterUrl}
+                      onChange={(e) => setTwitterUrl(e.target.value)}
+                      placeholder="https://twitter.com/username"
+                      className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs sm:text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-zinc-500 text-xs font-medium uppercase tracking-wide">
+                      Telegram
+                    </Label>
+                    <Input
+                      value={telegramUrl}
+                      onChange={(e) => setTelegramUrl(e.target.value)}
+                      placeholder="https://t.me/channel"
+                      className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs sm:text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-zinc-500 text-xs font-medium uppercase tracking-wide">
+                      Website
+                    </Label>
+                    <Input
+                      value={websiteUrl}
+                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      placeholder="https://project.site"
+                      className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs sm:text-sm"
                     />
                   </div>
                 </div>

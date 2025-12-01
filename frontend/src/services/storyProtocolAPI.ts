@@ -190,7 +190,7 @@ export function formatIPAsset(asset: IPAsset) {
     ipId: asset.ipId,
     name: asset.name || asset.title || 'Untitled IP Asset',
     description: asset.description || 'No description available',
-    image: asset.nftMetadata?.image?.cachedUrl || '/placeholder-ip.png',
+    image: asset.nftMetadata?.image?.cachedUrl || "",
     license: asset.licenses?.[0]?.templateName || 'All Rights Reserved',
     owner: asset.ownerAddress,
     royaltyBps: asset.licenses?.[0]?.terms?.commercialRevShare || 0,

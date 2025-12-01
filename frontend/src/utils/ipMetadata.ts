@@ -134,7 +134,7 @@ export function formatIPAssetForDisplay(metadata: IPAssetMetadata) {
     // Helper properties
     displayName: metadata.name || `IP Asset #${metadata.tokenId}`,
     displayDescription: metadata.description || 'No description available',
-    hasImage: metadata.image && metadata.image !== '/placeholder-ip.png',
+    hasImage: !!metadata.image,
     isLicensed: !!metadata.licenseTerms,
   };
 }

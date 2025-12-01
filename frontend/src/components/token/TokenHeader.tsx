@@ -59,7 +59,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   const isGraduated = details.launchInfo?.graduated || false
   const creator = details.launchInfo?.creator
   const totalRaised = details.launchInfo?.totalRaised
-  const imageUrl = details.imageUrl || "/placeholder-ip.png"
+  const imageUrl = details.imageUrl
   const ticker = details.symbol || "TOKEN"
   const name = details.name || ticker
 
@@ -81,14 +81,22 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
         <div className="flex flex-col items-start gap-4 sm:gap-6">
           {/* Token Image */}
           <div className="relative w-20 h-20 sm:w-20 sm:h-20 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-800">
-            <Image
-              src={imageUrl}
-              alt={name}
-              fill
-              className="object-cover"
-              loading="lazy"
-              unoptimized
-            />
+            {imageUrl ? (
+              <Image
+                src={imageUrl}
+                alt={name}
+                fill
+                className="object-cover"
+                loading="lazy"
+                unoptimized
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-zinc-700/60">
+                <span className="text-2xl font-bold text-zinc-400">
+                  {ticker.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Token Info */}

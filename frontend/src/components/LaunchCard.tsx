@@ -36,8 +36,9 @@ function LaunchCardComponent({
 }: LaunchCardProps) {
   const [imageError, setImageError] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)
-  const [placeholderError, setPlaceholderError] = useState(false)
   const router = useRouter()
+
+  const hasImage = typeof image === "string" && image.trim().length > 0
 
   // Truncate address: show first 6 and last 4 characters for better readability
   const truncateAddress = (address: string) => {
@@ -75,13 +76,13 @@ function LaunchCardComponent({
           <div className="relative w-full bg-zinc-800 overflow-hidden flex items-center justify-center">
             <div className="relative w-full aspect-video">
               {/* Skeleton/Shimmer Loading State */}
-              {imageLoading && !imageError && (
+              {hasImage && imageLoading && !imageError && (
                 <div className="absolute inset-0 bg-zinc-800">
                   <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
                 </div>
               )}
               {/* Image or Fallback */}
-              {!imageError ? (
+              {hasImage && !imageError ? (
                 <>
                   <Image
                     src={image}
@@ -103,31 +104,14 @@ function LaunchCardComponent({
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                 </>
               ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-800">
-                  {!placeholderError ? (
-                    <Image
-                      src="/placeholder-ip.png"
-                      alt={`${ticker} placeholder image`}
-                      fill
-                      loading="lazy"
-                      className="object-cover"
-                      onError={() => {
-                        setPlaceholderError(true)
-                      }}
-                      unoptimized
-                    />
-                  ) : (
-                    /* Fallback UI if placeholder image fails */
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-20 h-20 rounded-full bg-zinc-700/50 flex items-center justify-center mb-2 mx-auto">
-                          <span className="text-3xl font-bold text-zinc-500">
-                            {ticker.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-800 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-20 h-20 rounded-full bg-zinc-700/50 flex items-center justify-center mb-2 mx-auto">
+                      <span className="text-3xl font-bold text-zinc-500">
+                        {ticker.charAt(0).toUpperCase()}
+                      </span>
                     </div>
-                  )}
+                  </div>
                   {/* Gradient Overlay for better text readability */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
                 </div>
