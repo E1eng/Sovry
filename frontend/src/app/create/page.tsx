@@ -286,6 +286,9 @@ export default function CreatePage() {
             description: launchDescription || null,
             image_url: imageUrl || null,
             metadata_uri: metadataUri,
+            twitter_url: twitterUrl.trim() || null,
+            telegram_url: telegramUrl.trim() || null,
+            website_url: websiteUrl.trim() || null,
           });
         }
       } catch (metaError) {

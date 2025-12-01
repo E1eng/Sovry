@@ -768,6 +768,138 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
   }
 }
 
+type TenderlySimulationTx = {
+  from: string;
+  to: string;
+  gas?: string;
+  gasPrice?: string;
+  value?: string;
+  data?: string;
+};
+
+async function simulateOnTenderly(tx: TenderlySimulationTx): Promise<any> {
+  if (!STORY_RPC_URL) {
+    throw new Error("STORY_RPC_URL is not configured for Tenderly simulation");
+  }
+
+  const body = {
+    jsonrpc: "2.0",
+    id: Date.now(),
+    method: "tenderly_simulateTransaction",
+    params: [tx, "latest"],
+  };
+
+  const response = await fetch(STORY_RPC_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Tenderly simulation RPC error: ${response.status} ${response.statusText}`);
+  }
+
+  const json = await response.json();
+  if (json.error) {
+    throw new Error(json.error.message || "Tenderly simulation failed");
+  }
+
+  return json.result;
+}
+
+export async function simulateBuy(
+  tokenAddress: string,
+  ipAmount: string,
+  fromAddress: string,
+): Promise<any> {
+  if (!fromAddress) {
+    throw new Error("Wallet address is required for Tenderly simulation");
+  }
+
+  const value = parseEther(ipAmount || "0");
+  if (value <= 0n) {
+    throw new Error("Amount must be greater than 0");
+  }
+
+  const curveParams = await getCurveParams(tokenAddress);
+  if (!curveParams) {
+    throw new Error("Bonding curve not available for this token");
+  }
+
+  const { amount } = estimateBuyAmountForIp(curveParams, value);
+
+  if (amount < WRAP_UNIT) {
+    throw new Error("Trade amount too small to buy at least 1 token");
+  }
+
+  if (curveParams.currentSupply < amount) {
+    throw new Error("Insufficient bonding curve supply");
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
+
+  const data = encodeFunctionData({
+    abi: launchpadAbi,
+    functionName: "buy",
+    args: [tokenAddress as Address, amount, value, deadline],
+  });
+
+  const tx: TenderlySimulationTx = {
+    from: fromAddress,
+    to: SOVRY_LAUNCHPAD_ADDRESS as string,
+    gas: "0x0",
+    gasPrice: "0x0",
+    value: `0x${value.toString(16)}`,
+    data,
+  };
+
+  return simulateOnTenderly(tx);
+}
+
+export async function simulateSell(
+  tokenAddress: string,
+  tokenAmount: string,
+  minIpOut: string,
+  fromAddress: string,
+): Promise<any> {
+  if (!fromAddress) {
+    throw new Error("Wallet address is required for Tenderly simulation");
+  }
+
+  const amountEthDecimals = parseEther(tokenAmount || "0");
+  const minIpOutWei = parseEther(minIpOut || "0");
+
+  // Convert 18-decimal UI token amount to 6-decimal wrapper units
+  const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
+  const amount = amountEthDecimals / ONE_TOKEN_FACTOR;
+  if (amount <= 0n) {
+    throw new Error("Sell amount too small");
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
+
+  const sellData = encodeFunctionData({
+    abi: launchpadAbi,
+    functionName: "sell",
+    args: [tokenAddress as Address, amount, minIpOutWei, deadline],
+  });
+
+  const tx: TenderlySimulationTx = {
+    from: fromAddress,
+    to: SOVRY_LAUNCHPAD_ADDRESS as string,
+    gas: "0x0",
+    gasPrice: "0x0",
+    value: "0x0",
+    data: sellData,
+  };
+
+  return simulateOnTenderly(tx);
+}
+
 export const launchpadService = {
   getLaunchInfo,
   getBondingProgress,
@@ -777,6 +909,8 @@ export const launchpadService = {
   launchToken,
   buy,
   sell,
+  simulateBuy,
+  simulateSell,
   harvestAndPump,
   getRoyaltyLockInfo,
   detectContractVersion,

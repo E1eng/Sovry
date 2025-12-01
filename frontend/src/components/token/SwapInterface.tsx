@@ -77,6 +77,9 @@ function SwapInterfaceComponent({
   const [balanceError, setBalanceError] = useState<string | null>(null)
   const [slippageError, setSlippageError] = useState<string | null>(null)
   const [curveParams, setCurveParams] = useState<any | null>(null)
+  const [isSimulatingTx, setIsSimulatingTx] = useState(false)
+  const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
+  const [simulationError, setSimulationError] = useState<string | null>(null)
 
   // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
   const FEE_BPS = 100n
@@ -521,6 +524,68 @@ function SwapInterfaceComponent({
     }
   }
 
+  // Handle Tenderly simulation (dry-run, no on-chain tx)
+  const handleSimulateTrade = async () => {
+    if (!fromAmount || parseFloat(fromAmount) <= 0 || !tokenAddress || !primaryWallet?.address) return
+
+    setSimulationStatus(null)
+    setSimulationError(null)
+    setIsSimulatingTx(true)
+
+    try {
+      if (activeTab === "buy" && fromToken === "IP") {
+        // Simulate bonding-curve buy on SovryLaunchpad
+        const result = await launchpadService.simulateBuy(
+          tokenAddress,
+          fromAmount,
+          primaryWallet.address as string,
+        )
+        console.log("Tenderly simulateBuy result", result)
+        setSimulationStatus("Simulation succeeded (buy): transaction would not revert. Check console for detailed trace & balance changes.")
+      } else if (activeTab === "sell" && fromToken === "TOKEN") {
+        // Calculate minIpOut similar to real sell path
+        if (!curveParams) {
+          throw new Error("Bonding curve data not loaded yet. Please wait and try again.")
+        }
+
+        const slippagePercent = parseFloat(slippage) || 1
+        const tokenWeiIn = parseEther(fromAmount)
+        const wrapperAmount = tokenWeiIn / (10n ** 12n)
+        if (wrapperAmount <= 0n) {
+          throw new Error("Amount too small for current bonding curve")
+        }
+
+        const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
+        if (baseProceeds <= 0n) {
+          throw new Error("Amount too small for current bonding curve")
+        }
+
+        const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
+        const netProceeds = baseProceeds - fee
+        const slippageBps = BigInt(Math.floor(slippagePercent * 100))
+        const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+        const minIpOutStr = formatEther(minProceeds)
+
+        const result = await launchpadService.simulateSell(
+          tokenAddress,
+          fromAmount,
+          minIpOutStr,
+          primaryWallet.address as string,
+        )
+        console.log("Tenderly simulateSell result", result)
+        setSimulationStatus("Simulation succeeded (sell): transaction would not revert. Check console for detailed trace & balance changes.")
+      } else {
+        throw new Error("Simulation is only supported for IP ↔ TOKEN trades on the bonding curve.")
+      }
+    } catch (error: any) {
+      const message = error?.message || "Simulation failed"
+      console.error("Tenderly simulation error", error)
+      setSimulationError(message)
+    } finally {
+      setIsSimulatingTx(false)
+    }
+  }
+
   // Handle sell transaction
   const handleSell = async () => {
     if (!tokenAddress || !primaryWallet || !fromAmount) return
@@ -954,41 +1019,87 @@ function SwapInterfaceComponent({
           </Alert>
         )}
 
-        {/* Place Trade Button */}
-        <Button
-          onClick={handlePlaceTrade}
-          disabled={
-            !fromAmount ||
-            parseFloat(fromAmount) <= 0 ||
-            !isConnected ||
-            isTrading ||
-            detailsLoading ||
-            !tokenAddress ||
-            !!balanceError
-          }
-          className={cn(
-            "w-full h-12 sm:h-12 font-semibold touch-manipulation min-h-[44px]",
-            activeTab === "buy"
-              ? "bg-green-500 hover:bg-green-500/90 text-white disabled:opacity-50"
-              : "bg-red-500 hover:bg-red-500/90 text-white disabled:opacity-50"
-          )}
-        >
-          {isTrading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Confirming...
-            </>
-          ) : tradeSuccess ? (
-            <>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Trade Successful!
-            </>
-          ) : !isConnected ? (
-            "Connect Wallet"
-          ) : (
-            "Place Trade"
-          )}
-        </Button>
+        {/* Simulation feedback */}
+        {simulationStatus && (
+          <Alert className="mt-2 border-sovry-green/40 bg-sovry-green/10">
+            <CheckCircle className="h-3 w-3 text-sovry-green" />
+            <AlertDescription className="text-xs text-zinc-200">
+              {simulationStatus}
+            </AlertDescription>
+          </Alert>
+        )}
+        {simulationError && (
+          <Alert variant="destructive" className="mt-2 py-2">
+            <AlertTriangle className="h-3 w-3" />
+            <AlertDescription className="text-xs">
+              {simulationError}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Simulate + Place Trade Buttons */}
+        <div className="mt-3 flex flex-col sm:flex-row gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSimulateTrade}
+            disabled={
+              !fromAmount ||
+              parseFloat(fromAmount) <= 0 ||
+              !isConnected ||
+              isTrading ||
+              isSimulatingTx ||
+              detailsLoading ||
+              !tokenAddress ||
+              !!balanceError
+            }
+            className="w-full sm:w-40 h-10 text-xs font-medium border-sovry-green/60 text-sovry-green hover:bg-sovry-green/10"
+          >
+            {isSimulatingTx ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                Simulating...
+              </>
+            ) : (
+              "Simulate (Tenderly)"
+            )}
+          </Button>
+
+          <Button
+            onClick={handlePlaceTrade}
+            disabled={
+              !fromAmount ||
+              parseFloat(fromAmount) <= 0 ||
+              !isConnected ||
+              isTrading ||
+              detailsLoading ||
+              !tokenAddress ||
+              !!balanceError
+            }
+            className={cn(
+              "w-full h-12 sm:h-12 font-semibold touch-manipulation min-h-[44px]",
+              activeTab === "buy"
+                ? "bg-green-500 hover:bg-green-500/90 text-white disabled:opacity-50"
+                : "bg-red-500 hover:bg-red-500/90 text-white disabled:opacity-50"
+            )}
+          >
+            {isTrading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Confirming...
+              </>
+            ) : tradeSuccess ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Trade Successful!
+              </>
+            ) : !isConnected ? (
+              "Connect Wallet"
+            ) : (
+              "Place Trade"
+            )}
+          </Button>
+        </div>
       </CardContent>
 
       {/* Slippage Settings Dialog */}

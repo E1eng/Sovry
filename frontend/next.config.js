@@ -5,6 +5,8 @@ const nextConfig = {
   reactStrictMode: true,
   // Empty turbopack config to silence Next.js 16 warning (we use webpack)
   turbopack: {},
+  // Ensure output file tracing starts from the monorepo root (Sovry)
+  outputFileTracingRoot: path.join(__dirname, ".."),
   // Ignore parent directory lockfiles to prevent warnings
   // This is a monorepo with backend/ and frontend/ structure
   experimental: {
@@ -31,8 +33,6 @@ const nextConfig = {
     
     // Handle Dynamic dependencies properly - exclude problematic modules
     const nodeModulesToExclude = [
-      'pino-pretty', 
-      'pino-std-serializers',
       'thread-stream',
       'why-is-node-running',
       'tape',

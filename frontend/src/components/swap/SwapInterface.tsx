@@ -12,6 +12,7 @@ import { createPublicClient, http, Address } from "viem";
 import { launchpadService, type LaunchInfo } from "@/services/launchpadService";
 
 const GOLDSKY_API_URL = process.env.NEXT_PUBLIC_GOLDSKY_API_URL;
+const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
 
 interface SwapToken {
   id: string;
@@ -89,11 +90,11 @@ export default function SwapInterface({
           name: 'Story Aeneid Testnet',
           nativeCurrency: { name: 'IP', symbol: 'IP', decimals: 18 },
           rpcUrls: {
-            default: { http: ['https://aeneid.storyrpc.io'] },
-            public: { http: ['https://aeneid.storyrpc.io'] },
+            default: { http: [STORY_RPC_URL] },
+            public: { http: [STORY_RPC_URL] },
           },
         },
-        transport: http('https://aeneid.storyrpc.io'),
+        transport: http(STORY_RPC_URL),
       });
 
       // Sovry Factory contract address
