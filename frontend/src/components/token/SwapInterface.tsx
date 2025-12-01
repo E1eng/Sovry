@@ -528,6 +528,7 @@ function SwapInterfaceComponent({
     setIsTrading(true)
     setTradeSuccess(false)
 
+    // Calculate slippage percent first
     const slippagePercent = parseFloat(slippage) || 1
 
     // Track trade initiation
@@ -539,11 +540,16 @@ function SwapInterfaceComponent({
     })
 
     try {
-      if (!curveParams) {
-        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
-          duration: 3000,
-        })
-        return
+      // Calculate minIpOut with slippage
+      const ipAmountBigInt = parseEther(fromAmount)
+      const actualIpOut = calculateSellAmount(ipAmountBigInt, currentSupply)
+      const actualIpOutFormatted = parseFloat(formatEther(actualIpOut))
+      const minIpOut = actualIpOutFormatted * (1 - slippagePercent / 100)
+
+      // Create a sell function that only does the sell (not approval)
+      const walletClient = await primaryWallet.getWalletClient()
+      if (!walletClient) {
+        throw new Error("No wallet client available")
       }
 
       // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell

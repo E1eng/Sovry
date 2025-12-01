@@ -14,12 +14,14 @@ const buttonVariants = cva(
           "bg-sovry-pink text-white font-bold uppercase tracking-wide hover:bg-sovry-pink/90",
         buy: "bg-sovry-green text-black font-bold uppercase tracking-wide hover:bg-sovry-green/90",
         sell: "bg-sovry-pink text-white font-bold uppercase tracking-wide hover:bg-sovry-pink/90",
+        purple: "bg-purple-600 text-white font-bold uppercase tracking-wide hover:bg-purple-700 rounded-lg",
         outline:
           "border-2 border-zinc-700 text-zinc-50 font-semibold hover:bg-zinc-800",
         secondary:
           "bg-zinc-800 text-zinc-50 font-semibold hover:bg-zinc-700",
         ghost: "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-50",
         link: "text-sovry-green underline-offset-4 hover:underline",
+        login: "bg-zinc-900 border border-zinc-800 text-white font-semibold hover:bg-zinc-800 rounded-lg",
       },
       size: {
         default: "h-10 px-6 py-3",

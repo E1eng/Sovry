@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
-import { Search, Rocket, ArrowRight } from "lucide-react";
+import { Search, Rocket, ArrowRight, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { enrichLaunchesData } from "@/services/launchDataService";
 import { CategoryPills } from "@/components/marketplace/CategoryPills";
@@ -38,15 +38,128 @@ const CATEGORIES = [
 
 type Category = (typeof CATEGORIES)[number];
 
+// Template launches with NFT profile pictures
+// Images should be placed in the /public folder with these filenames
+function generateTemplateLaunches(): AssetCardData[] {
+  const templates = [
+    {
+      id: "template-1",
+      token: "0x1111111111111111111111111111111111111111",
+      creator: "0xAAAA1111111111111111111111111111111111",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 2, // 2 days ago
+      symbol: "MEME",
+      name: "Dank Meme Token",
+      category: "Meme",
+      marketCap: "125000",
+      bondingProgress: 45,
+      imageUrl: "/nft-images/0_1WJiB8mUJKcylomi.jpg",
+    },
+    {
+      id: "template-2",
+      token: "0x2222222222222222222222222222222222222222",
+      creator: "0xBBBB2222222222222222222222222222222222",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 5, // 5 days ago
+      symbol: "AIAG",
+      name: "AI Agent Protocol",
+      category: "AI Agent",
+      marketCap: "89000",
+      bondingProgress: 32,
+      imageUrl: "/nft-images/045A39D6-3381-473C-A1F1-FD9AE6408087.png",
+    },
+    {
+      id: "template-3",
+      token: "0x3333333333333333333333333333333333333333",
+      creator: "0xCCCC3333333333333333333333333333333333",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 1, // 1 day ago
+      symbol: "GAME",
+      name: "GameFi Universe",
+      category: "Gaming",
+      marketCap: "156000",
+      bondingProgress: 67,
+      imageUrl: "/nft-images/65217fd9e31608b8b6814492_-9ojwcB1tqVmdclia_Sx-oevPA3tjR3E4Y4Qtywk7fp90800zZijuZNz7dsIGPdmsNlpnfq3l1ayZSh1qWraCQqpIuIcNpEuRBg9tW96irdFURf6DDqWgjZ2EKAbqng6wgyhmrxb5fPt20yMRrWwpcg.png",
+    },
+    {
+      id: "template-4",
+      token: "0x4444444444444444444444444444444444444444",
+      creator: "0xDDDD4444444444444444444444444444444444",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 3, // 3 days ago
+      symbol: "MUSIC",
+      name: "Sound Waves NFT",
+      category: "Music",
+      marketCap: "98000",
+      bondingProgress: 28,
+      imageUrl: "/nft-images/809E1643-B14A-4377-8A71-A17DB8C014C8.png",
+    },
+    {
+      id: "template-5",
+      token: "0x5555555555555555555555555555555555555555",
+      creator: "0xEEEE5555555555555555555555555555555555",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 7, // 7 days ago
+      symbol: "ART",
+      name: "Digital Canvas",
+      category: "Art",
+      marketCap: "203000",
+      bondingProgress: 78,
+      imageUrl: "/nft-images/Creep.png",
+    },
+    {
+      id: "template-6",
+      token: "0x6666666666666666666666666666666666666666",
+      creator: "0xFFFF6666666666666666666666666666666666",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 4, // 4 days ago
+      symbol: "MEME2",
+      name: "Viral Token",
+      category: "Meme",
+      marketCap: "67000",
+      bondingProgress: 21,
+      imageUrl: "/nft-images/NFT-creators-money-meme.jpg",
+    },
+    {
+      id: "template-7",
+      token: "0x7777777777777777777777777777777777777777",
+      creator: "0xAAAA7777777777777777777777777777777777",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 6, // 6 days ago
+      symbol: "AIAG2",
+      name: "Neural Network",
+      category: "AI Agent",
+      marketCap: "142000",
+      bondingProgress: 55,
+      imageUrl: "/nft-images/84CBC8C0-A37C-4F2F-A051-EBB94EC0B4F7.png",
+    },
+    {
+      id: "template-8",
+      token: "0x8888888888888888888888888888888888888888",
+      creator: "0xBBBB8888888888888888888888888888888888",
+      createdAt: Math.floor(Date.now() / 1000) - 86400 * 2, // 2 days ago
+      symbol: "GAME2",
+      name: "Metaverse Lands",
+      category: "Gaming",
+      marketCap: "178000",
+      bondingProgress: 62,
+      imageUrl: "/nft-images/FIJfBF6WUAINAAk.jpg",
+    },
+  ];
+
+  return templates;
+}
+
 // Latest Launches Section Component
 function LatestLaunchesSection() {
   const [showGraduated, setShowGraduated] = useState(false)
   const { launches, loading, error, retry } = useLaunches(6)
   
+  // Use template launches when there are no real launches
+  const launchesWithTemplates = launches.length === 0 && !loading
+    ? generateTemplateLaunches().slice(0, 6).map(t => ({
+        ...t,
+        graduated: false, // Templates are not graduated
+      }))
+    : launches
+  
   // Filter launches based on graduated state
   const filteredLaunches = showGraduated
-    ? launches.filter((launch) => launch.graduated)
-    : launches.filter((launch) => !launch.graduated)
+    ? launchesWithTemplates.filter((launch) => launch.graduated)
+    : launchesWithTemplates.filter((launch) => !launch.graduated)
 
   return (
     <section className="px-4 md:px-6 py-8 sm:py-12" aria-labelledby="latest-launches-heading">
@@ -132,7 +245,7 @@ function LatestLaunchesSection() {
               const marketCapRaw = launch.marketCap;
               // bondingProgress is already a percentage (0-100)
               const bondingCurvePercent = launch.bondingProgress || 0;
-              const createdBy = launch.creator;
+              const createdBy = launch.creator || "0x0000000000000000000000000000000000000000";
 
               const tokenAddress = launch.token || launch.id;
 
@@ -256,9 +369,20 @@ export default function Home() {
     enrich();
   }, [basicLaunches]);
 
+  // Compute loading state
+  const isLoading = loading || enriching;
+
+  // Add template launches when there are no real launches
+  const launchesWithTemplates = useMemo(() => {
+    if (enrichedLaunches.length === 0 && !isLoading) {
+      return generateTemplateLaunches();
+    }
+    return enrichedLaunches;
+  }, [enrichedLaunches, isLoading]);
+
   // Filter launches by search and category
   const filtered = useMemo(() => {
-    let result = enrichedLaunches;
+    let result = launchesWithTemplates;
 
     // Apply category filter
     if (selectedCategory !== "All") {
@@ -295,17 +419,24 @@ export default function Home() {
     }
 
     return result;
-  }, [enrichedLaunches, search, selectedCategory]);
-
-  const isLoading = loading || enriching;
+  }, [launchesWithTemplates, search, selectedCategory]);
 
   // Use launches from useLaunches hook (same data as Latest Launches) for hero count
   const totalTokens = launchesFromHook.length;
 
   return (
     <>
-      {/* Floating Top-Right Wallet */}
-      <div className="fixed top-4 right-4 z-50">
+      {/* Floating Top-Right Buttons */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
+        <Link href="/create">
+          <Button variant="purple" className="text-sm px-4 py-2">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Create
+          </Button>
+        </Link>
+        <Button variant="login" className="text-sm px-4 py-2">
+          Login
+        </Button>
         <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
           <DynamicWidget variant="dropdown" />
         </div>

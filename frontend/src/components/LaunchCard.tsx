@@ -3,6 +3,7 @@
 import { useState, memo } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { User } from "lucide-react"
 import { motion } from "framer-motion"
 import { Card, CardContent } from "@/components/ui/card"
@@ -36,6 +37,7 @@ function LaunchCardComponent({
   const [imageError, setImageError] = useState(false)
   const [imageLoading, setImageLoading] = useState(true)
   const [placeholderError, setPlaceholderError] = useState(false)
+  const router = useRouter()
 
   // Truncate address: show first 6 and last 4 characters for better readability
   const truncateAddress = (address: string) => {
@@ -145,7 +147,7 @@ function LaunchCardComponent({
               <div>
                 {marketCapRaw ? (
                   <Tooltip content={`Market Cap: ${formatMarketCapFull(marketCapRaw)}`}>
-                    <span 
+                    <span
                       className="inline-flex items-center bg-green-500 text-white rounded-full px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold cursor-help"
                       aria-label={`Market cap: ${formatMarketCapFull(marketCapRaw)}`}
                     >
@@ -153,7 +155,7 @@ function LaunchCardComponent({
                     </span>
                   </Tooltip>
                 ) : (
-                  <span 
+                  <span
                     className="inline-flex items-center bg-green-500 text-white rounded-full px-2 sm:px-3 py-1 text-xs sm:text-sm font-semibold"
                     aria-label={`Market cap: ${marketCap}`}
                   >
@@ -166,9 +168,12 @@ function LaunchCardComponent({
             <div className="space-y-2">
               {/* Created By */}
               <div className="pt-2 border-t border-zinc-800">
-                <Link
-                  href={`/profile?address=${createdBy}`}
-                  onClick={(e) => e.stopPropagation()}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    router.push(`/profile?address=${createdBy}`)
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.stopPropagation()
@@ -177,32 +182,42 @@ function LaunchCardComponent({
                   className="flex items-center gap-1.5 group focus:outline-none focus:ring-2 focus:ring-sovry-green focus:ring-offset-2 focus:ring-offset-zinc-900 rounded"
                   aria-label={`View profile of creator ${truncateAddress(createdBy)}`}
                 >
-                  <User className="h-3 w-3 text-muted-foreground group-hover:text-zinc-300 transition-colors" aria-hidden="true" />
+                  <User
+                    className="h-3 w-3 text-muted-foreground group-hover:text-zinc-300 transition-colors"
+                    aria-hidden="true"
+                  />
                   <span className="text-xs text-muted-foreground group-hover:text-zinc-300 transition-colors">
                     Created by{" "}
                     <span className="font-medium group-hover:text-zinc-200 transition-colors">
                       {truncateAddress(createdBy)}
                     </span>
                   </span>
-                </Link>
+                </button>
               </div>
 
-          {/* Bonding Curve Progress - At the bottom */}
-          <div className="space-y-2" role="progressbar" aria-label={`Bonding curve progress: ${bondingCurvePercent.toFixed(1)}%`} aria-valuenow={bondingCurvePercent} aria-valuemin={0} aria-valuemax={100}>
-            <div className="flex justify-between items-center">
-              <span className="text-xs sm:text-sm text-zinc-400 font-medium">
-                Bonding Curve: {bondingCurvePercent.toFixed(1)}%
-              </span>
-              <span className="text-xs sm:text-sm text-zinc-300 font-semibold">
-                {bondingCurvePercent.toFixed(1)}%
-              </span>
+              {/* Bonding Curve Progress - At the bottom */}
+              <div
+                className="space-y-2"
+                role="progressbar"
+                aria-label={`Bonding curve progress: ${bondingCurvePercent.toFixed(1)}%`}
+                aria-valuenow={bondingCurvePercent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div className="flex justify-between items-center">
+                  <span className="text-xs sm:text-sm text-zinc-400 font-medium">
+                    Bonding Curve: {bondingCurvePercent.toFixed(1)}%
+                  </span>
+                  <span className="text-xs sm:text-sm text-zinc-300 font-semibold">
+                    {bondingCurvePercent.toFixed(1)}%
+                  </span>
+                </div>
+                <Progress value={bondingCurvePercent} className="h-2" />
+              </div>
             </div>
-            <Progress value={bondingCurvePercent} className="h-2" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-    </Link>
+          </CardContent>
+        </Card>
+      </Link>
     </motion.div>
   )
 }
