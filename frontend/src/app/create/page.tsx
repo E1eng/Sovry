@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FileUpload } from "@/components/ui/file-upload";
+
 import {
   Loader2,
   AlertCircle,
@@ -84,14 +86,27 @@ export default function CreatePage() {
     }
   }, [searchParams, ipAssets]);
 
-  // Auto-populate image from Story Protocol when IP is selected
+  // Auto-populate fields from Story Protocol when IP is selected
   useEffect(() => {
-    if (selectedIPAsset?.imageUrl) {
-      setLaunchImageUrl(selectedIPAsset.imageUrl);
+    if (!selectedIP) return;
+
+    const asset = displayIPAssets.find((a) => a.ipId === selectedIP);
+    if (!asset) return;
+
+    if (asset.imageUrl) {
+      setLaunchImageUrl(asset.imageUrl);
       // Clear manual upload when auto-populating from Story Protocol
       setLaunchLogoFile(null);
     }
-  }, [selectedIP]);
+
+    if (asset.name) {
+      setTokenName(asset.name);
+    }
+
+    if (asset.description) {
+      setLaunchDescription(asset.description);
+    }
+  }, [selectedIP, displayIPAssets]);
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -445,7 +460,7 @@ export default function CreatePage() {
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 max-h-[420px] overflow-y-auto pr-1">
                   {displayIPAssets.slice(0, 6).map((ipAsset) => {
                     const tokenBalance = tokenBalances[ipAsset.ipId];
                     const hasTokens = tokenBalance && Number(tokenBalance.balance) > 0.000001;
@@ -456,11 +471,11 @@ export default function CreatePage() {
                         onClick={() => setSelectedIP(ipAsset.ipId)}
                       >
                         {ipAsset.imageUrl && (
-                          <div className="relative h-24">
+                          <div className="relative w-full aspect-square">
                             <img
                               src={ipAsset.imageUrl}
                               alt={ipAsset.name}
-                              className="w-full h-full object-cover"
+                              className="absolute inset-0 w-full h-full object-cover"
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = "none";
@@ -519,6 +534,7 @@ export default function CreatePage() {
               <div className="h-px w-full bg-gradient-to-r from-transparent via-zinc-700/70 to-transparent" />
             </div>
 
+            {/* Selected IP summary */}
             <div className="p-4 md:p-5 rounded-2xl border border-zinc-800 bg-zinc-900/80">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-3">Selected IP Asset</h3>
               <div className="flex items-start gap-4">
@@ -544,6 +560,7 @@ export default function CreatePage() {
               </div>
             </div>
 
+            {/* Launch config */}
             <div className="space-y-4">
               <div className="p-4 md:p-5 rounded-2xl border border-zinc-800 bg-zinc-900/80">
                 <div className="flex items-center space-x-2 mb-2">
@@ -557,9 +574,12 @@ export default function CreatePage() {
               </div>
 
               <div className="p-4 md:p-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 space-y-4">
+                {/* Name & symbol */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Name (for DEX)</Label>
+                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
+                      Token Name (for DEX)
+                    </Label>
                     <Input
                       value={tokenName}
                       onChange={(e) => setTokenName(e.target.value)}
@@ -568,19 +588,26 @@ export default function CreatePage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Symbol</Label>
+                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
+                      Token Symbol
+                    </Label>
                     <Input
                       value={tokenSymbolLaunch}
-                      onChange={(e) => setTokenSymbolLaunch(e.target.value.toUpperCase().slice(0, 10))}
+                      onChange={(e) =>
+                        setTokenSymbolLaunch(e.target.value.toUpperCase().slice(0, 10))
+                      }
                       placeholder="MEME"
                       className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                     />
                   </div>
                 </div>
 
+                {/* Logo preview */}
                 {selectedIPAsset.imageUrl && (
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">Token Logo Preview</Label>
+                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
+                      Token Logo Preview
+                    </Label>
                     <div className="flex items-center gap-4">
                       <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900/40">
                         <img
@@ -605,41 +632,19 @@ export default function CreatePage() {
                   </div>
                 )}
 
+                {/* Custom logo + description */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
                       Custom Logo (optional override)
                     </Label>
-                    <div
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const file = e.dataTransfer.files?.[0] || null;
-                        if (file) {
-                          handleLogoFileChange(file);
-                        }
-                      }}
-                      onClick={() => logoInputRef.current?.click()}
-                      className="h-20 border border-dashed border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-400 flex items-center cursor-pointer bg-zinc-900 hover:border-zinc-600 transition-colors"
-                    >
-                      <span className="truncate">
-                        {launchLogoFile
-                          ? launchLogoFile.name
-                          : selectedIPAsset.imageUrl
-                          ? "Click to override with custom image"
-                          : "Drag & drop image here, or click to browse"}
-                      </span>
-                    </div>
-                    <input
-                      ref={logoInputRef}
-                      type="file"
+                    <FileUpload
                       accept="image/*"
-                      className="hidden"
-                      onChange={(e) =>
-                        handleLogoFileChange(e.target.files?.[0] || null)
-                      }
+                      multiple={false}
+                      onChange={(files) => {
+                        const file = files?.[0] || null;
+                        handleLogoFileChange(file);
+                      }}
                     />
                     {launchLogoFile && (
                       <Button
@@ -668,6 +673,7 @@ export default function CreatePage() {
                   </div>
                 </div>
 
+                {/* Social links */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="space-y-1">
                     <Label className="text-zinc-500 text-xs font-medium uppercase tracking-wide">
@@ -704,6 +710,7 @@ export default function CreatePage() {
                   </div>
                 </div>
 
+                {/* Percentage slider */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm text-zinc-400">
                     <span>Percentage to Launch</span>
@@ -711,23 +718,27 @@ export default function CreatePage() {
                   </div>
                   <Slider
                     value={[launchPercentage]}
-                    min={1}
+                    min={10}
                     max={100}
                     step={1}
-                    onValueChange={(v) => setLaunchPercentage(v[0] ?? 1)}
+                    onValueChange={(v) => {
+                      const next = v[0] ?? 10;
+                      setLaunchPercentage(next < 10 ? 10 : next);
+                    }}
                   />
                   <p className="text-xs text-zinc-500">
                     You are selling {launchPercentage}% of your IP rights. You keep {100 - launchPercentage}% in your wallet.
                   </p>
                 </div>
 
+                {/* Unlock notice + button */}
                 {needsUnlock && (
                   <div className="space-y-4">
-                    <div className="p-4 bg-zinc-800/30 border border-sovry-pink/30 rounded-lg">
+                    <div className="p-4 bg-zinc-800/30 border border-zinc-700/70 rounded-lg">
                       <div className="flex items-center space-x-3">
-                        <Coins className="h-5 w-5 text-sovry-pink" />
+                        <Coins className="h-5 w-5 text-zinc-200" />
                         <div>
-                          <p className="text-sm font-medium text-sovry-pink">Royalty Tokens Required</p>
+                          <p className="text-sm font-medium text-zinc-100">Royalty Tokens Required</p>
                           <p className="text-xs text-zinc-400 leading-relaxed mt-1">
                             Get royalty tokens before launching. This will mint a license, deploy the vault, and transfer
                             royalty tokens to your wallet.
@@ -758,6 +769,7 @@ export default function CreatePage() {
                   </div>
                 )}
 
+                {/* Launch button */}
                 <Button
                   onClick={() => handleCreatePool(selectedIPAsset)}
                   disabled={creatingPool === selectedIPAsset.ipId || needsUnlock}
@@ -777,6 +789,7 @@ export default function CreatePage() {
                   )}
                 </Button>
 
+                {/* Progress steps */}
                 <div className="mt-4 space-y-2 text-sm text-zinc-400">
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-500 font-medium">1.</span>

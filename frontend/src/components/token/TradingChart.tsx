@@ -38,8 +38,11 @@ function TradingChartComponent({
     if (!tokenAddress) return
     
     const interval = setInterval(() => {
+    
+    if (!document.hidden) {
       refetch()
-    }, 30000) // 30 seconds
+    }
+  }, 30000) // 30 sec
     
     return () => clearInterval(interval)
   }, [tokenAddress, refetch])

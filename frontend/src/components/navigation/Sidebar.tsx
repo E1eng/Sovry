@@ -10,7 +10,7 @@ import { SovrySymbol } from "@/components/ui/SovrySymbol";
 const NAV_ITEMS = [
   { label: "Home", href: "/", icon: LayoutGrid },
   { label: "Create", href: "/create", icon: PlusCircle },
-  { label: "Portfolio", href: "/portfolio", icon: Coins },
+  { label: "Bridge", href: "/bridge", icon: Coins },
   { label: "Profile", href: "/profile", icon: User },
 ];
 
