@@ -335,7 +335,7 @@ export default function CreatePage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 md:px-6 lg:px-8 py-8 sm:py-12">
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="w-full space-y-8">
 
         {/* Hero */}
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -390,6 +390,8 @@ export default function CreatePage() {
 
         {/* Create / Launch Form (only launch existing IP assets) */}
         <div className="relative overflow-hidden rounded-3xl border border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl p-6 md:px-8 md:py-8 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
+
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sovry-green/60 to-transparent" />
 
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-sovry-green/20 rounded-lg border border-sovry-green/30">
@@ -489,6 +491,19 @@ export default function CreatePage() {
         {/* Selected IP + Launch */}
         {selectedIPAsset ? (
           <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sovry-green/80" />
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">
+                    Selected IP & Launch
+                  </p>
+                </div>
+                <span className="text-[11px] text-zinc-500">Detail Panel</span>
+              </div>
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-zinc-700/70 to-transparent" />
+            </div>
+
             <div className="p-4 md:p-5 rounded-2xl border border-zinc-800 bg-zinc-900/80">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-3">Selected IP Asset</h3>
               <div className="flex items-start gap-4">

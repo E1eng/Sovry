@@ -344,17 +344,6 @@ export default function TokenDetailPage() {
 
         {/* Mobile Layout: Stack vertically with custom order */}
         <div className="flex flex-col lg:hidden space-y-6">
-          {/* Swap Interface - First on mobile */}
-          <div
-            style={{
-              animation: "fadeIn 0.5s ease-out 0ms both",
-            }}
-          >
-            <TokenHeader details={details} />
-          </div>
-
-          {/* Mobile Layout: Stack vertically with custom order */}
-          <div className="flex flex-col lg:hidden space-y-6">
             {/* Swap Interface - First on mobile */}
             <div
               style={{

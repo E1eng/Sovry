@@ -163,7 +163,7 @@ function LatestLaunchesSection() {
 
   return (
     <section className="px-4 md:px-6 py-8 sm:py-12" aria-labelledby="latest-launches-heading">
-      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+      <div className="w-full space-y-4 sm:space-y-6">
         {/* Section Header */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-2">
