@@ -17,13 +17,11 @@ import { Button } from "@/components/ui/button"
 import { AlertCircle, Home, ArrowLeft, RefreshCw } from "lucide-react"
 import { useState, useEffect, useCallback, useRef } from "react"
 import toast from "react-hot-toast"
-import { isAddress, formatEther } from "viem"
+import { isAddress } from "viem"
 import { logError, isNetworkError, isRPCError } from "@/lib/errorUtils"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { harvestAndPump } from "@/services/launchpadService"
-import { useRoyaltyVaultBalance } from "@/hooks/useRoyaltyVaultBalance"
-import { HarvestButton } from "@/components/token/HarvestButton"
 
 export default function TokenDetailPage() {
   const params = useParams()
@@ -38,12 +36,7 @@ export default function TokenDetailPage() {
     liquidityPoolAddress: string
   } | null>(null)
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const [isHarvesting, setIsHarvesting] = useState(false)
-
-  // Get vault address and check balance
-  const vaultAddress = details?.launchInfo?.royaltyVault
-  const { balance: vaultBalance, loading: balanceLoading } = useRoyaltyVaultBalance(vaultAddress)
-  const hasBalance = vaultBalance !== null && vaultBalance > 0n
+  
 
   // Validate address format
   const isValidAddress = address && isAddress(address)
@@ -108,61 +101,6 @@ export default function TokenDetailPage() {
       }
     }
   }, [])
-
-  // Handle harvest action
-  const handleHarvest = useCallback(async () => {
-    if (!primaryWallet || !address) {
-      toast.error("Please connect your wallet to harvest royalties")
-      return
-    }
-
-    if (!vaultAddress) {
-      toast.error("Royalty vault not found for this token")
-      return
-    }
-
-    setIsHarvesting(true)
-    try {
-      const result = await harvestAndPump(address, primaryWallet)
-      
-      if (result.success && result.txHash) {
-        // Format the amount for display
-        let amountText = "0"
-        if (result.harvestedAmount && result.harvestedAmount !== "0") {
-          const amount = parseFloat(formatEther(BigInt(result.harvestedAmount)))
-          amountText = amount > 0 ? amount.toFixed(4) : "0"
-        }
-        
-        // Show success toast with amount or generic message if amount couldn't be determined
-        if (amountText !== "0") {
-          toast.success(`💰 Pumped ${amountText} IP into the curve!`, {
-            duration: 5000,
-            icon: "💰",
-          })
-        } else {
-          toast.success("💰 Royalties harvested and pumped into the curve!", {
-            duration: 5000,
-            icon: "💰",
-          })
-        }
-        
-        // Refresh details to update the UI (this will also trigger balance refresh via polling)
-        refreshDetails()
-      } else {
-        const errorMsg = result.error || "Failed to harvest royalties"
-        toast.error(errorMsg, {
-          duration: 5000,
-        })
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
-      toast.error(`Harvest failed: ${errorMessage}`, {
-        duration: 5000,
-      })
-    } finally {
-      setIsHarvesting(false)
-    }
-  }, [address, primaryWallet, refreshDetails, vaultAddress])
 
   // Loading state
   if (loading) {
@@ -315,32 +253,6 @@ export default function TokenDetailPage() {
         >
           <TokenHeader details={details} />
         </div>
-
-        {/* Harvest Royalties Button */}
-        {vaultAddress && (
-          <div
-            style={{
-              animation: "fadeIn 0.5s ease-out 50ms both",
-            }}
-          >
-            <Card>
-              <CardContent className="p-4 sm:p-6">
-                <HarvestButton
-                  tokenAddress={address}
-                  vaultAddress={vaultAddress}
-                  onHarvest={handleHarvest}
-                  isHarvesting={isHarvesting}
-                  hasBalance={hasBalance && !balanceLoading}
-                />
-                {vaultBalance !== null && (
-                  <p className="text-xs text-zinc-500 mt-2 text-center">
-                    Vault Balance: {parseFloat(formatEther(vaultBalance)).toFixed(4)} IP
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Mobile Layout: Stack vertically with custom order */}
         <div className="flex flex-col lg:hidden space-y-6">

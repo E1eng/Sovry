@@ -1,0 +1,17 @@
+{
+  "network": "aeneid",
+  "chainId": 1315,
+  "deployer": "0x8c317fb91a73E2C8D4883DDED3981982F046F733",
+  "owner": "0x8c317fb91a73e2c8d4883dded3981982f046f733",
+  "timestamp": "2025-11-20T08:51:45.215Z",
+  "contracts": {
+    "SovryFactory": {
+      "address": "0x1900a259695419c26f9cD9B268aeD49dA75912bb",
+      "transactionHash": "0xc08f875a6c357f4f70713d115a96210a8b5b15af3392a25edf0677dc06efea97"
+    },
+    "SovryRouter": {
+      "address": "0x14A8d3B25242E3dF74dD70fAa4E8077Bb6C955C3",
+      "transactionHash": "0xbb5152676fe3212e3fc08e15694ee78c6fb534770eba38b2c453389c00f23ebb"
+    }
+  }
+}

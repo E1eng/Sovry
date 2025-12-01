@@ -2,7 +2,7 @@
 // For creating new IP assets and getting royalty tokens
 
 import { StoryClient } from '@story-protocol/core-sdk';
-import { createPublicClient, http, Address, custom, encodeFunctionData, parseEther, waitForTransactionReceipt, keccak256, stringToHex } from 'viem';
+import { createPublicClient, http, Address, custom, keccak256, stringToHex } from 'viem';
 import { primaryWallet } from '@dynamic-labs/sdk-react-core';
 import { pinJSONToIPFS, pinFileToIPFS } from './pinataService';
 
@@ -243,7 +243,7 @@ export async function registerIPAssetWithPolling(
     let extractedIpId: string | null = null;
     
     try {
-      receipt = await waitForTransactionReceipt(publicClient, {
+      receipt = await publicClient.waitForTransactionReceipt({
         hash: response.txHash as `0x${string}`,
         timeout: 120_000, // 2 minutes timeout
       });

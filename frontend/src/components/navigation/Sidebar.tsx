@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { LayoutGrid, Coins, User } from "lucide-react";
+import { LayoutGrid, Coins, User, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SovrySymbol } from "@/components/ui/SovrySymbol";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/", icon: LayoutGrid },
+  { label: "Create", href: "/create", icon: PlusCircle },
   { label: "Portfolio", href: "/portfolio", icon: Coins },
   { label: "Profile", href: "/profile", icon: User },
 ];
