@@ -15,8 +15,8 @@
   --primary: #E5E7EB;
   --primary-foreground: #09090B;
   /* Secondary/Sell - Hot Pink (#FF10F0) */
-  --secondary: #FF10F0;
-  --secondary-foreground: #FAFAFA;
+  --secondary: #E5E7EB;
+  --secondary-foreground: #09090B;
   /* Surface variant */
   --muted: #18181B;
   /* Text Muted - Ash Grey (#A1A1AA / zinc-400) */
@@ -24,9 +24,9 @@
   /* Accent uses primary (Toxic Green) */
   --accent: #E5E7EB;
   --accent-foreground: #09090B;
-  /* Destructive uses secondary (Hot Pink) */
-  --destructive: #FF10F0;
-  --destructive-foreground: #FAFAFA;
+  /* Destructive now uses neutral grey */
+  --destructive: #A1A1AA;
+  --destructive-foreground: #09090B;
   /* Border - Deep Zinc (#27272A / zinc-800) */
   --border: #27272A;
   /* Input uses surface (Gunmetal) */
@@ -46,14 +46,14 @@
   --popover-foreground: #FAFAFA;
   --primary: #E5E7EB;
   --primary-foreground: #09090B;
-  --secondary: #FF10F0;
-  --secondary-foreground: #FAFAFA;
+  --secondary: #E5E7EB;
+  --secondary-foreground: #09090B;
   --muted: #18181B;
   --muted-foreground: #A1A1AA;
   --accent: #E5E7EB;
   --accent-foreground: #09090B;
-  --destructive: #FF10F0;
-  --destructive-foreground: #FAFAFA;
+  --destructive: #A1A1AA;
+  --destructive-foreground: #09090B;
   --border: #27272A;
   --input: #18181B;
   --ring: #E5E7EB;
@@ -84,13 +84,13 @@
   --color-void-black: #09090B;
   --color-gunmetal: #18181B;
   --color-toxic-green: #E5E7EB;
-  --color-hot-pink: #FF10F0;
+  --color-hot-pink: #E5E7EB;
   --color-hologram-white: #FAFAFA;
   --color-ash-grey: #A1A1AA;
   --color-deep-zinc: #27272A;
   /* Sovry Style Guide Colors - Utility Classes */
   --color-sovry-green: #E5E7EB;
-  --color-sovry-pink: #FF10F0;
+  --color-sovry-pink: #A1A1AA;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -144,7 +144,7 @@
 
   /* Negative PnL / Down charts - Hot Pink */
   .negative-pnl {
-    @apply text-[#FF10F0];
+    @apply text-[#A1A1AA];
   }
 
   /* Updated apy-badge with Toxic Green */

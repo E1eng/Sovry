@@ -10,6 +10,7 @@ import {
 } from "./storyProtocolService";
 
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
+const TENDERLY_RPC_URL = process.env.NEXT_PUBLIC_TENDERLY_RPC_URL || STORY_RPC_URL;
 
 // Large approval amount so that subsequent sells can skip additional approve
 // transactions as long as the required amount is below the remaining allowance.
@@ -771,15 +772,13 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
 type TenderlySimulationTx = {
   from: string;
   to: string;
-  gas?: string;
-  gasPrice?: string;
   value?: string;
   data?: string;
 };
 
 async function simulateOnTenderly(tx: TenderlySimulationTx): Promise<any> {
-  if (!STORY_RPC_URL) {
-    throw new Error("STORY_RPC_URL is not configured for Tenderly simulation");
+  if (!TENDERLY_RPC_URL) {
+    throw new Error("TENDERLY_RPC_URL is not configured for Tenderly simulation");
   }
 
   const body = {
@@ -789,7 +788,7 @@ async function simulateOnTenderly(tx: TenderlySimulationTx): Promise<any> {
     params: [tx, "latest"],
   };
 
-  const response = await fetch(STORY_RPC_URL, {
+  const response = await fetch(TENDERLY_RPC_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -850,8 +849,6 @@ export async function simulateBuy(
   const tx: TenderlySimulationTx = {
     from: fromAddress,
     to: SOVRY_LAUNCHPAD_ADDRESS as string,
-    gas: "0x0",
-    gasPrice: "0x0",
     value: `0x${value.toString(16)}`,
     data,
   };
@@ -891,8 +888,6 @@ export async function simulateSell(
   const tx: TenderlySimulationTx = {
     from: fromAddress,
     to: SOVRY_LAUNCHPAD_ADDRESS as string,
-    gas: "0x0",
-    gasPrice: "0x0",
     value: "0x0",
     data: sellData,
   };
