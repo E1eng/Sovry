@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { StatusBar } from "@/components/navigation/StatusBar";
+import { MobileNavBar } from "@/components/navigation/MobileNavBar";
 import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -24,13 +25,14 @@ export default function RootLayout({
         <Providers>
           <div className="min-h-screen bg-zinc-950 flex">
             <Sidebar />
-            <main className="flex-1 ml-16 pb-10">
+            <main className="flex-1 pb-20 md:ml-16 md:pb-10">
               <div className="container mx-auto px-4 py-8 max-w-7xl">
                 {children}
               </div>
             </main>
             <StatusBar />
           </div>
+          <MobileNavBar />
           {/* Global wallet UI (Dynamic) */}
           <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
             <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">

@@ -7,7 +7,7 @@ import { LayoutGrid, Coins, User, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SovrySymbol } from "@/components/ui/SovrySymbol";
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   { label: "Home", href: "/", icon: LayoutGrid },
   { label: "Create", href: "/create", icon: PlusCircle },
   { label: "Bridge", href: "/bridge", icon: Coins },
@@ -19,7 +19,7 @@ export function Sidebar() {
   const { primaryWallet } = useDynamicContext();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-16 hover:w-64 flex-col bg-black/50 backdrop-blur-md border-r border-border transition-[width] duration-200 group">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-16 hover:w-64 flex-col bg-black/50 backdrop-blur-md border-r border-border transition-[width] duration-200 group md:flex">
       <div className="flex h-full flex-col py-4 w-full">
         {/* Logo */}
         <div className="px-3 mb-6">
