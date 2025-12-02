@@ -47,6 +47,7 @@ export interface IPAsset {
   name: string;
   description: string;
   imageUrl: string;
+  mediaType?: string;
   owner: string;
   royaltyVaultAddress: string;
   hasRoyaltyTokens: boolean;
@@ -532,11 +533,25 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
 
             return {
               ipId: asset.ipId,
-              name: asset.name || asset.title || `IP Asset ${asset.ipId.slice(0, 8)}`,
-              description: asset.description || `IP Asset registered on Story Protocol`,
-              imageUrl: asset.nftMetadata?.image?.cachedUrl || asset.nftMetadata?.image?.originalUrl || 'https://example.com/default-ip-image.jpg',
+              name:
+                asset.name ||
+                asset.title ||
+                `IP Asset ${asset.ipId.slice(0, 8)}`,
+              description:
+                asset.description ||
+                `IP Asset registered on Story Protocol`,
+              imageUrl:
+                asset.nftMetadata?.image?.cachedUrl ||
+                asset.nftMetadata?.image?.originalUrl ||
+                "https://example.com/default-ip-image.jpg",
+              mediaType:
+                asset.mediaType ||
+                asset.nftMetadata?.type ||
+                asset.type,
               owner: asset.ownerAddress || asset.owner,
-              royaltyVaultAddress: royaltyVaultAddress || '0x0000000000000000000000000000000000000000',
+              royaltyVaultAddress:
+                royaltyVaultAddress ||
+                "0x0000000000000000000000000000000000000000",
               hasRoyaltyTokens,
               createdAt: asset.createdAt || new Date().toISOString(),
             };

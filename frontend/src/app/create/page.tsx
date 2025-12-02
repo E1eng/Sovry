@@ -629,7 +629,7 @@ export default function CreatePage() {
               </div>
             ) : (
               <div>
-                <div className="max-w-5xl mx-auto">
+                <div className="max-w-7xl mx-auto">
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-h-[480px] overflow-y-auto pr-1">
                     {paginatedAssets.map((ipAsset) => {
                       const tokenBalance = tokenBalances[ipAsset.ipId];
@@ -763,6 +763,9 @@ export default function CreatePage() {
                   <p className="text-sm font-semibold text-zinc-50">{selectedIPAsset.name}</p>
                   <p className="text-xs text-zinc-400">
                     Royalty Token: {selectedIPAsset.royaltyVaultAddress.slice(0, 10)}...
+                  </p>
+                  <p className="text-[11px] text-zinc-500">
+                    Media Type: {selectedIPAsset.mediaType || "Unknown"}
                   </p>
                 </div>
               </div>
