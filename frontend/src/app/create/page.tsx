@@ -76,8 +76,33 @@ export default function CreatePage() {
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchedTokenAddress, setLaunchedTokenAddress] = useState<string | null>(null);
   const [launchedTokenSymbol, setLaunchedTokenSymbol] = useState<string | null>(null);
+  const [assetsPage, setAssetsPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
 
   const displayIPAssets = ipAssets;
+  const totalAssets = displayIPAssets.length;
+
+  useEffect(() => {
+    const updatePageSize = () => {
+      if (typeof window === "undefined") return;
+      if (window.innerWidth < 768) {
+        setPageSize(6); // 3 rows x 2 columns on mobile
+      } else {
+        setPageSize(20); // up to 20 IPs per page on desktop
+      }
+    };
+
+    updatePageSize();
+    window.addEventListener("resize", updatePageSize);
+    return () => window.removeEventListener("resize", updatePageSize);
+  }, []);
+
+  const totalPages = totalAssets > 0 ? Math.ceil(totalAssets / pageSize) : 1;
+  const currentPage = Math.min(assetsPage, totalPages);
+  const paginatedAssets = displayIPAssets.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
 
   const handleLogoFileChange = (file: File | null) => {
     setLaunchLogoFile(file);
@@ -584,7 +609,7 @@ export default function CreatePage() {
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 <span>Loading your IP assets...</span>
               </div>
-            ) : displayIPAssets.length === 0 ? (
+            ) : totalAssets === 0 ? (
               <div className="rounded-xl border border-dashed border-zinc-700 bg-zinc-900/70 px-4 py-6 text-center space-y-3">
                 <p className="text-sm text-zinc-300 font-medium">No IP assets found in your connected wallet.</p>
                 <p className="text-xs text-zinc-500">
@@ -604,71 +629,132 @@ export default function CreatePage() {
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 max-h-[420px] overflow-y-auto pr-1">
-                  {displayIPAssets.slice(0, 6).map((ipAsset) => {
-                    const tokenBalance = tokenBalances[ipAsset.ipId];
-                    const hasTokens = tokenBalance && Number(tokenBalance.balance) > 0.000001;
-                    return (
-                      <div
-                        key={ipAsset.ipId}
-                        className={`group overflow-hidden rounded-2xl border bg-zinc-950/80 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-[0_0_40px_rgba(34,197,94,0.08)] ${
-                          selectedIP === ipAsset.ipId
-                            ? "border-sovry-green/80 bg-zinc-900/80"
-                            : "border-zinc-800/80 hover:border-sovry-green/60 hover:bg-zinc-900/80"
-                        }`}
-                        onClick={() => setSelectedIP(ipAsset.ipId)}
-                      >
-                        {ipAsset.imageUrl && (
-                          <div className="relative w-full aspect-square">
-                            <img
-                              src={ipAsset.imageUrl}
-                              alt={ipAsset.name}
-                              className="absolute inset-0 w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                              }}
-                            />
-                          </div>
-                        )}
-                        <div className="p-2.5 space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold text-zinc-50 truncate text-sm">{ipAsset.name}</h3>
-                              {selectedIP === ipAsset.ipId && (
-                                <p className="text-[10px] text-sovry-green mt-0.5">Selected</p>
-                              )}
+                <div className="max-w-5xl mx-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-h-[480px] overflow-y-auto pr-1">
+
+                    {paginatedAssets.map((ipAsset) => {
+                      const tokenBalance = tokenBalances[ipAsset.ipId];
+                      const hasTokens = tokenBalance && Number(tokenBalance.balance) > 0.000001;
+                      return (
+                        <div
+                          key={ipAsset.ipId}
+                          className={`group overflow-hidden rounded-2xl border bg-zinc-950/80 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-[0_0_40px_rgba(34,197,94,0.08)] ${
+                            selectedIP === ipAsset.ipId
+                              ? "border-sovry-green/80 bg-zinc-900/80"
+                              : "border-zinc-800/80 hover:border-sovry-green/60 hover:bg-zinc-900/80"
+                          }`}
+                          onClick={() => setSelectedIP(ipAsset.ipId)}
+                        >
+                          {ipAsset.imageUrl && (
+                            <div className="relative w-full aspect-square">
+                              <img
+                                src={ipAsset.imageUrl}
+                                alt={ipAsset.name}
+                                className="absolute inset-0 w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = "none";
+                                }}
+                              />
                             </div>
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide border ${
-                                hasTokens
-                                  ? "bg-sovry-green/10 text-sovry-green border-sovry-green/30"
-                                  : "bg-zinc-800/60 text-zinc-400 border-zinc-700"
-                              }`}
-                            >
-                              {hasTokens ? "Ready" : "Locked"}
-                            </span>
-                          </div>
-                          {ipAsset.description && (
-                            <p className="text-xs text-zinc-400 line-clamp-2 mt-1">{ipAsset.description}</p>
                           )}
-                          {tokenBalance && (
-                            <p className="text-[11px] text-zinc-500 pt-1">
-                              RT Balance:{" "}
-                              <span className="text-zinc-200">
-                                {tokenBalance.balance} {tokenBalance.symbol}
-                              </span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                          <div className="p-1.5 space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+
+    {/* Launch config */}
+    <div className="space-y-4">
+      <div className="p-4 md:p-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 space-y-4">
+
+        {/* Token Basics */}
+        <div className="space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+            Token Basics
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
+                Token Name (for DEX)
+              </Label>
+              <Input
+                value={tokenName}
+                onChange={(e) => setTokenName(e.target.value)}
+                placeholder={selectedIPAsset.name || "Super Meme"}
+                className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
+              />
+              <p className="text-[11px] text-zinc-500">
+                Visible di DEX & Sovry, bisa beda dari nama IP awal.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
+                Token Symbol
+              </Label>
+              <Input
+                value={tokenSymbolLaunch}
+                onChange={(e) =>
+                  setTokenSymbolLaunch(e.target.value.toUpperCase().slice(0, 10))
+                }
+                placeholder="MEME"
+                className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
+              />
+              <p className="text-[11px] text-zinc-500">
+                Max 10 karakter, A–Z dan 0–9.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Branding: Logo preview */}
+        {selectedIPAsset.imageUrl && (
+          <div className="space-y-2">
+            <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
+              Token Logo Preview
+            </Label>
+            <div className="flex items-center gap-4">
+              <div className="relative w-20 md:w-24 aspect-square rounded-full overflow-hidden border border-zinc-800 bg-zinc-900/40">
+                <img
+                  src={launchImageUrl || selectedIPAsset.imageUrl}
+                  alt="Token logo preview"
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = "none";
+                  }}
+                />
+                {launchLogoFile && (
+                  <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-sovry-green/90 rounded text-[10px] text-black font-medium">
+                    Custom
+                      );
+                    })}
+                  </div>
                 </div>
-                {displayIPAssets.length > 6 && (
-                  <p className="text-xs text-zinc-500 text-center mt-2">
-                    Showing 6 of {displayIPAssets.length} available IPs. Select one to launch.
-                  </p>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-3 text-[11px] text-zinc-500">
+                    <span>
+                      Page {currentPage} of {totalPages} · Showing {paginatedAssets.length} of {totalAssets} IPs
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        disabled={currentPage === 1}
+                        onClick={() => setAssetsPage((prev) => Math.max(1, prev - 1))}
+                      >
+                        Prev
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[11px]"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setAssetsPage((prev) => Math.min(totalPages, prev + 1))}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -767,11 +853,11 @@ export default function CreatePage() {
                       Token Logo Preview
                     </Label>
                     <div className="flex items-center gap-4">
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900/40">
+                      <div className="relative w-20 md:w-24 aspect-square rounded-full overflow-hidden border border-zinc-800 bg-zinc-900/40">
                         <img
                           src={launchImageUrl || selectedIPAsset.imageUrl}
                           alt="Token logo preview"
-                          className="w-full h-full object-cover"
+                          className="absolute inset-0 w-full h-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = "none";
