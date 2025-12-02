@@ -445,7 +445,7 @@ export default function CreatePage() {
           <div className="space-y-4 max-w-2xl">
             <div className="inline-flex items-center px-4 py-2 bg-sovry-green/10 rounded-full border border-sovry-green/30">
               <Sparkles className="w-4 h-4 text-sovry-green mr-2" />
-              <span className="text-sm font-medium text-sovry-green uppercase tracking-wide">
+              <span className="text-xs font-medium text-sovry-green uppercase tracking-wide">
                 Create & Launch IP Tokens
               </span>
             </div>
@@ -454,7 +454,7 @@ export default function CreatePage() {
                 Turn Your IP Into a Liquid Asset
               </h1>
               <p className="text-zinc-400 text-base leading-relaxed">
-                Select an IP asset, configure basic token details, and launch directly onto the Sovry bonding curve.
+                Select an IP asset, configure basic token details, and launch directly onto the Sovry.
               </p>
             </div>
           </div>
@@ -588,11 +588,11 @@ export default function CreatePage() {
           </div>
 
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-sovry-green/20 rounded-lg border border-sovry-green/30">
+            <div className="p-1.5 bg-sovry-green/20 rounded-lg border border-sovry-green/30">
               <TrendingUp className="h-5 w-5 text-sovry-green" />
             </div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-semibold text-zinc-50">Launch Existing IP</h2>
+              <h2 className="text-40px font-semibold text-zinc-50">Launch Existing IP</h2>
               {(loading || !!creatingPool || !!unlockingTokens) && (
                 <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
               )}
@@ -631,10 +631,10 @@ export default function CreatePage() {
               <div>
                 <div className="max-w-5xl mx-auto">
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-h-[480px] overflow-y-auto pr-1">
-
                     {paginatedAssets.map((ipAsset) => {
                       const tokenBalance = tokenBalances[ipAsset.ipId];
-                      const hasTokens = tokenBalance && Number(tokenBalance.balance) > 0.000001;
+                      const hasTokens =
+                        tokenBalance && Number(tokenBalance.balance) > 0.000001;
                       return (
                         <div
                           key={ipAsset.ipId}
@@ -661,70 +661,35 @@ export default function CreatePage() {
                           <div className="p-1.5 space-y-1">
                             <div className="flex items-center justify-between gap-2">
                               <div className="min-w-0 flex-1">
-
-    {/* Launch config */}
-    <div className="space-y-4">
-      <div className="p-4 md:p-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 space-y-4">
-
-        {/* Token Basics */}
-        <div className="space-y-2">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-            Token Basics
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
-                Token Name (for DEX)
-              </Label>
-              <Input
-                value={tokenName}
-                onChange={(e) => setTokenName(e.target.value)}
-                placeholder={selectedIPAsset.name || "Super Meme"}
-                className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
-              />
-              <p className="text-[11px] text-zinc-500">
-                Visible di DEX & Sovry, bisa beda dari nama IP awal.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
-                Token Symbol
-              </Label>
-              <Input
-                value={tokenSymbolLaunch}
-                onChange={(e) =>
-                  setTokenSymbolLaunch(e.target.value.toUpperCase().slice(0, 10))
-                }
-                placeholder="MEME"
-                className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
-              />
-              <p className="text-[11px] text-zinc-500">
-                Max 10 karakter, A–Z dan 0–9.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Branding: Logo preview */}
-        {selectedIPAsset.imageUrl && (
-          <div className="space-y-2">
-            <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
-              Token Logo Preview
-            </Label>
-            <div className="flex items-center gap-4">
-              <div className="relative w-20 md:w-24 aspect-square rounded-full overflow-hidden border border-zinc-800 bg-zinc-900/40">
-                <img
-                  src={launchImageUrl || selectedIPAsset.imageUrl}
-                  alt="Token logo preview"
-                  className="absolute inset-0 w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                  }}
-                />
-                {launchLogoFile && (
-                  <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-sovry-green/90 rounded text-[10px] text-black font-medium">
-                    Custom
+                                <h3 className="font-semibold text-zinc-50 truncate text-[10px] md:text-sm">
+                                  {ipAsset.name}
+                                </h3>
+                              </div>
+                              <span
+                                className={`inline-flex items-center rounded-full px-1 md:px-2 py-0.5 text-[8px] md:text-[8px] font-semibold uppercase tracking-wide border ${
+                                  hasTokens
+                                    ? "bg-sovry-green/10 text-sovry-green border-sovry-green/30"
+                                    : "bg-zinc-800/60 text-zinc-400 border-zinc-700"
+                                }`}
+                              >
+                                {hasTokens ? "Ready" : "Locked"}
+                              </span>
+                            </div>
+                            {ipAsset.description && (
+                              <p className="hidden md:block text-[10px] md:text-[11px] text-zinc-400 line-clamp-2 mt-0.5">
+                                {ipAsset.description}
+                              </p>
+                            )}
+                            {tokenBalance && (
+                              <p className="text-[9px] md:text-[11px] text-zinc-500 pt-0.5 md:pt-1">
+                                Balance:{" "}
+                                <span className="text-zinc-200">
+                                  {tokenBalance.balance}%
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -824,7 +789,7 @@ export default function CreatePage() {
                         className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                       />
                       <p className="text-[11px] text-zinc-500">
-                        Visible di DEX & Sovry, bisa beda dari nama IP awal.
+                        May differ from the original IP name..
                       </p>
                     </div>
                     <div className="space-y-1.5">
@@ -879,7 +844,7 @@ export default function CreatePage() {
                 {/* Branding: Custom logo + description */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
+                    <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
                       Custom Logo (optional override)
                     </Label>
                     <FileUpload
@@ -905,7 +870,7 @@ export default function CreatePage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
+                    <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
                       Token Description (optional)
                     </Label>
                     <Input
