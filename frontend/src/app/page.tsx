@@ -5,7 +5,6 @@ import { ImmersiveHero } from "@/components/hero/ImmersiveHero";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 import { Search, Rocket, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { enrichLaunchesData } from "@/services/launchDataService";
@@ -308,13 +307,6 @@ export default function Home() {
 
   return (
     <>
-      {/* Floating Top-Right Buttons */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
-        <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-          <DynamicWidget variant="dropdown" />
-        </div>
-      </div>
-
       {/* Hero Section */}
       <ImmersiveHero tokenCount={totalTokens} />
 

@@ -419,7 +419,13 @@ export async function mintLicenseToken(
   }
 }
 
-// Transfer royalty tokens from IP Account to user wallet (sesuai docs)
+// Helper: convert royalty percent (0-100) into ERC20 token amount
+// Story docs: there are 100,000,000 Royalty Tokens total (100, with 6 decimals)
+function convertRoyaltyPercentToTokens(royaltyPercent: number): bigint {
+  return BigInt(royaltyPercent) * 1_000_000n; // 1% = 1,000,000 tokens
+}
+
+// Transfer royalty tokens from IP Account to user wallet (mirrors Story TS example)
 export async function transferRoyaltyTokensFromIP(
   ipId: string,
   primaryWallet: any
@@ -447,14 +453,18 @@ export async function transferRoyaltyTokensFromIP(
     
     console.log('✅ Royalty vault address found:', royaltyVaultAddress);
     
-    // Transfer SELURUH royalty tokens dari IP Account ke user wallet
-    // Total supply = 100,000,000 tokens (100% dengan 6 decimals)
+    // Transfer a percentage of Royalty Tokens from the IP Account to the user wallet.
+    // Per Story TypeScript tutorial, Royalty Tokens are simple ERC-20s with total
+    // supply 100,000,000 (100 with 6 decimals). Here we request 100% as per
+    // Sovry product decision (creator fully owns the royalty token supply).
+    const amountToTransfer = convertRoyaltyPercentToTokens(100); // 100%
+    
     const transferResponse = await client.ipAccount.transferErc20({
       ipId: ipId as Address,
       tokens: [
         {
           address: royaltyVaultAddress,
-          amount: BigInt(100_000_000), // 100,000,000 tokens = 100% (6 decimals)
+          amount: amountToTransfer,
           target: primaryWallet.address as Address,
         },
       ],

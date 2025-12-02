@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { StatusBar } from "@/components/navigation/StatusBar";
+import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -29,6 +30,12 @@ export default function RootLayout({
               </div>
             </main>
             <StatusBar />
+          </div>
+          {/* Global wallet UI (Dynamic) */}
+          <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
+            <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
+              <DynamicWidget variant="dropdown" />
+            </div>
           </div>
         </Providers>
       </body>
