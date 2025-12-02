@@ -296,18 +296,37 @@ export default function CreatePage() {
 
       let metadataUri: string | null = null;
       try {
-        // Use Story Protocol image as primary source, manual upload as override
+        // Always upload image to Pinata: prefer manual upload, otherwise fetch from Story/IP asset URL and re-upload
         let imageUrl = "";
         if (launchLogoFile) {
           // Manual upload takes precedence
           const imageRes = await pinFileToIPFS(launchLogoFile, launchLogoFile.name);
           imageUrl = imageRes.gatewayUrl;
-        } else if (launchImageUrl.trim()) {
-          // Use Story Protocol image
-          imageUrl = launchImageUrl.trim();
-        } else if (ipAsset.imageUrl) {
-          // Fallback to IP asset image
-          imageUrl = ipAsset.imageUrl;
+        } else {
+          const sourceUrl = launchImageUrl.trim() || ipAsset.imageUrl || "";
+          if (sourceUrl) {
+            try {
+              const response = await fetch(sourceUrl);
+              if (!response.ok) {
+                throw new Error(`Failed to fetch image from source URL: ${response.status}`);
+              }
+              const blob = await response.blob();
+              const baseName =
+                launchImageUrl.trim() ||
+                ipAsset.name ||
+                symbolForLaunch ||
+                nameForLaunch ||
+                "image";
+              const safeName = baseName.replace(/[^A-Za-z0-9-_]/g, "_");
+              const fileName = `${safeName || "image"}.png`;
+              const imageRes = await pinFileToIPFS(blob, fileName);
+              imageUrl = imageRes.gatewayUrl;
+            } catch (imageError) {
+              console.error("Failed to re-upload image to Pinata from source URL", imageError);
+              // Fallback: keep using original source URL so launch can still proceed
+              imageUrl = sourceUrl;
+            }
+          }
         }
 
         const metadata = {
@@ -523,7 +542,7 @@ export default function CreatePage() {
                     <div className="h-2.5 w-2.5 rounded-full border border-zinc-500" />
                   )}
                   <span className="font-medium text-xs md:text-sm text-zinc-200">
-                    3. Launch on SovryLaunchpad
+                    3. Launch on Sovry
                   </span>
                 </div>
                 <p className="text-xs md:text-sm text-zinc-500 ml-6">
@@ -557,21 +576,12 @@ export default function CreatePage() {
           </div>
         )}
 
-        {/* Error / Success */}
+        {/* Error */}
         {error && (
           <div className="mb-2">
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        {success && (
-          <div className="mb-2">
-            <Alert>
-              <CheckCircle className="h-4 w-4 text-sovry-green" />
-              <AlertDescription className="whitespace-pre-line">{success}</AlertDescription>
             </Alert>
           </div>
         )}
@@ -1042,12 +1052,12 @@ export default function CreatePage() {
                   ) : (
                     <>
                       <TrendingUp className="mr-2 h-4 w-4" />
-                      Launch on Bonding Curve
+                      Launch on Sovry
                     </>
                   )}
                 </Button>
                 {/* Concise launch status */}
-                <div className="mt-3 text-xs text-zinc-500 text-center">
+                <div className="mt-3 text-xs md:text-sm text-zinc-500 text-center">
                   {creatingPool === selectedIPAsset.ipId
                     ? "Launching... this may take a few moments."
                     : needsUnlock

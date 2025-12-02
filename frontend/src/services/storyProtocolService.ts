@@ -747,6 +747,32 @@ export async function launchOnBondingCurveDynamic(
       data: launchData,
     });
 
+    // Wait for on-chain confirmation so UI reflects actual success/failure
+    try {
+      console.log('⏳ Waiting for launch transaction confirmation...');
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: launchTxHash,
+      });
+
+      if (receipt.status !== 'success') {
+        console.error('❌ Launch transaction reverted on-chain:', receipt);
+        return {
+          success: false,
+          approveTxHash,
+          launchTxHash,
+          error: 'Launch transaction reverted on-chain',
+        };
+      }
+    } catch (waitError) {
+      console.error('❌ Error waiting for launch transaction receipt:', waitError);
+      return {
+        success: false,
+        approveTxHash,
+        launchTxHash,
+        error: 'Failed to confirm launch transaction status',
+      };
+    }
+
     console.log('✅ SovryLaunchpad launch success! Tx Hash:', launchTxHash);
 
     return {
