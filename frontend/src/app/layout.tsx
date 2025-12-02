@@ -26,7 +26,7 @@ export default function RootLayout({
           <div className="min-h-screen bg-zinc-950 flex">
             <Sidebar />
             <main className="flex-1 pb-20 md:ml-16 md:pb-10">
-              <div className="container mx-auto px-4 py-8 max-w-7xl">
+              <div className="container mx-auto px-4 py-8 max-w-[1600px]">
                 {children}
               </div>
             </main>

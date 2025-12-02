@@ -629,7 +629,7 @@ export default function CreatePage() {
               </div>
             ) : (
               <div>
-                <div className="max-w-7xl mx-auto">
+                <div className="max-w-[1600px] mx-auto">
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-h-[480px] overflow-y-auto pr-1">
                     {paginatedAssets.map((ipAsset) => {
                       const tokenBalance = tokenBalances[ipAsset.ipId];
