@@ -463,7 +463,7 @@ export default function CreatePage() {
             <CardHeader>
               <CardTitle className="text-sm font-semibold text-zinc-100">Launch flow</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-xs text-zinc-400">
+            <CardContent className="space-y-3 text-xs md:text-sm text-zinc-400">
               {/* Step 1: Select IP asset */}
               <div className="space-y-1">
                 <div
@@ -476,11 +476,11 @@ export default function CreatePage() {
                   ) : (
                     <div className="h-2.5 w-2.5 rounded-full border border-zinc-500" />
                   )}
-                  <span className="font-medium text-[11px] text-zinc-200">
+                  <span className="font-medium text-xs md:text-sm text-zinc-200">
                     1. Select IP Asset
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-500 ml-6">
+                <p className="text-xs md:text-sm text-zinc-500 ml-6">
                   Choose an IP with an associated Royalty Vault.
                 </p>
               </div>
@@ -499,11 +499,11 @@ export default function CreatePage() {
                   ) : (
                     <div className="h-2.5 w-2.5 rounded-full border border-zinc-500" />
                   )}
-                  <span className="font-medium text-[11px] text-zinc-200">
+                  <span className="font-medium text-xs md:text-sm text-zinc-200">
                     2. Get Royalty Tokens (optional)
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-500 ml-6">
+                <p className="text-xs md:text-sm text-zinc-500 ml-6">
                   Mint license & transfer Royalty Tokens to your wallet.
                 </p>
               </div>
@@ -522,11 +522,11 @@ export default function CreatePage() {
                   ) : (
                     <div className="h-2.5 w-2.5 rounded-full border border-zinc-500" />
                   )}
-                  <span className="font-medium text-[11px] text-zinc-200">
+                  <span className="font-medium text-xs md:text-sm text-zinc-200">
                     3. Launch on SovryLaunchpad
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-500 ml-6">
+                <p className="text-xs md:text-sm text-zinc-500 ml-6">
                   Set name, symbol & percentage, then confirm launch.
                 </p>
               </div>
@@ -582,7 +582,7 @@ export default function CreatePage() {
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sovry-green/60 to-transparent" />
           {/* Mobile step indicator */}
           <div className="mb-3 md:hidden">
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-xs md:text-sm text-zinc-500">
               {`Step ${currentStep}/3 – ${currentStepLabel}`}
             </p>
           </div>
@@ -592,7 +592,7 @@ export default function CreatePage() {
               <TrendingUp className="h-5 w-5 text-sovry-green" />
             </div>
             <div className="flex items-center gap-2">
-              <h2 className="text-40px font-semibold text-zinc-50">Launch Existing IP</h2>
+              <h2 className="text-x1 font-semibold text-zinc-50">Launch Existing IP</h2>
               {(loading || !!creatingPool || !!unlockingTokens) && (
                 <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
               )}
@@ -666,7 +666,7 @@ export default function CreatePage() {
                                 </h3>
                               </div>
                               <span
-                                className={`inline-flex items-center rounded-full px-1 md:px-2 py-0.5 text-[8px] md:text-[8px] font-semibold uppercase tracking-wide border ${
+                                className={`inline-flex items-center rounded-full px-1 md:px-2 py-0.5 text-[8px] md:text-[11px] font-semibold uppercase tracking-wide border ${
                                   hasTokens
                                     ? "bg-sovry-green/10 text-sovry-green border-sovry-green/30"
                                     : "bg-zinc-800/60 text-zinc-400 border-zinc-700"
@@ -676,12 +676,12 @@ export default function CreatePage() {
                               </span>
                             </div>
                             {ipAsset.description && (
-                              <p className="hidden md:block text-[10px] md:text-[11px] text-zinc-400 line-clamp-2 mt-0.5">
+                              <p className="hidden md:block text-[10px] md:text-sm text-zinc-400 line-clamp-2 mt-0.5">
                                 {ipAsset.description}
                               </p>
                             )}
                             {tokenBalance && (
-                              <p className="text-[9px] md:text-[11px] text-zinc-500 pt-0.5 md:pt-1">
+                              <p className="text-[9px] md:text-sm text-zinc-500 pt-0.5 md:pt-1">
                                 Balance:{" "}
                                 <span className="text-zinc-200">
                                   {tokenBalance.balance}%
@@ -695,7 +695,7 @@ export default function CreatePage() {
                   </div>
                 </div>
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-3 text-[11px] text-zinc-500">
+                  <div className="flex items-center justify-between mt-3 text-xs md:text-sm text-zinc-500">
                     <span>
                       Page {currentPage} of {totalPages} · Showing {paginatedAssets.length} of {totalAssets} IPs
                     </span>
@@ -703,7 +703,7 @@ export default function CreatePage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 px-2 text-[11px]"
+                        className="h-7 px-2 text-xs md:text-sm"
                         disabled={currentPage === 1}
                         onClick={() => setAssetsPage((prev) => Math.max(1, prev - 1))}
                       >
@@ -712,7 +712,7 @@ export default function CreatePage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 px-2 text-[11px]"
+                        className="h-7 px-2 text-xs md:text-sm"
                         disabled={currentPage === totalPages}
                         onClick={() => setAssetsPage((prev) => Math.min(totalPages, prev + 1))}
                       >
@@ -733,18 +733,18 @@ export default function CreatePage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-sovry-green/80" />
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-zinc-500">
+                  <p className="text-xs md:text-sm font-semibold uppercase tracking-[0.24em] text-zinc-500">
                     Selected IP & Launch
                   </p>
                 </div>
-                <span className="text-[11px] text-zinc-500">Detail Panel</span>
+                <span className="text-xs md:text-sm text-zinc-500">Detail Panel</span>
               </div>
               <div className="h-px w-full bg-gradient-to-r from-transparent via-zinc-700/70 to-transparent" />
             </div>
 
             {/* Selected IP summary */}
             <div className="p-4 md:p-5 rounded-2xl border border-zinc-800 bg-zinc-900/80">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-3">Selected IP Asset</h3>
+              <h3 className="text-xs md:text-sm font-semibold uppercase tracking-wide text-zinc-400 mb-3">Selected IP Asset</h3>
               <div className="flex items-start gap-4">
                 {selectedIPAsset.imageUrl && (
                   <div className="flex-shrink-0">
@@ -760,11 +760,11 @@ export default function CreatePage() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0 space-y-1">
-                  <p className="text-sm font-semibold text-zinc-50">{selectedIPAsset.name}</p>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-sm md:text-base font-semibold text-zinc-50">{selectedIPAsset.name}</p>
+                  <p className="text-text-xs md:text-sm text-zinc-400">
                     Royalty Token: {selectedIPAsset.royaltyVaultAddress.slice(0, 10)}...
                   </p>
-                  <p className="text-[11px] text-zinc-500">
+                  <p className="text-xs md:text-sm text-zinc-500">
                     Media Type: {selectedIPAsset.mediaType || "Unknown"}
                   </p>
                 </div>
@@ -777,13 +777,13 @@ export default function CreatePage() {
 
                 {/* Token Basics */}
                 <div className="space-y-2">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                  <p className="text-sm md:text-sm font-medium uppercase tracking-wide text-zinc-500">
                     Token Basics
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
-                        Token Name (for DEX)
+                      <Label className="text-zinc-400 text-xs md:text-sm font-medium uppercase tracking-wide">
+                        Token Name
                       </Label>
                       <Input
                         value={tokenName}
@@ -791,12 +791,12 @@ export default function CreatePage() {
                         placeholder={selectedIPAsset.name || "Super Meme"}
                         className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                       />
-                      <p className="text-[11px] text-zinc-500">
-                        May differ from the original IP name..
+                      <p className="text-xs md:text-sm text-zinc-500">
+                        May different from the original IP name.
                       </p>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
+                      <Label className="text-zinc-400 text-xs md:text-sm font-medium uppercase tracking-wide">
                         Token Symbol
                       </Label>
                       <Input
@@ -807,8 +807,8 @@ export default function CreatePage() {
                         placeholder="MEME"
                         className="bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3"
                       />
-                      <p className="text-[11px] text-zinc-500">
-                        Max 10 karakter, A–Z dan 0–9.
+                      <p className="text-xs md:text-sm text-zinc-500">
+                        Max 10 Character, A–Z and 0–9.
                       </p>
                     </div>
                   </div>
@@ -817,7 +817,7 @@ export default function CreatePage() {
                 {/* Branding: Logo preview */}
                 {selectedIPAsset.imageUrl && (
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-sm font-medium uppercase tracking-wide">
+                    <Label className="text-zinc-400 text-xs md:text-sm font-medium uppercase tracking-wide">
                       Token Logo Preview
                     </Label>
                     <div className="flex items-center gap-4">
@@ -837,7 +837,7 @@ export default function CreatePage() {
                           </div>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs md:text-sm text-zinc-500">
                         Using image from Story Protocol. You can override with a custom image below if needed.
                       </p>
                     </div>
@@ -847,7 +847,7 @@ export default function CreatePage() {
                 {/* Branding: Custom logo + description */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
+                    <Label className="text-zinc-400 text-xs md:text-sm font-medium uppercase tracking-wide">
                       Custom Logo (optional override)
                     </Label>
                     <FileUpload
@@ -873,7 +873,7 @@ export default function CreatePage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 text-xs font-medium uppercase tracking-wide">
+                    <Label className="text-zinc-400 text-xs md:text-sm font-medium uppercase tracking-wide">
                       Token Description (optional)
                     </Label>
                     <Input
@@ -926,7 +926,7 @@ export default function CreatePage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm text-zinc-400">
                     <span>Percentage to Launch</span>
-                    <span className="font-medium text-zinc-50">{launchPercentage}%</span>
+                    <span className="text-xs md:text-sm text-zinc-50">{launchPercentage}%</span>
                   </div>
                   <Slider
                     value={[launchPercentage]}
@@ -938,7 +938,7 @@ export default function CreatePage() {
                       setLaunchPercentage(next < 10 ? 10 : next);
                     }}
                   />
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-zinc-200">
                     You are selling {launchPercentage}% of total RT supply. You keep {100 - launchPercentage}% in your
                     wallet.
                   </p>
@@ -981,7 +981,7 @@ export default function CreatePage() {
                     </Button>
 
                     {/* Mini status list for unlock flow */}
-                    <div className="space-y-1 text-[11px] text-zinc-500">
+                    <div className="space-y-1 text-xs md:text-sm text-zinc-500">
                       <div className="flex items-center gap-2">
                         {mintStatus === "pending" ? (
                           <Loader2 className="h-3 w-3 animate-spin text-sovry-green" />
