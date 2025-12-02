@@ -1,6 +1,6 @@
-# Sovry Launchpad – IP-Backed Token Engine
+# Sovry
 
-Sovry is a **Pump.fun–style bonding-curve launchpad** for Story Protocol IP assets.
+Sovry is a launchpad for Story Protocol IP assets.
 
 Creators lock a portion of their **Story Protocol Royalty Tokens (RT)** into the Launchpad, which deploys a branded ERC‑20 **wrapper token** and sells it on a bonding curve. When the raise target is hit, the wrapper graduates to a **PiperX V2** pool. Royalties earned by the underlying IP can be **harvested** and injected back into the curve to **boost price**.
 
@@ -53,8 +53,8 @@ Key on-chain behaviours:
   - `sell(token, tokenAmount)` – returns IP minus 0.5% fee
   - Curve math uses constant product formula with a **virtual IP reserve**
 
-- **Harvest & Pump**
-  - `harvestAndPump(wrapperToken)` – Launchpad (as RT holder) calls Story’s **royalty vault**
+- **Harvest**
+  - `harvest(wrapperToken)` – Launchpad (as RT holder) calls Story’s **royalty vault**
     - Checks WIP balance before/after
     - Treats claimed WIP as **free reserve** and adds to `totalRaised`
     - Emits `RevenueInjected(wrapperToken, amount)`
@@ -209,7 +209,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - Pivot from AMM Model (Factory/Router) to Bonding Curve Model (Launchpad).
   - Set Graduation Target to **PiperX V2** (Major Story Protocol DEX).
 
-- [ ] **Smart Contract Development**
+- [x] **Smart Contract Development**
   - `SovryToken.sol`: Implement a standard, mintable/burnable ERC-20 Wrapper Contract.
   - `SovryLaunchpad.sol`:
     - **Bonding Curve Logic:** Implement linear price curve with buy/sell functions.
@@ -232,7 +232,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - Remove obsolete pages: Liquidity, Pools, Swap (Old).
   - Remove obsolete services calling the internal Factory/Router.
 
-- [ ] **New "Home" Page (The Gallery)**
+- [x] **New "Home" Page (The Gallery)**
   - Grid layout displaying newly launched tokens.
   - Cards showing: IP Image, Ticker, Market Cap, & Bonding Curve Progress.
   - Search/Filter by Name or Category.
@@ -242,7 +242,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - **Fractional Slider:** UI to select "Percentage of IP to List" (1% - 100%).
   - **Transaction Flow:** Register IP -> Mint License -> Approve -> Launch.
 
-- [ ] **New "Token Detail" Page (The Terminal)**
+- [x] **New "Token Detail" Page (The Terminal)**
   - **Left Column:** Real-time TradingView Chart (Lightweight Charts) + IP Metadata/License Terms.
   - **Right Column:** Buy/Sell Interface (Bonding Curve) + Slippage Settings.
   - **Bottom Section:** Tabs for "Holder Distribution", "Transaction History", and "Comments".
@@ -262,7 +262,7 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
   - Implement Real-time Comment Section on Token Detail pages.
   - Implement User Profiles (Avatar, Bio, Social Links like Twitter/Telegram).
 
-- [ ] **Real-time Data (Wagmi)**
+- [x] **Real-time Data (Wagmi)**
   - Implement direct RPC Event Listeners in the frontend for instant price/chart updates (bypassing indexer delay).
 
 ---
