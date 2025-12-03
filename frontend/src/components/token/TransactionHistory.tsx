@@ -177,17 +177,12 @@ export function TransactionHistory({
 
                   {/* Trade Info */}
                   <div className="flex-1 min-w-0">
+                    {/* Top row: amount + type badge */}
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      {/* Trader Address */}
-                      <a
-                        href={`${ADDRESS_EXPLORER_URL}${trade.trader}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-zinc-400 hover:text-zinc-200 font-mono transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {truncateAddress(trade.trader)}
-                      </a>
+                      {/* Amount */}
+                      <p className="text-sm text-zinc-50 truncate">
+                        {trade.formattedTokens} {symbolLabel} for {trade.formattedIP} IP
+                      </p>
 
                       {/* Trade Type Badge */}
                       <Badge
@@ -208,28 +203,37 @@ export function TransactionHistory({
                       </Badge>
                     </div>
 
-                    {/* Amount */}
-                    <p className="text-sm text-zinc-50 mb-1">
-                      {trade.formattedTokens} {symbolLabel} for {trade.formattedIP} IP
-                    </p>
+                    {/* Bottom row: trader (top) + timestamp / explorer (below), all left-aligned */}
+                    <div className="space-y-0.5">
+                      {/* Trader Address */}
+                      <a
+                        href={`${ADDRESS_EXPLORER_URL}${trade.trader}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-zinc-400 hover:text-zinc-200 font-mono transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {truncateAddress(trade.trader)}
+                      </a>
 
-                    {/* Timestamp and Explorer Link */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-500">
-                        {formatRelativeTime(trade.timestamp)}
-                      </span>
-                      {trade.txHash && (
-                        <a
-                          href={`${BLOCK_EXPLORER_URL}${trade.txHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors inline-flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          View on Explorer
-                        </a>
-                      )}
+                      {/* Timestamp and Explorer Link */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-500">
+                          {formatRelativeTime(trade.timestamp)}
+                        </span>
+                        {trade.txHash && (
+                          <a
+                            href={`${BLOCK_EXPLORER_URL}${trade.txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors inline-flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            View on Explorer
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

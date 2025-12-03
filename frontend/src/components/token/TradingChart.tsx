@@ -46,7 +46,7 @@ function TradingChartComponent({
 }: TradingChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("7D")
   const { data, isLoading, error, refetch } = useTradeHistory(tokenAddress, timeframe)
-  
+
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
   const candlestickSeriesRef = useRef<any | null>(null)
@@ -165,10 +165,10 @@ function TradingChartComponent({
     dailyChangePct === null || !isFinite(dailyChangePct)
       ? "text-zinc-400"
       : dailyChangePct > 0
-      ? "text-emerald-400"
-      : dailyChangePct < 0
-      ? "text-red-400"
-      : "text-zinc-400"
+        ? "text-emerald-400"
+        : dailyChangePct < 0
+          ? "text-red-400"
+          : "text-zinc-400"
 
   const priceChangePrefix =
     dailyChangePct !== null && isFinite(dailyChangePct) && dailyChangePct > 0 ? "+" : ""
