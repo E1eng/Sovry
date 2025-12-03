@@ -582,7 +582,7 @@ export default function SwapInterface({
                   <span>
                     {(
                       Number(launchInfo.totalRaised) / 1e18
-                    ).toFixed(2)} IP / 100 IP
+                    ).toFixed(2)} IP / 8 IP
                   </span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">

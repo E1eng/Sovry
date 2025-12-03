@@ -41,14 +41,13 @@ export interface OHLCData {
   volume: number;
 }
 
-export type TimeRange = "1H" | "24H" | "7D" | "30D" | "ALL";
+export type TimeRange = "1H" | "24H" | "7D" | "30D";
 
 const TIME_RANGE_SECONDS: Record<TimeRange, number> = {
   "1H": 60 * 60,
   "24H": 24 * 60 * 60,
   "7D": 7 * 24 * 60 * 60,
   "30D": 30 * 24 * 60 * 60,
-  "ALL": 0,
 };
 
 /**
@@ -60,7 +59,7 @@ export async function fetchTrades(
 ): Promise<TradeData[]> {
   try {
     const now = Math.floor(Date.now() / 1000);
-    const from = timeRange === "ALL" ? 0 : now - TIME_RANGE_SECONDS[timeRange];
+    const from = now - TIME_RANGE_SECONDS[timeRange];
 
     const query = `
       query TradesForToken($token: String!, $from: BigInt!) {

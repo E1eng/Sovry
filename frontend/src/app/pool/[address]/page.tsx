@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Breadcrumb } from "@/components/ui/breadcrumb"
@@ -38,6 +39,7 @@ export default function TokenDetailPage() {
     liquidityPoolAddress: string
   } | null>(null)
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
   
 
   // Validate address format
@@ -329,7 +331,28 @@ export default function TokenDetailPage() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>{ticker}/IP</CardTitle>
+                  <CardTitle className="flex items-baseline gap-2">
+                    <span>{ticker}/IP</span>
+                    {dailyChangePct !== null && isFinite(dailyChangePct) && (
+                      <span className="inline-flex items-baseline gap-1">
+                        <span
+                          className={
+                            dailyChangePct > 0
+                              ? "text-xs sm:text-sm md:text-lg font-semibold text-emerald-400"
+                              : dailyChangePct < 0
+                              ? "text-xs sm:text-sm md:text-lg font-semibold text-red-400"
+                              : "text-xs sm:text-sm md:text-lg font-semibold text-zinc-400"
+                          }
+                        >
+                          {dailyChangePct > 0 ? "+" : ""}
+                          {dailyChangePct.toFixed(2)}%
+                        </span>
+                        <span className="text-xs sm:text-sm md:text-lg font-medium text-zinc-400">
+                          (24h)
+                        </span>
+                      </span>
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
                   <TradingChart
@@ -338,6 +361,7 @@ export default function TokenDetailPage() {
                     currentPrice={details.currentPrice || null}
                     marketCap={details.marketCap || null}
                     reserveBalance={details.reserveBalance || null}
+                    onDailyChangePct={setDailyChangePct}
                   />
                 </CardContent>
               </Card>
@@ -393,7 +417,28 @@ export default function TokenDetailPage() {
               >
                 <Card>
                   <CardHeader>
-                    <CardTitle>{ticker}/IP Price</CardTitle>
+                    <CardTitle className="flex items-baseline gap-2">
+                      <span>{ticker}/IP</span>
+                      {dailyChangePct !== null && isFinite(dailyChangePct) && (
+                        <span className="inline-flex items-baseline gap-1">
+                          <span
+                            className={
+                              dailyChangePct > 0
+                                ? "text-xs sm:text-sm md:text-lg font-semibold text-emerald-400"
+                                : dailyChangePct < 0
+                                ? "text-xs sm:text-sm md:text-lg font-semibold text-red-400"
+                                : "text-xs sm:text-sm md:text-lg font-semibold text-zinc-400"
+                            }
+                          >
+                            {dailyChangePct > 0 ? "+" : ""}
+                            {dailyChangePct.toFixed(2)}%
+                          </span>
+                          <span className="text-xs sm:text-sm md:text-lg font-medium text-zinc-400">
+                            (24h)
+                          </span>
+                        </span>
+                      )}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <TradingChart
@@ -402,6 +447,7 @@ export default function TokenDetailPage() {
                       currentPrice={details.currentPrice || null}
                       marketCap={details.marketCap || null}
                       reserveBalance={details.reserveBalance || null}
+                      onDailyChangePct={setDailyChangePct}
                     />
                   </CardContent>
                 </Card>

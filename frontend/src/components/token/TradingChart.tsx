@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 import { createChart, ColorType, LineStyle, CandlestickSeries } from "lightweight-charts"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTradeHistory, type Timeframe } from "@/hooks/useTradeHistory"
-import { fetchTrades } from "@/services/chartDataService"
+import { fetchTrades, tradesToOHLCData } from "@/services/chartDataService"
 import { trackEvent } from "@/lib/analytics"
 import { memo } from "react"
 
@@ -19,9 +20,10 @@ export interface TradingChartProps {
   currentPrice?: string | null
   marketCap?: string | null
   reserveBalance?: string | null
+  onDailyChangePct?: (pct: number | null) => void
 }
 
-const TIMEFRAMES: Timeframe[] = ["1M", "5M", "15M", "1H", "1D", "7D", "ALL"]
+const TIMEFRAMES: Timeframe[] = ["1M", "5M", "15M", "1H", "1D", "3D", "7D"]
 
 const TIMEFRAME_LABELS: Record<Timeframe, string> = {
   "1M": "1m",
@@ -29,8 +31,8 @@ const TIMEFRAME_LABELS: Record<Timeframe, string> = {
   "15M": "15m",
   "1H": "1h",
   "1D": "1d",
+  "3D": "3d",
   "7D": "7d",
-  "ALL": "ALL",
 }
 
 function TradingChartComponent({
@@ -40,6 +42,7 @@ function TradingChartComponent({
   currentPrice,
   marketCap,
   reserveBalance,
+  onDailyChangePct,
 }: TradingChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("7D")
   const { data, isLoading, error, refetch } = useTradeHistory(tokenAddress, timeframe)
@@ -51,6 +54,8 @@ function TradingChartComponent({
   const [chartInitialized, setChartInitialized] = useState(false)
   const [dailyHigh, setDailyHigh] = useState<number | null>(null)
   const [dailyLow, setDailyLow] = useState<number | null>(null)
+  const [dailyVolume, setDailyVolume] = useState<number | null>(null)
+  const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
 
   // Fetch 24h high/low from subgraph trades (independent of chart timeframe)
   useEffect(() => {
@@ -69,22 +74,45 @@ function TradingChartComponent({
         if (!trades || trades.length === 0) {
           setDailyHigh(null)
           setDailyLow(null)
+          setDailyVolume(null)
+          setDailyChangePct(null)
+          if (onDailyChangePct) onDailyChangePct(null)
           return
         }
 
         let high = trades[0].price
         let low = trades[0].price
+        let volume = trades[0].volume || 0
         for (let i = 1; i < trades.length; i++) {
           const p = trades[i].price
+          const v = trades[i].volume || 0
           if (p > high) high = p
           if (p < low) low = p
+          volume += v
         }
+
+        const ohlc = tradesToOHLCData(trades, 60)
+        let changePct: number | null = null
+        if (ohlc.length > 0) {
+          const firstCandle = ohlc[0]
+          const lastCandle = ohlc[ohlc.length - 1]
+          if (firstCandle.close && firstCandle.close > 0) {
+            changePct = ((lastCandle.close - firstCandle.close) / firstCandle.close) * 100
+          }
+        }
+
         setDailyHigh(high)
         setDailyLow(low)
+        setDailyVolume(volume)
+        setDailyChangePct(changePct)
+        if (onDailyChangePct) onDailyChangePct(changePct)
       } catch (e) {
         if (!cancelled) {
           setDailyHigh(null)
           setDailyLow(null)
+          setDailyVolume(null)
+          setDailyChangePct(null)
+          if (onDailyChangePct) onDailyChangePct(null)
         }
       }
     }
@@ -94,7 +122,7 @@ function TradingChartComponent({
     return () => {
       cancelled = true
     }
-  }, [tokenAddress])
+  }, [tokenAddress, onDailyChangePct])
 
   const formatPrice = (value?: number | string | null): string => {
     if (value === undefined || value === null) return "—"
@@ -121,6 +149,29 @@ function TradingChartComponent({
     if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K IP`
     return `${num.toFixed(2)} IP`
   }
+
+  const parsedCurrentPrice =
+    currentPrice && isFinite(Number(currentPrice)) ? Number(currentPrice) : null
+
+  const lastCandlePrice =
+    data && data.length > 0 ? data[data.length - 1].close : null
+
+  const effectivePrice =
+    parsedCurrentPrice !== null && isFinite(parsedCurrentPrice)
+      ? parsedCurrentPrice
+      : lastCandlePrice ?? null
+
+  const priceChangeColor =
+    dailyChangePct === null || !isFinite(dailyChangePct)
+      ? "text-zinc-400"
+      : dailyChangePct > 0
+      ? "text-emerald-400"
+      : dailyChangePct < 0
+      ? "text-red-400"
+      : "text-zinc-400"
+
+  const priceChangePrefix =
+    dailyChangePct !== null && isFinite(dailyChangePct) && dailyChangePct > 0 ? "+" : ""
 
   // Initialize chart
   useEffect(() => {
@@ -210,27 +261,40 @@ function TradingChartComponent({
     }
   }, [height, tokenAddress])
 
-  // Update chart data when trade data changes
+  // Update chart data when trade data or current price changes
   useEffect(() => {
     if (!candlestickSeriesRef.current || !chartInitialized || !data || data.length === 0) {
       return
     }
 
-    // Convert data to format expected by lightweight-charts
-    const chartData = data.map((candle) => ({
-      time: candle.time as any,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    }))
+    // Convert data to format expected by lightweight-charts.
+    // Use on-chain currentPrice as the close of the latest candle body when available,
+    // but keep the Last Price line driven by the subgraph's last trade close.
+    const chartData = data.map((candle, index) => {
+      let close = candle.close
+      if (index === data.length - 1 && parsedCurrentPrice !== null && isFinite(parsedCurrentPrice)) {
+        close = parsedCurrentPrice
+      }
+
+      const open = candle.open
+      const high = Math.max(candle.high, open, close)
+      const low = Math.min(candle.low, open, close)
+
+      return {
+        time: candle.time as any,
+        open,
+        high,
+        low,
+        close,
+      }
+    })
 
     candlestickSeriesRef.current.setData(chartData)
 
-    // Add last price indicator line
+    // Add last price indicator line (subgraph last trade close)
     if (data.length > 0) {
-      const lastCandle = data[data.length - 1]
-      const lastPrice = lastCandle.close
+      const rawLastCandle = data[data.length - 1]
+      const lastPrice = rawLastCandle.close
 
       // Remove existing price line if any
       if (lastPriceLineRef.current) {
@@ -263,7 +327,7 @@ function TradingChartComponent({
     if (chartRef.current) {
       chartRef.current.timeScale().fitContent()
     }
-  }, [data, chartInitialized])
+  }, [data, chartInitialized, parsedCurrentPrice])
 
   if (!tokenAddress) {
     return (
@@ -280,25 +344,43 @@ function TradingChartComponent({
       {/* Price / Market Cap / 24h High-Low */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Price</div>
-          <div className="text-base sm:text-lg font-semibold text-zinc-50">
-            {formatPrice(currentPrice ?? (data.length > 0 ? data[data.length - 1].close : undefined))}
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Price</div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg sm:text-2xl font-semibold text-zinc-50">
+              {formatPrice(effectivePrice)}
+            </span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 text-sm sm:text-base font-medium text-zinc-400",
+              )}
+            >
+              <Image
+                src="/ip-token.svg"
+                alt="IP"
+                width={18}
+                height={18}
+              />
+            </span>
           </div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Market Cap</div>
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Market Cap</div>
           <div className="text-base sm:text-lg font-semibold text-zinc-50">
             {formatMarketCap(marketCap)}
           </div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">24h High</div>
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">24h Volume</div>
           <div className="text-base sm:text-lg font-semibold text-emerald-400">
-            {formatPrice(dailyHigh)}
+            {formatMarketCap(
+              dailyVolume !== null && isFinite(dailyVolume)
+                ? dailyVolume.toString()
+                : "0"
+            )}
           </div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Reserve Balance</div>
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Reserve Balance</div>
           <div className="text-base sm:text-lg font-semibold text-zinc-50">
             {formatMarketCap(reserveBalance)}
           </div>

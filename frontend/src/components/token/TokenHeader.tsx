@@ -161,7 +161,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                   className="border-zinc-600 bg-zinc-800/60 text-zinc-300 flex items-center gap-1.5 text-[11px] sm:text-xs whitespace-nowrap"
                 >
                   <span className="inline-flex h-1.5 w-1.5 rounded-full bg-zinc-400" />
-                  Not graduated
+                  Active
                 </Badge>
               )}
             </div>

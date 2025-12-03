@@ -607,13 +607,6 @@ function SwapInterfaceComponent({
         return
       }
 
-      if (!curveParams) {
-        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
-          duration: 3000,
-        })
-        return
-      }
-
       // Run Tenderly simulation before sending real transaction
       setSimulationStatus(null)
       setSimulationError(null)
@@ -626,7 +619,12 @@ function SwapInterfaceComponent({
           throw new Error("Amount too small for current bonding curve")
         }
 
-        const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
+        const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
+        if (!paramsForSell) {
+          throw new Error("Bonding curve not available for this token")
+        }
+
+        const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
         if (baseProceeds <= 0n) {
           throw new Error("Amount too small for current bonding curve")
         }
@@ -716,7 +714,15 @@ function SwapInterfaceComponent({
         return
       }
 
-      const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
+      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
+      if (!freshParamsForTx) {
+        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
+          duration: 3000,
+        })
+        return
+      }
+
+      const baseProceeds = calculateBondingCurveSellProceeds(freshParamsForTx, wrapperAmount)
       if (baseProceeds <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,
@@ -1148,12 +1154,12 @@ function SwapInterfaceComponent({
             {isSimulatingTx ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Simulating...
+                Simulating on Tenderly...
               </>
             ) : isTrading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Confirming...
+                {simulationError ? "Confirming (no preview)" : "Confirming..."}
               </>
             ) : tradeSuccess ? (
               <>
@@ -1162,6 +1168,8 @@ function SwapInterfaceComponent({
               </>
             ) : !isConnected ? (
               "Connect Wallet"
+            ) : simulationError ? (
+              "Retry (simulation failed)"
             ) : (
               "Place Trade"
             )}

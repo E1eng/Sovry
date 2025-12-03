@@ -7,7 +7,7 @@ const SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
   "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn"
 
-export type Timeframe = "1M" | "5M" | "15M" | "1H" | "1D" | "7D" | "ALL"
+export type Timeframe = "1M" | "5M" | "15M" | "1H" | "1D" | "3D" | "7D"
 
 // Shape aligned with current Trade entity in the subgraph
 export interface RawTrade {
@@ -51,10 +51,10 @@ export const TIME_RANGE_SECONDS: Record<Timeframe, number> = {
   "1H": 7 * 24 * 60 * 60,
   // 1d timeframe: last 30 days (30 candles)
   "1D": 30 * 24 * 60 * 60,
+  // 3d timeframe: last 90 days (~30 candles)
+  "3D": 90 * 24 * 60 * 60,
   // 7d timeframe: last 365 days (~52 candles)
   "7D": 365 * 24 * 60 * 60,
-  // ALL: full history
-  "ALL": 0,
 }
 
 const INTERVAL_SECONDS: Record<Timeframe, number> = {
@@ -64,8 +64,8 @@ const INTERVAL_SECONDS: Record<Timeframe, number> = {
   "15M": 15 * 60, // 15 minute candles
   "1H": 60 * 60, // 1 hour candles
   "1D": 24 * 60 * 60, // 1 day candles
+  "3D": 3 * 24 * 60 * 60, // 3 day candles
   "7D": 7 * 24 * 60 * 60, // 7 day candles
-  "ALL": 24 * 60 * 60, // 1 day candles across full history
 }
 
 /**
@@ -83,7 +83,7 @@ async function fetchTradesFromSubgraph(
   timeframe: Timeframe
 ): Promise<RawTrade[]> {
   const now = Math.floor(Date.now() / 1000)
-  const from = timeframe === "ALL" ? 0 : now - TIME_RANGE_SECONDS[timeframe]
+  const from = now - TIME_RANGE_SECONDS[timeframe]
 
   const query = `
     query TradesForToken($token: String!, $from: BigInt!) {

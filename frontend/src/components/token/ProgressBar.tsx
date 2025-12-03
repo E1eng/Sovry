@@ -15,7 +15,7 @@ export interface ProgressToGraduationProps {
   className?: string
 }
 
-const TARGET_RAISE_IP = parseEther("0.8") // 0.8 IP graduation threshold
+const TARGET_RAISE_IP = parseEther("8") // 8 IP graduation threshold
 const MILESTONES = [25, 50, 75]
 
 export function ProgressToGraduation({

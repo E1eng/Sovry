@@ -69,7 +69,7 @@ export interface LaunchInfo {
   reserveBalance: bigint;
 }
 
-const TARGET_RAISE_IP = parseEther("0.8");
+const TARGET_RAISE_IP = parseEther("8");
 const VIRTUAL_IP_RESERVE = parseEther("0.2");
 
 function getAmountOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): bigint {
