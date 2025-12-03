@@ -25,6 +25,10 @@ export interface LaunchDetails {
   currentPrice?: string
   rtAddress?: string
   ipId?: string
+  // Both camelCase and snake_case for convenience in components
+  metadataUri?: string
+  metadata_uri?: string
+  mediaType?: string
   twitter?: string
   telegram?: string
   website?: string
@@ -80,6 +84,8 @@ export function useLaunchDetails(tokenAddress: string | null) {
       let imageUrlFromSupabase: string | undefined
       let nameFromSupabase: string | undefined
       let symbolFromSupabase: string | undefined
+      let metadataUriFromSupabase: string | undefined
+      let mediaTypeFromSupabase: string | undefined
 
       try {
         const candidates = new Set<string>()
@@ -91,6 +97,8 @@ export function useLaunchDetails(tokenAddress: string | null) {
 
         for (const addr of [rtFromWrapper, rtFromEnriched, rtFromLaunchInfo, vaultFromLaunchInfo]) {
           if (addr) {
+            // Support both original- and lower-case storage in Supabase
+            candidates.add(addr)
             candidates.add(addr.toLowerCase())
           }
         }
@@ -101,20 +109,20 @@ export function useLaunchDetails(tokenAddress: string | null) {
           const { data, error: supabaseError } = await supabase
             .from("launches")
             .select(
-              "twitter_url, telegram_url, website_url, royalty_token_address, image_url, name, symbol",
+              "twitter_url, telegram_url, website_url, royalty_token_address, image_url, name, symbol, metadata_uri",
             )
             .in("royalty_token_address", candidateArray)
             .limit(1)
 
-          const row = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null
-
-          if (!supabaseError && row) {
+          if (!supabaseError && Array.isArray(data) && data.length > 0) {
+            const row = data[0] as any
             twitter = row.twitter_url || undefined
             telegram = row.telegram_url || undefined
             website = row.website_url || undefined
             imageUrlFromSupabase = row.image_url || undefined
             nameFromSupabase = row.name || undefined
             symbolFromSupabase = row.symbol || undefined
+            metadataUriFromSupabase = row.metadata_uri || undefined
           }
         }
       } catch (supabaseErr) {
@@ -141,6 +149,10 @@ export function useLaunchDetails(tokenAddress: string | null) {
         imageUrl: imageUrlFromSupabase ?? enrichedData?.imageUrl,
         name: nameFromSupabase ?? enrichedData?.name,
         symbol: symbolFromSupabase ?? enrichedData?.symbol,
+        metadataUri: metadataUriFromSupabase,
+        metadata_uri: metadataUriFromSupabase,
+        // Default mediaType to 'image' when we have metadata_uri but no explicit media_type
+        mediaType: mediaTypeFromSupabase ?? "image",
         twitter,
         telegram,
         website,

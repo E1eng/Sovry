@@ -24,9 +24,16 @@ interface SocialLinks {
 export function TokenHeader({ details, className }: TokenHeaderProps) {
   const [copied, setCopied] = useState(false)
   const [metricsOpen, setMetricsOpen] = useState(false)
-
   const storyscanBaseUrl =
     process.env.NEXT_PUBLIC_STORYSCAN_BASE_URL || "https://aeneid.storyscan.io"
+
+  // Normalize metadata URI for browser navigation: display raw ipfs://, but
+  // click-through uses an HTTP IPFS gateway so it opens correctly.
+  const metadataUri = details.metadata_uri || details.metadataUri
+  const metadataHref =
+    metadataUri && metadataUri.startsWith("ipfs://")
+      ? `https://ipfs.io/ipfs/${metadataUri.replace("ipfs://", "")}`
+      : metadataUri
 
   const handleCopyAddress = async () => {
     const success = await copyToClipboard(details.tokenAddress)
@@ -285,7 +292,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                 className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 transition-colors"
                 onClick={() => setMetricsOpen((open) => !open)}
               >
-                <span className="font-medium">Token stats</span>
+                <span className="font-medium">Stat</span>
                 <ChevronDown
                   className={cn(
                     "h-3 w-3 transition-transform",
@@ -296,56 +303,100 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
             </div>
 
             {metricsOpen && (
-              <div className="mt-3 grid grid-cols-4 gap-2 sm:gap-3 justify-items-center">
-                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
-                  <span className="text-zinc-500">RT:</span>
-                  <a
-                    href={getAddressExplorerUrl(wrapperMeta.rt)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2"
-                  >
-                    {truncateAddress(wrapperMeta.rt)}
-                  </a>
-                </div>
-                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
-                  <span className="text-zinc-500">Launched:</span>
-                  <span className="text-zinc-300">
-                    {formatTimestamp(wrapperMeta.launchTime)}
-                  </span>
-                </div>
-                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
-                  <span className="text-zinc-500">Locked:</span>
-                  <span className="text-zinc-300">
-                    {formatAmount(wrapperMeta.totalLocked, 6)} RT
-                  </span>
-                </div>
-                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
-                  <span className="text-zinc-500">Dex:</span>
-                  <span className="text-zinc-300">
-                    {formatAmount(wrapperMeta.dexReserve, 6)} RT
-                  </span>
-                </div>
-                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
-                  <span className="text-zinc-500">Curve:</span>
-                  <span className="text-zinc-300">
-                    {formatAmount(wrapperMeta.initialCurveSupply, 6)} WRAP
-                  </span>
-                </div>
-                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
-                  <span className="text-zinc-500">Royalties:</span>
-                  <span className="text-zinc-300">
-                    {formatAmount(wrapperMeta.totalRoyaltiesHarvested, 18)} IP
-                  </span>
-                </div>
-                {wrapperMeta.totalVolume && (
-                  <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
-                    <span className="text-zinc-500">Volume:</span>
-                    <span className="text-zinc-300">
-                      {formatAmount(wrapperMeta.totalVolume, 18, 2)} IP
-                    </span>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                {/* Left Panel: Token Data */}
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wide text-zinc-500">Token Data</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">RT Address</div>
+                      <a
+                        href={getAddressExplorerUrl(wrapperMeta.rt || details.rtAddress || details.tokenAddress)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block font-mono text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                      >
+                        {truncateAddress(wrapperMeta.rt || details.rtAddress || details.tokenAddress)}
+                      </a>
+                    </div>
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Launched</div>
+                      <div className="text-[11px] text-zinc-300">
+                        {formatTimestamp(wrapperMeta.launchTime)}
+                      </div>
+                    </div>
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Supply Locked</div>
+                      <div className="text-[11px] text-zinc-300">
+                        {formatAmount(wrapperMeta.totalLocked, 6)} RT
+                      </div>
+                    </div>
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Royalties</div>
+                      <div className="text-[11px] text-zinc-300">
+                        {formatAmount(wrapperMeta.initialCurveSupply, 6)} WRAP
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
+
+                {/* Right Panel: IP Metadata */}
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wide text-zinc-500">IP Metadata</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">IPID</div>
+                      {details.ipId ? (
+                        <a
+                          href={getAddressExplorerUrl(details.ipId)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block font-mono text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                        >
+                          {truncateAddress(details.ipId)}
+                        </a>
+                      ) : (
+                        <div className="text-[11px] text-zinc-500">—</div>
+                      )}
+                    </div>
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Creator</div>
+                      {creator ? (
+                        <a
+                          href={getAddressExplorerUrl(creator)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block font-mono text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                        >
+                          {truncateAddress(creator)}
+                        </a>
+                      ) : (
+                        <div className="text-[11px] text-zinc-500">—</div>
+                      )}
+                    </div>
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Metadata URI</div>
+                      {metadataUri ? (
+                        <a
+                          href={metadataHref || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                        >
+                          {metadataUri}
+                        </a>
+                      ) : (
+                        <div className="text-[11px] text-zinc-500">—</div>
+                      )}
+                    </div>
+                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Media Type</div>
+                      <div className="text-[11px] text-zinc-300">
+                        {details.mediaType ?? "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
