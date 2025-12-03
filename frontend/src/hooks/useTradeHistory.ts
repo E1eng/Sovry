@@ -37,9 +37,10 @@ export interface CandlestickData {
 }
 
 export const TIME_RANGE_SECONDS: Record<Timeframe, number> = {
-  // Short-term: show multiple candles, not just a single bar
-  // 1m timeframe: last 60 minutes (60 candles)
-  "1M": 60 * 60,
+  // Short-term ranges: ensure 1m has at least as much history as 5m
+  // so the 1m chart never shows fewer candles just because of a shorter window.
+  // 1m timeframe: last 6 hours
+  "1M": 6 * 60 * 60,
   // 5m timeframe: last 6 hours (~72 candles)
   "5M": 6 * 60 * 60,
   // 15m timeframe: last 24 hours (~96 candles)

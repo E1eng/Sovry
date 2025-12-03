@@ -18,6 +18,7 @@ export interface TradingChartProps {
   className?: string
   currentPrice?: string | null
   marketCap?: string | null
+  reserveBalance?: string | null
 }
 
 const TIMEFRAMES: Timeframe[] = ["1M", "5M", "15M", "1H", "1D", "7D", "ALL"]
@@ -38,6 +39,7 @@ function TradingChartComponent({
   className,
   currentPrice,
   marketCap,
+  reserveBalance,
 }: TradingChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("7D")
   const { data, isLoading, error, refetch } = useTradeHistory(tokenAddress, timeframe)
@@ -279,26 +281,26 @@ function TradingChartComponent({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-zinc-500">Price</div>
-          <div className="text-sm font-semibold text-zinc-50">
+          <div className="text-base sm:text-lg font-semibold text-zinc-50">
             {formatPrice(currentPrice ?? (data.length > 0 ? data[data.length - 1].close : undefined))}
           </div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-zinc-500">Market Cap</div>
-          <div className="text-sm font-semibold text-zinc-50">
+          <div className="text-base sm:text-lg font-semibold text-zinc-50">
             {formatMarketCap(marketCap)}
           </div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
           <div className="text-[10px] uppercase tracking-wide text-zinc-500">24h High</div>
-          <div className="text-sm font-semibold text-emerald-400">
+          <div className="text-base sm:text-lg font-semibold text-emerald-400">
             {formatPrice(dailyHigh)}
           </div>
         </div>
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">24h Low</div>
-          <div className="text-sm font-semibold text-red-400">
-            {formatPrice(dailyLow)}
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Reserve Balance</div>
+          <div className="text-base sm:text-lg font-semibold text-zinc-50">
+            {formatMarketCap(reserveBalance)}
           </div>
         </div>
       </div>
@@ -380,6 +382,7 @@ export const TradingChart = memo(TradingChartComponent, (prevProps, nextProps) =
     prevProps.height === nextProps.height &&
     prevProps.currentPrice === nextProps.currentPrice &&
     prevProps.marketCap === nextProps.marketCap &&
+    prevProps.reserveBalance === nextProps.reserveBalance &&
     prevProps.className === nextProps.className
   )
 })

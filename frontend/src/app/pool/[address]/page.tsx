@@ -269,8 +269,8 @@ export default function TokenDetailPage() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen px-4 md:px-6 py-8 sm:py-12">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="min-h-screen px-4 md:px-6 lg:px-8 py-8 sm:py-12">
+        <div className="w-full space-y-6">
           {/* Breadcrumbs */}
           <Breadcrumb items={breadcrumbItems} />
 
@@ -329,7 +329,7 @@ export default function TokenDetailPage() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>Price Chart</CardTitle>
+                  <CardTitle>{ticker}/IP</CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
                   <TradingChart
@@ -337,6 +337,7 @@ export default function TokenDetailPage() {
                     height={300}
                     currentPrice={details.currentPrice || null}
                     marketCap={details.marketCap || null}
+                    reserveBalance={details.reserveBalance || null}
                   />
                 </CardContent>
               </Card>
@@ -392,7 +393,7 @@ export default function TokenDetailPage() {
               >
                 <Card>
                   <CardHeader>
-                    <CardTitle>Price Chart</CardTitle>
+                    <CardTitle>{ticker}/IP Price</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <TradingChart
@@ -400,6 +401,7 @@ export default function TokenDetailPage() {
                       height={500}
                       currentPrice={details.currentPrice || null}
                       marketCap={details.marketCap || null}
+                      reserveBalance={details.reserveBalance || null}
                     />
                   </CardContent>
                 </Card>

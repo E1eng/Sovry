@@ -19,6 +19,7 @@ export interface LaunchDetails {
   name?: string
   imageUrl?: string
   marketCap?: string
+  reserveBalance?: string
   bondingProgress?: number
   category?: string
   currentPrice?: string
@@ -134,12 +135,9 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setDetails({
         tokenAddress,
         ...(enrichedData || {}),
-        // Prefer enriched marketCap when available; otherwise fall back to
-        // on-chain launchInfo.totalRaised (which for the new contract is
-        // derived from getMarketCap) so the Market Cap card stays in sync
-        // with the progress bar.
         marketCap:
           enrichedData?.marketCap ?? (launchInfo ? formatEther(launchInfo.totalRaised) : undefined),
+        reserveBalance: launchInfo ? formatEther(launchInfo.reserveBalance) : undefined,
         imageUrl: imageUrlFromSupabase ?? enrichedData?.imageUrl,
         name: nameFromSupabase ?? enrichedData?.name,
         symbol: symbolFromSupabase ?? enrichedData?.symbol,

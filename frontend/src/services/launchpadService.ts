@@ -66,6 +66,7 @@ export interface LaunchInfo {
   totalRaised: bigint;
   tokensSold: bigint;
   graduated: boolean;
+  reserveBalance: bigint;
 }
 
 const TARGET_RAISE_IP = parseEther("0.8");
@@ -132,6 +133,7 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
           return null;
         }
         const currentSupply = BigInt(curve.currentSupply ?? 0n);
+        const reserveBalance = BigInt(curve.reserveBalance ?? 0n);
 
         // Only the bonding-curve portion is actually tradable on the curve:
         // initialCurveSupply = totalLocked - dexReserve
@@ -154,6 +156,7 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
           totalRaised,
           tokensSold,
           graduated,
+          reserveBalance,
         };
       } catch (error) {
         console.error("Error fetching launch info from new SovryLaunchpad:", error);
