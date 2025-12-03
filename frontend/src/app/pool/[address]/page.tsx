@@ -12,6 +12,7 @@ import { SwapInterface } from "@/components/token/SwapInterface"
 import { TradingChart } from "@/components/token/TradingChart"
 import { TokenDetailSkeleton } from "@/components/token/TokenDetailSkeleton"
 import { TransactionHistory } from "@/components/token/TransactionHistory"
+import { PoolComments } from "@/components/token/PoolComments"
 import HolderDistribution from "@/components/trading/holderDistribution"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -246,8 +247,9 @@ export default function TokenDetailPage() {
           {/* Breadcrumbs */}
           <Breadcrumb items={breadcrumbItems} />
 
-        {/* Token Header - Full Width */}
+        {/* Token Header - Mobile (full width) */}
         <div
+          className="lg:hidden"
           style={{
             animation: "fadeIn 0.5s ease-out 0ms both",
           }}
@@ -317,10 +319,19 @@ export default function TokenDetailPage() {
               <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
             </div>
 
-            {/* Top Holders - Last on mobile */}
+            {/* Comments - Fifth on mobile */}
             <div
               style={{
                 animation: "fadeIn 0.5s ease-out 450ms both",
+              }}
+            >
+              <PoolComments tokenAddress={address} />
+            </div>
+
+            {/* Top Holders - Last on mobile */}
+            <div
+              style={{
+                animation: "fadeIn 0.5s ease-out 500ms both",
               }}
             >
               <HolderDistribution tokenAddress={address} tokenSymbol={ticker} />
@@ -329,8 +340,18 @@ export default function TokenDetailPage() {
 
           {/* Desktop Layout: Two-Column Grid */}
           <div className="hidden lg:grid grid-cols-[62%_38%] gap-6 items-start">
-            {/* Left Column: Price Chart + Activity Feed */}
+            {/* Left Column: Token Header + Price Chart + Activity Feed */}
             <div className="space-y-6">
+              {/* Desktop Token Header */}
+              <div
+                className="hidden lg:block"
+                style={{
+                  animation: "fadeIn 0.5s ease-out 0ms both",
+                }}
+              >
+                <TokenHeader details={details} />
+              </div>
+
               {/* Trading Chart */}
               <div
                 style={{
@@ -353,14 +374,16 @@ export default function TokenDetailPage() {
                   animation: "fadeIn 0.5s ease-out 200ms both",
                 }}
               >
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent Activity</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-4">
-                    <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
-                  </CardContent>
-                </Card>
+                <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
+              </div>
+
+              {/* Comments under Recent Activity */}
+              <div
+                style={{
+                  animation: "fadeIn 0.5s ease-out 260ms both",
+                }}
+              >
+                <PoolComments tokenAddress={address} />
               </div>
             </div>
 

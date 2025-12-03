@@ -78,6 +78,9 @@ export interface WrapperTokenMeta {
   poolAddress?: string | null
   createdAt: number
   updatedAt: number
+  totalTokens?: number
+  totalTrades?: number
+  totalVolume?: string
 }
 
 /**
@@ -99,6 +102,11 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
           poolAddress
           createdAt
           updatedAt
+          launchpad {
+            totalTokens
+            totalTrades
+            totalVolume
+          }
         }
       }
     `
@@ -124,6 +132,11 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
       return null
     }
 
+    const launchpad = (wrapper.launchpad || null) as
+      | { totalTokens?: number; totalTrades?: number; totalVolume?: string }
+      | null
+      | undefined
+
     return {
       rt: wrapper.rt as string,
       creator: wrapper.creator as string,
@@ -148,6 +161,18 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
       poolAddress: (wrapper.poolAddress as string | null) ?? null,
       createdAt: Number(wrapper.createdAt ?? 0),
       updatedAt: Number(wrapper.updatedAt ?? 0),
+      totalTokens:
+        launchpad && launchpad.totalTokens != null
+          ? Number(launchpad.totalTokens)
+          : undefined,
+      totalTrades:
+        launchpad && launchpad.totalTrades != null
+          ? Number(launchpad.totalTrades)
+          : undefined,
+      totalVolume:
+        launchpad && launchpad.totalVolume != null
+          ? String(launchpad.totalVolume)
+          : undefined,
     }
   } catch (error) {
     console.error("Error fetching wrapper token meta:", error)

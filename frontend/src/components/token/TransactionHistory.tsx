@@ -18,7 +18,8 @@ export interface TransactionHistoryProps {
   className?: string
 }
 
-const BLOCK_EXPLORER_URL = "https://aeneid/storyscan.io/tx/"
+const BLOCK_EXPLORER_URL = "https://aeneid.storyscan.io/tx/"
+const ADDRESS_EXPLORER_URL = "https://aeneid.storyscan.io/address/"
 
 /**
  * Format timestamp to relative time
@@ -207,15 +208,26 @@ export function TransactionHistory({
 
                   {/* Trade Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      {/* Trader Address */}
+                      <a
+                        href={`${ADDRESS_EXPLORER_URL}${trade.trader}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-zinc-400 hover:text-zinc-200 font-mono transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {truncateAddress(trade.trader)}
+                      </a>
+
                       {/* Trade Type Badge */}
                       <Badge
                         variant={trade.isBuy ? "default" : "destructive"}
                         className={cn(
-                          "text-xs px-2 py-0.5 font-semibold",
+                          "text-[11px] px-2 py-0.5 font-semibold",
                           trade.isBuy
-                            ? "bg-green-500/20 text-green-400 border-green-500/50"
-                            : "bg-red-500/20 text-red-400 border-red-500/50"
+                            ? "bg-green-500/15 text-green-400 border-green-500/40"
+                            : "bg-red-500/15 text-red-400 border-red-500/40"
                         )}
                       >
                         {trade.isBuy ? (
@@ -225,15 +237,6 @@ export function TransactionHistory({
                         )}
                         {trade.isBuy ? "BUY" : "SELL"}
                       </Badge>
-
-                      {/* Truncated Address */}
-                      <Link
-                        href={`/profile/${trade.trader}`}
-                        className="text-xs text-zinc-400 hover:text-zinc-300 font-mono transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {truncateAddress(trade.trader)}
-                      </Link>
                     </div>
 
                     {/* Amount */}

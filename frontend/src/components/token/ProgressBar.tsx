@@ -117,7 +117,7 @@ export function ProgressToGraduation({
     <div className={cn("space-y-3", className)}>
       {/* Header with labels */}
       <div className="flex items-center justify-between text-sm">
-        <span className="font-semibold text-zinc-50">Progress to PiperX</span>
+        <span className="font-semibold text-zinc-50">Progress to Graduate</span>
         <span className="text-zinc-400 font-mono">
           {totalRaisedFormatted} IP / {targetRaiseFormatted} IP ({progress.toFixed(1)}%)
         </span>

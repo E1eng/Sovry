@@ -9,6 +9,7 @@ import {
   getWrapperTokenMeta,
   type WrapperTokenMeta,
 } from "@/services/graduationService"
+import { supabase } from "@/lib/supabaseClient"
 import { logError } from "@/lib/errorUtils"
 
 export interface LaunchDetails {
@@ -21,6 +22,10 @@ export interface LaunchDetails {
   category?: string
   currentPrice?: string
   rtAddress?: string
+  ipId?: string
+  twitter?: string
+  telegram?: string
+  website?: string
   launchInfo?: LaunchInfo | null
   graduationInfo?: GraduationInfo | null
   wrapperMeta?: WrapperTokenMeta | null
@@ -63,6 +68,57 @@ export function useLaunchDetails(tokenAddress: string | null) {
         }),
       ])
 
+      // Load socials and optional metadata overrides from Supabase
+      // `launches` table. We may have stored either the RT, the royalty
+      // vault, or another canonical address as `royalty_token_address`, so
+      // try multiple candidates and use the first matching row.
+      let twitter: string | undefined
+      let telegram: string | undefined
+      let website: string | undefined
+      let imageUrlFromSupabase: string | undefined
+      let nameFromSupabase: string | undefined
+      let symbolFromSupabase: string | undefined
+
+      try {
+        const candidates = new Set<string>()
+
+        const rtFromWrapper = (wrapperMeta as any)?.rt as string | undefined
+        const rtFromEnriched = (enrichedData as any)?.rtAddress as string | undefined
+        const rtFromLaunchInfo = (launchInfo as any)?.royaltyToken as string | undefined
+        const vaultFromLaunchInfo = (launchInfo as any)?.royaltyVault as string | undefined
+
+        for (const addr of [rtFromWrapper, rtFromEnriched, rtFromLaunchInfo, vaultFromLaunchInfo]) {
+          if (addr) {
+            candidates.add(addr.toLowerCase())
+          }
+        }
+
+        const candidateArray = Array.from(candidates)
+
+        if (supabase && candidateArray.length > 0) {
+          const { data, error: supabaseError } = await supabase
+            .from("launches")
+            .select(
+              "twitter_url, telegram_url, website_url, royalty_token_address, image_url, name, symbol",
+            )
+            .in("royalty_token_address", candidateArray)
+            .limit(1)
+
+          const row = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null
+
+          if (!supabaseError && row) {
+            twitter = row.twitter_url || undefined
+            telegram = row.telegram_url || undefined
+            website = row.website_url || undefined
+            imageUrlFromSupabase = row.image_url || undefined
+            nameFromSupabase = row.name || undefined
+            symbolFromSupabase = row.symbol || undefined
+          }
+        }
+      } catch (supabaseErr) {
+        logError(supabaseErr, "useLaunchDetails.loadSupabaseSocials")
+      }
+
       // Check if token exists on-chain even if not in subgraph
       if (!launchInfo && !enrichedData) {
         // Token might be recently created and not yet indexed
@@ -77,6 +133,12 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setDetails({
         tokenAddress,
         ...(enrichedData || {}),
+        imageUrl: imageUrlFromSupabase ?? enrichedData?.imageUrl,
+        name: nameFromSupabase ?? enrichedData?.name,
+        symbol: symbolFromSupabase ?? enrichedData?.symbol,
+        twitter,
+        telegram,
+        website,
         launchInfo: launchInfo || null,
         graduationInfo: graduationInfo || null,
         wrapperMeta: wrapperMeta || null,

@@ -305,32 +305,13 @@ async function fetchCategory(ipId: string | null): Promise<string> {
 
 /**
  * Fetch IP image URL
+ *
+ * We no longer rely on the legacy metadata API or Story Protocol staging
+ * API here to avoid noisy 404s. Image URLs for launched tokens are
+ * provided via Supabase (see useLaunchDetails) and the UI falls back to a
+ * placeholder when none is available.
  */
 async function fetchImageUrl(ipId: string | null, rtAddress: string | null): Promise<string | null> {
-  if (ipId) {
-    try {
-      const metadata = await getIPAssetMetadata(ipId);
-      if (metadata?.image) {
-        return metadata.image;
-      }
-    } catch (error) {
-      console.error(`Error fetching image for IP ${ipId}:`, error);
-    }
-  }
-  
-  // Try Story Protocol API with RT address as fallback
-  if (rtAddress) {
-    try {
-      const response = await fetch(`https://staging-api.storyprotocol.net/api/v4/assets/${rtAddress}`);
-      if (response.ok) {
-        const data = await response.json();
-        return data?.metadata?.image || data?.image || null;
-      }
-    } catch (error) {
-      // Ignore errors
-    }
-  }
-  
   return null;
 }
 
@@ -358,15 +339,11 @@ export async function enrichLaunchData(
       fetchCurrentPrice(wrapperToken, launchpadAddress),
     ]);
 
-    // Resolve IP ID (for now, we'll try to get it from metadata API if RT address is available)
-    let ipId: string | null = null;
-    if (rtAddress) {
-      // Try to fetch IP metadata using RT address
-      // In a real implementation, you might query a subgraph or use Story Protocol's API
-      // For now, we'll leave it as null and let the UI handle it
-    }
+    // Resolve IP ID. For now we default to using the wrapper token address
+    // so the backend can map it to the actual IP asset if needed.
+    let ipId: string | null = wrapperToken;
 
-    // Fetch category and image
+    // Fetch category and image (socials now come exclusively from Supabase)
     const [category, imageUrl] = await Promise.all([
       fetchCategory(ipId),
       fetchImageUrl(ipId, rtAddress),

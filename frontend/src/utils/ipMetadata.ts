@@ -45,35 +45,10 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * @returns Promise<IPAssetMetadata | null>
  */
 export async function getIPAssetMetadata(ipId: string): Promise<IPAssetMetadata | null> {
-  // Check cache first
-  const cached = metadataCache.get(ipId);
-  if (cached && Date.now() - new Date(cached.createdAt).getTime() < CACHE_DURATION) {
-    return cached;
-  }
-
-  try {
-    const response = await fetch(`/api/assets/${ipId}/metadata`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const metadata = await response.json();
-    
-    // Add timestamp for cache validation
-    const metadataWithTimestamp = {
-      ...metadata,
-      createdAt: new Date(metadata.createdAt),
-    };
-    
-    // Cache the result
-    metadataCache.set(ipId, metadataWithTimestamp);
-    
-    return metadataWithTimestamp;
-  } catch (error) {
-    console.error(`Error fetching metadata for ${ipId}:`, error);
-    return null;
-  }
+  // Backend metadata API is currently disabled/not available. Return null so
+  // callers can fall back to other data sources (Supabase, subgraph, etc.)
+  // without attempting to hit a missing /api route.
+  return null;
 }
 
 /**

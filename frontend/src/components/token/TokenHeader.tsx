@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { Copy, Check, Twitter, Globe, MessageCircle, Verified, CheckCircle2 } from "lucide-react"
+import { Copy, Check, Twitter, Globe, MessageCircle, CheckCircle2, ChevronDown } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +23,10 @@ interface SocialLinks {
 
 export function TokenHeader({ details, className }: TokenHeaderProps) {
   const [copied, setCopied] = useState(false)
+  const [metricsOpen, setMetricsOpen] = useState(false)
+
+  const storyscanBaseUrl =
+    process.env.NEXT_PUBLIC_STORYSCAN_BASE_URL || "https://aeneid.storyscan.io"
 
   const handleCopyAddress = async () => {
     const success = await copyToClipboard(details.tokenAddress)
@@ -50,10 +54,10 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
     }
   }
 
-  // Extract social links from metadata if available
-  // This would come from enriched data or IP metadata
   const socialLinks: SocialLinks = {
-    // TODO: Extract from details.metadata or details.launchInfo when available
+    twitter: details.twitter,
+    telegram: details.telegram,
+    website: details.website,
   }
 
   const wrapperMeta = details.wrapperMeta
@@ -74,6 +78,11 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   const truncateAddress = (address: string) => {
     if (!address || address.length < 10) return address
     return `${address.slice(0, 6)}...${address.slice(-4)}`
+  }
+
+  const getAddressExplorerUrl = (address: string | undefined | null) => {
+    if (!address) return undefined
+    return `${storyscanBaseUrl}/address/${address}`
   }
 
   const formatAmount = (raw: string | undefined, decimals: number, fractionDigits: number = 3) => {
@@ -104,9 +113,9 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardContent className="p-4 sm:p-6">
-        <div className="flex flex-col items-start gap-4 sm:gap-6">
+        <div className="flex flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6">
           {/* Token Image */}
-          <div className="relative w-20 h-20 sm:w-20 sm:h-20 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-800 border border-zinc-800">
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 rounded-2xl overflow-hidden bg-zinc-800 border border-zinc-800">
             {imageUrl ? (
               <Image
                 src={imageUrl}
@@ -118,7 +127,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-zinc-700/60">
-                <span className="text-2xl font-bold text-zinc-400">
+                <span className="text-3xl font-bold text-zinc-400">
                   {ticker.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -127,31 +136,35 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
 
           {/* Token Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-              <h1 className="text-2xl sm:text-3xl font-bold text-zinc-50 truncate">
-                {ticker}
-              </h1>
+            <div className="flex items-start justify-between gap-2 sm:gap-3 mb-2">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-zinc-50 truncate">
+                  {name}
+                </h1>
+                <div className="mt-1 inline-flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-900/70 border border-zinc-700 text-[11px] sm:text-xs font-mono tracking-wide uppercase text-zinc-100">
+                    {ticker}
+                  </span>
+                </div>
+              </div>
               {isGraduated ? (
                 <Badge
-                  variant="default"
-                  className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-400 border-yellow-500/50 flex items-center gap-1.5 font-semibold"
+                  variant="outline"
+                  className="border-emerald-500/60 bg-emerald-500/10 text-emerald-300 flex items-center gap-1.5 text-[11px] sm:text-xs whitespace-nowrap"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  GRADUATED ✓
+                  Graduated
                 </Badge>
               ) : (
                 <Badge
-                  variant="default"
-                  className="bg-green-500/20 text-green-400 border-green-500/50 flex items-center gap-1.5"
+                  variant="outline"
+                  className="border-zinc-600 bg-zinc-800/60 text-zinc-300 flex items-center gap-1.5 text-[11px] sm:text-xs whitespace-nowrap"
                 >
-                  <Verified className="h-3 w-3" />
-                  ELG Verified
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                  Not graduated
                 </Badge>
               )}
             </div>
-            <p className="text-sm sm:text-base text-zinc-400 mb-3 truncate">
-              {name}
-            </p>
             {/* Final Raise Amount for Graduated Tokens */}
             {isGraduated && totalRaised && (
               <div className="flex items-center gap-2 mb-3">
@@ -166,67 +179,28 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
             {creator && (
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs sm:text-sm text-zinc-500">Created by</span>
-                <span className="text-xs sm:text-sm font-medium text-zinc-300">
+                <a
+                  href={getAddressExplorerUrl(creator)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs sm:text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2"
+                >
                   {truncateAddress(creator)}
-                </span>
-              </div>
-            )}
-
-            {wrapperMeta && (
-              <div className="mt-1 text-xs sm:text-sm text-zinc-500">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-500">RT</span>
-                    <span className="font-mono text-zinc-300">
-                      {truncateAddress(wrapperMeta.rt)}
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-500">Pool</span>
-                    <span className="font-mono text-zinc-300">
-                      {wrapperMeta.poolAddress ? truncateAddress(wrapperMeta.poolAddress) : "—"}
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-500">Launched</span>
-                    <span className="text-zinc-300">
-                      {formatTimestamp(wrapperMeta.launchTime)}
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-500">Locked</span>
-                    <span className="text-zinc-300">
-                      {formatAmount(wrapperMeta.totalLocked, 6)} RT
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-500">Dex</span>
-                    <span className="text-zinc-300">
-                      {formatAmount(wrapperMeta.dexReserve, 6)} RT
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-500">Curve</span>
-                    <span className="text-zinc-300">
-                      {formatAmount(wrapperMeta.initialCurveSupply, 6)} WRAP
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-zinc-500">Royalties</span>
-                    <span className="text-zinc-300">
-                      {formatAmount(wrapperMeta.totalRoyaltiesHarvested, 18)} IP
-                    </span>
-                  </span>
-                </div>
+                </a>
               </div>
             )}
 
             {/* Contract Address with Copy */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/50 rounded-lg border border-zinc-800 group">
-                <span className="text-xs sm:text-sm text-zinc-400 font-mono">
+                <a
+                  href={getAddressExplorerUrl(details.tokenAddress)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs sm:text-sm text-zinc-400 font-mono hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2"
+                >
                   {truncateAddress(details.tokenAddress)}
-                </span>
+                </a>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -302,6 +276,80 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
             </div>
           </div>
         </div>
+
+        {wrapperMeta && (
+          <div className="mt-4 pt-3 border-t border-zinc-800 text-xs sm:text-sm text-zinc-300">
+            <div className="w-full flex justify-center">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 transition-colors"
+                onClick={() => setMetricsOpen((open) => !open)}
+              >
+                <span className="font-medium">Token stats</span>
+                <ChevronDown
+                  className={cn(
+                    "h-3 w-3 transition-transform",
+                    metricsOpen ? "rotate-180" : "rotate-0",
+                  )}
+                />
+              </button>
+            </div>
+
+            {metricsOpen && (
+              <div className="mt-3 grid grid-cols-4 gap-2 sm:gap-3 justify-items-center">
+                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
+                  <span className="text-zinc-500">RT:</span>
+                  <a
+                    href={getAddressExplorerUrl(wrapperMeta.rt)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2"
+                  >
+                    {truncateAddress(wrapperMeta.rt)}
+                  </a>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
+                  <span className="text-zinc-500">Launched:</span>
+                  <span className="text-zinc-300">
+                    {formatTimestamp(wrapperMeta.launchTime)}
+                  </span>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
+                  <span className="text-zinc-500">Locked:</span>
+                  <span className="text-zinc-300">
+                    {formatAmount(wrapperMeta.totalLocked, 6)} RT
+                  </span>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
+                  <span className="text-zinc-500">Dex:</span>
+                  <span className="text-zinc-300">
+                    {formatAmount(wrapperMeta.dexReserve, 6)} RT
+                  </span>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
+                  <span className="text-zinc-500">Curve:</span>
+                  <span className="text-zinc-300">
+                    {formatAmount(wrapperMeta.initialCurveSupply, 6)} WRAP
+                  </span>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
+                  <span className="text-zinc-500">Royalties:</span>
+                  <span className="text-zinc-300">
+                    {formatAmount(wrapperMeta.totalRoyaltiesHarvested, 18)} IP
+                  </span>
+                </div>
+                {wrapperMeta.totalVolume && (
+                  <div className="inline-flex items-center gap-1 rounded-full bg-zinc-900/70 px-2 py-0.5 border border-zinc-800">
+                    <span className="text-zinc-500">Volume:</span>
+                    <span className="text-zinc-300">
+                      {formatAmount(wrapperMeta.totalVolume, 18, 2)} IP
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
