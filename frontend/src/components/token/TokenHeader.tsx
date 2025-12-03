@@ -56,8 +56,9 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
     // TODO: Extract from details.metadata or details.launchInfo when available
   }
 
-  const isGraduated = details.launchInfo?.graduated || false
-  const creator = details.launchInfo?.creator
+  const wrapperMeta = details.wrapperMeta
+  const isGraduated = (wrapperMeta?.graduated ?? details.launchInfo?.graduated) || false
+  const creator = wrapperMeta?.creator || details.launchInfo?.creator
   const totalRaised = details.launchInfo?.totalRaised
   const imageUrl = details.imageUrl
   const ticker = details.symbol || "TOKEN"
@@ -73,6 +74,31 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   const truncateAddress = (address: string) => {
     if (!address || address.length < 10) return address
     return `${address.slice(0, 6)}...${address.slice(-4)}`
+  }
+
+  const formatAmount = (raw: string | undefined, decimals: number, fractionDigits: number = 3) => {
+    if (!raw) return "0"
+    try {
+      const value = BigInt(raw)
+      const base = 10n ** BigInt(decimals)
+      const integer = value / base
+      const fraction = value % base
+      const asNumber = Number(integer) + Number(fraction) / Number(base)
+      if (!isFinite(asNumber)) return "0"
+      return asNumber.toFixed(fractionDigits)
+    } catch {
+      return "0"
+    }
+  }
+
+  const formatTimestamp = (seconds: number | undefined) => {
+    if (!seconds || seconds <= 0) return "—"
+    const d = new Date(seconds * 1000)
+    return d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   return (
@@ -119,7 +145,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                   className="bg-green-500/20 text-green-400 border-green-500/50 flex items-center gap-1.5"
                 >
                   <Verified className="h-3 w-3" />
-                  Verified
+                  ELG Verified
                 </Badge>
               )}
             </div>
@@ -143,6 +169,55 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                 <span className="text-xs sm:text-sm font-medium text-zinc-300">
                   {truncateAddress(creator)}
                 </span>
+              </div>
+            )}
+
+            {wrapperMeta && (
+              <div className="mt-1 text-xs sm:text-sm text-zinc-500">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-zinc-500">RT</span>
+                    <span className="font-mono text-zinc-300">
+                      {truncateAddress(wrapperMeta.rt)}
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-zinc-500">Pool</span>
+                    <span className="font-mono text-zinc-300">
+                      {wrapperMeta.poolAddress ? truncateAddress(wrapperMeta.poolAddress) : "—"}
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-zinc-500">Launched</span>
+                    <span className="text-zinc-300">
+                      {formatTimestamp(wrapperMeta.launchTime)}
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-zinc-500">Locked</span>
+                    <span className="text-zinc-300">
+                      {formatAmount(wrapperMeta.totalLocked, 6)} RT
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-zinc-500">Dex</span>
+                    <span className="text-zinc-300">
+                      {formatAmount(wrapperMeta.dexReserve, 6)} RT
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-zinc-500">Curve</span>
+                    <span className="text-zinc-300">
+                      {formatAmount(wrapperMeta.initialCurveSupply, 6)} WRAP
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-zinc-500">Royalties</span>
+                    <span className="text-zinc-300">
+                      {formatAmount(wrapperMeta.totalRoyaltiesHarvested, 18)} IP
+                    </span>
+                  </span>
+                </div>
               </div>
             )}
 

@@ -6,14 +6,14 @@ import {
   DataSourceContext,
 } from "@graphprotocol/graph-ts";
 
-export class SovryPool extends DataSourceTemplate {
+export class WrapperToken extends DataSourceTemplate {
   static create(address: Address): void {
-    DataSourceTemplate.create("SovryPool", [address.toHex()]);
+    DataSourceTemplate.create("WrapperToken", [address.toHex()]);
   }
 
   static createWithContext(address: Address, context: DataSourceContext): void {
     DataSourceTemplate.createWithContext(
-      "SovryPool",
+      "WrapperToken",
       [address.toHex()],
       context,
     );

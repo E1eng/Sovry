@@ -19,6 +19,7 @@ import {
   Harvest,
   GraduationEvent,
 } from "../generated/schema";
+import { WrapperToken as WrapperTemplate } from "../generated/templates";
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -93,6 +94,9 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
   wrapper.updatedAt = event.block.timestamp;
 
   wrapper.save();
+
+  // Start indexing ERC20 transfers for this wrapper to track holders
+  WrapperTemplate.create(event.params.wrapper);
 
   launchpad.totalTokens += 1;
   launchpad.save();

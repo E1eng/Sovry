@@ -3,7 +3,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { enrichLaunchData } from "@/services/launchDataService"
 import { getLaunchInfo, type LaunchInfo } from "@/services/launchpadService"
-import { getGraduationInfo, type GraduationInfo } from "@/services/graduationService"
+import {
+  getGraduationInfo,
+  type GraduationInfo,
+  getWrapperTokenMeta,
+  type WrapperTokenMeta,
+} from "@/services/graduationService"
 import { logError } from "@/lib/errorUtils"
 
 export interface LaunchDetails {
@@ -18,6 +23,7 @@ export interface LaunchDetails {
   rtAddress?: string
   launchInfo?: LaunchInfo | null
   graduationInfo?: GraduationInfo | null
+  wrapperMeta?: WrapperTokenMeta | null
 }
 
 export function useLaunchDetails(tokenAddress: string | null) {
@@ -36,8 +42,8 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setLoading(true)
       setError(null)
 
-      // Fetch launch info, enriched data, and graduation info in parallel
-      const [launchInfo, enrichedData, graduationInfo] = await Promise.all([
+      // Fetch launch info, enriched data, graduation info, and subgraph wrapper metadata in parallel
+      const [launchInfo, enrichedData, graduationInfo, wrapperMeta] = await Promise.all([
         getLaunchInfo(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getLaunchInfo")
           return null
@@ -49,6 +55,10 @@ export function useLaunchDetails(tokenAddress: string | null) {
         }),
         getGraduationInfo(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getGraduationInfo")
+          return null
+        }),
+        getWrapperTokenMeta(tokenAddress).catch((err) => {
+          logError(err, "useLaunchDetails.getWrapperTokenMeta")
           return null
         }),
       ])
@@ -69,6 +79,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
         ...(enrichedData || {}),
         launchInfo: launchInfo || null,
         graduationInfo: graduationInfo || null,
+        wrapperMeta: wrapperMeta || null,
       })
     } catch (err) {
       logError(err, "useLaunchDetails")

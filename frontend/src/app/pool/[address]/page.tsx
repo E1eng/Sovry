@@ -12,6 +12,7 @@ import { SwapInterface } from "@/components/token/SwapInterface"
 import { TradingChart } from "@/components/token/TradingChart"
 import { TokenDetailSkeleton } from "@/components/token/TokenDetailSkeleton"
 import { TransactionHistory } from "@/components/token/TransactionHistory"
+import HolderDistribution from "@/components/trading/holderDistribution"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, Home, ArrowLeft, RefreshCw } from "lucide-react"
@@ -307,7 +308,7 @@ export default function TokenDetailPage() {
               </Card>
             </div>
 
-            {/* Activity Feed - Last on mobile */}
+            {/* Activity Feed - Fourth on mobile */}
             <div
               style={{
                 animation: "fadeIn 0.5s ease-out 400ms both",
@@ -315,11 +316,20 @@ export default function TokenDetailPage() {
             >
               <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
             </div>
+
+            {/* Top Holders - Last on mobile */}
+            <div
+              style={{
+                animation: "fadeIn 0.5s ease-out 450ms both",
+              }}
+            >
+              <HolderDistribution tokenAddress={address} tokenSymbol={ticker} />
+            </div>
           </div>
 
           {/* Desktop Layout: Two-Column Grid */}
-          <div className="hidden lg:grid grid-cols-[60%_40%] gap-6">
-            {/* Left Column: TradingChart, then ProgressToGraduation */}
+          <div className="hidden lg:grid grid-cols-[62%_38%] gap-6 items-start">
+            {/* Left Column: Price Chart + Activity Feed */}
             <div className="space-y-6">
               {/* Trading Chart */}
               <div
@@ -337,30 +347,25 @@ export default function TokenDetailPage() {
                 </Card>
               </div>
 
-              {/* Progress to Graduation */}
-              {launchInfo && launchInfo.totalRaised && (
-                <div
-                  style={{
-                    animation: "fadeIn 0.5s ease-out 200ms both",
-                  }}
-                >
-                  <Card>
-                    <CardContent className="p-6">
-                      <ProgressToGraduation
-                        totalRaised={launchInfo.totalRaised}
-                        tokenTicker={ticker}
-                        tokenName={tokenName}
-                        tokenAddress={address}
-                        isGraduated={launchInfo.graduated}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+              {/* Activity Feed under chart */}
+              <div
+                style={{
+                  animation: "fadeIn 0.5s ease-out 200ms both",
+                }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Activity</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
-            {/* Right Column: SwapInterface, then Activity Feed */}
-            <div className="space-y-6">
+            {/* Right Column: sticky Swap + Progress + Top Holders */}
+            <div className="space-y-4 lg:space-y-5 lg:sticky lg:top-20 self-start">
               {/* Swap Interface */}
               <div
                 style={{
@@ -375,13 +380,34 @@ export default function TokenDetailPage() {
                 />
               </div>
 
-              {/* Activity Feed */}
+              {/* Progress to Graduation */}
+              {launchInfo && launchInfo.totalRaised && (
+                <div
+                  style={{
+                    animation: "fadeIn 0.5s ease-out 220ms both",
+                  }}
+                >
+                  <Card>
+                    <CardContent className="p-4 sm:p-5">
+                      <ProgressToGraduation
+                        totalRaised={launchInfo.totalRaised}
+                        tokenTicker={ticker}
+                        tokenName={tokenName}
+                        tokenAddress={address}
+                        isGraduated={launchInfo.graduated}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Top Holders */}
               <div
                 style={{
-                  animation: "fadeIn 0.5s ease-out 250ms both",
+                  animation: "fadeIn 0.5s ease-out 260ms both",
                 }}
               >
-                <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
+                <HolderDistribution tokenAddress={address} tokenSymbol={ticker} />
               </div>
             </div>
           </div>

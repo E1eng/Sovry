@@ -42,7 +42,7 @@ export default function TokenLogo({
         setHasError(false)
 
         // Try to fetch from Story Protocol API
-        const storyApiUrl = `https://api.storyprotocol.xyz/api/v1/assets/${ipId || tokenAddress}`
+        const storyApiUrl = `https://staging-api.storyprotocol.net/api/v4/assets/${ipId || tokenAddress}`
         
         const response = await fetch(storyApiUrl, {
           headers: {

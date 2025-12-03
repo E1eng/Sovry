@@ -5,7 +5,7 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --product hosted-service",
+    "deploy": "goldsky subgraph deploy sovry-aeneid/1.0.0",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001"
   },
   "dependencies": {

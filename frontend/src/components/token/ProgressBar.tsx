@@ -97,21 +97,21 @@ export function ProgressToGraduation({
   const totalRaisedFormatted = formatIP(totalRaisedBigInt)
   const targetRaiseFormatted = formatIP(targetRaiseBigInt)
   const isNearCompletion = animatedProgress > 90
-  const isGraduatedState = isGraduated || progress >= 100
+
+  // IMPORTANT: Treat "graduated" purely as an on-chain/subgraph state.
+  // Progress hitting 100% should NOT be interpreted as real graduation,
+  // otherwise the UI can show a graduation modal while the bonding curve
+  // is still active and the token is still tradable.
+  const isGraduatedState = isGraduated
 
   // State for graduation modal
   const [showGraduationModal, setShowGraduationModal] = useState(false)
 
-  // Auto-open graduation modal when progress reaches 100% (only if not already graduated)
-  useEffect(() => {
-    if (isGraduatedState && !isGraduated && !showGraduationModal) {
-      // Check sessionStorage to see if modal was already shown
-      const shown = sessionStorage.getItem("sovry-graduation-modal-shown")
-      if (shown !== "true") {
-        setShowGraduationModal(true)
-      }
-    }
-  }, [isGraduatedState, isGraduated, showGraduationModal])
+  // NOTE: We no longer auto-open this modal based on progress alone.
+  // On-chain graduation is already handled via useGraduationEvent on the
+  // pool page, which will open a separate GraduationModal when the
+  // actual Graduated event fires. Keeping this modal closed by default
+  // avoids double/confusing graduation notifications.
 
   return (
     <div className={cn("space-y-3", className)}>

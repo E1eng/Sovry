@@ -335,6 +335,14 @@ export class WrapperToken extends Entity {
       "graduations",
     );
   }
+
+  get holders(): HolderLoader {
+    return new HolderLoader(
+      "WrapperToken",
+      this.get("id")!.toString(),
+      "holders",
+    );
+  }
 }
 
 export class User extends Entity {
@@ -837,6 +845,111 @@ export class GraduationEvent extends Entity {
   }
 }
 
+export class Holder extends Entity {
+  constructor(id: string) {
+    super();
+    this.set("id", Value.fromString(id));
+  }
+
+  save(): void {
+    let id = this.get("id");
+    assert(id != null, "Cannot save Holder entity without an ID");
+    if (id) {
+      assert(
+        id.kind == ValueKind.STRING,
+        `Entities of type Holder must have an ID of type String but the id '${id.displayData()}' is of type ${id.displayKind()}`,
+      );
+      store.set("Holder", id.toString(), this);
+    }
+  }
+
+  static loadInBlock(id: string): Holder | null {
+    return changetype<Holder | null>(store.get_in_block("Holder", id));
+  }
+
+  static load(id: string): Holder | null {
+    return changetype<Holder | null>(store.get("Holder", id));
+  }
+
+  get id(): string {
+    let value = this.get("id");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toString();
+    }
+  }
+
+  set id(value: string) {
+    this.set("id", Value.fromString(value));
+  }
+
+  get wrapper(): string {
+    let value = this.get("wrapper");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toString();
+    }
+  }
+
+  set wrapper(value: string) {
+    this.set("wrapper", Value.fromString(value));
+  }
+
+  get user(): string {
+    let value = this.get("user");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toString();
+    }
+  }
+
+  set user(value: string) {
+    this.set("user", Value.fromString(value));
+  }
+
+  get balance(): BigInt {
+    let value = this.get("balance");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set balance(value: BigInt) {
+    this.set("balance", Value.fromBigInt(value));
+  }
+
+  get createdAt(): BigInt {
+    let value = this.get("createdAt");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set createdAt(value: BigInt) {
+    this.set("createdAt", Value.fromBigInt(value));
+  }
+
+  get updatedAt(): BigInt {
+    let value = this.get("updatedAt");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set updatedAt(value: BigInt) {
+    this.set("updatedAt", Value.fromBigInt(value));
+  }
+}
+
 export class WrapperTokenLoader extends Entity {
   _entity: string;
   _field: string;
@@ -906,6 +1019,24 @@ export class GraduationEventLoader extends Entity {
   load(): GraduationEvent[] {
     let value = store.loadRelated(this._entity, this._id, this._field);
     return changetype<GraduationEvent[]>(value);
+  }
+}
+
+export class HolderLoader extends Entity {
+  _entity: string;
+  _field: string;
+  _id: string;
+
+  constructor(entity: string, id: string, field: string) {
+    super();
+    this._entity = entity;
+    this._id = id;
+    this._field = field;
+  }
+
+  load(): Holder[] {
+    let value = store.loadRelated(this._entity, this._id, this._field);
+    return changetype<Holder[]>(value);
   }
 }
 

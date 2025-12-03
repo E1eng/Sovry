@@ -411,8 +411,9 @@ export default function CreatePage() {
       setWebsiteUrl("");
       setSelectedIP("");
 
-      // Open post-launch modal with links (use royalty vault / royalty token address for now)
-      setLaunchedTokenAddress(ipAsset.royaltyVaultAddress);
+      // Open post-launch modal with links
+      // Prefer the newly created Sovry wrapper token address for pools; fall back to royalty vault on failure
+      setLaunchedTokenAddress(result.wrapperAddress || ipAsset.royaltyVaultAddress);
       setLaunchedTokenSymbol(symbolForLaunch);
       setShowLaunchModal(true);
     } catch (err) {

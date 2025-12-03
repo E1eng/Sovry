@@ -66,5 +66,94 @@ export async function getGraduationInfo(tokenAddress: string): Promise<Graduatio
   }
 }
 
+export interface WrapperTokenMeta {
+  rt: string
+  creator: string
+  launchTime: number
+  totalLocked: string
+  graduated: boolean
+  dexReserve: string
+  initialCurveSupply: string
+  totalRoyaltiesHarvested: string
+  poolAddress?: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Fetch WrapperToken metadata for a given wrapper address from the subgraph
+ */
+export async function getWrapperTokenMeta(tokenAddress: string): Promise<WrapperTokenMeta | null> {
+  try {
+    const query = `
+      query GetWrapperToken($id: ID!) {
+        wrapperToken(id: $id) {
+          rt
+          creator
+          launchTime
+          totalLocked
+          graduated
+          dexReserve
+          initialCurveSupply
+          totalRoyaltiesHarvested
+          poolAddress
+          createdAt
+          updatedAt
+        }
+      }
+    `
+
+    const response = await fetch(SUBGRAPH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        variables: {
+          id: tokenAddress.toLowerCase(),
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const json = await response.json()
+    const wrapper = json?.data?.wrapperToken
+    if (!wrapper) {
+      return null
+    }
+
+    return {
+      rt: wrapper.rt as string,
+      creator: wrapper.creator as string,
+      launchTime: Number(wrapper.launchTime ?? 0),
+      totalLocked:
+        typeof wrapper.totalLocked === "string"
+          ? wrapper.totalLocked
+          : String(wrapper.totalLocked ?? "0"),
+      graduated: Boolean(wrapper.graduated),
+      dexReserve:
+        typeof wrapper.dexReserve === "string"
+          ? wrapper.dexReserve
+          : String(wrapper.dexReserve ?? "0"),
+      initialCurveSupply:
+        typeof wrapper.initialCurveSupply === "string"
+          ? wrapper.initialCurveSupply
+          : String(wrapper.initialCurveSupply ?? "0"),
+      totalRoyaltiesHarvested:
+        typeof wrapper.totalRoyaltiesHarvested === "string"
+          ? wrapper.totalRoyaltiesHarvested
+          : String(wrapper.totalRoyaltiesHarvested ?? "0"),
+      poolAddress: (wrapper.poolAddress as string | null) ?? null,
+      createdAt: Number(wrapper.createdAt ?? 0),
+      updatedAt: Number(wrapper.updatedAt ?? 0),
+    }
+  } catch (error) {
+    console.error("Error fetching wrapper token meta:", error)
+    return null
+  }
+}
+
 
 

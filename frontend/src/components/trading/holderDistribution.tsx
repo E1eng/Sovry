@@ -7,9 +7,10 @@ import { getHolderDistribution, type HolderDistribution } from "@/services/holde
 
 interface HolderDistributionProps {
   tokenAddress: string;
+  tokenSymbol?: string;
 }
 
-export default function HolderDistribution({ tokenAddress }: HolderDistributionProps) {
+export default function HolderDistribution({ tokenAddress, tokenSymbol }: HolderDistributionProps) {
   const [distribution, setDistribution] = useState<HolderDistribution | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export default function HolderDistribution({ tokenAddress }: HolderDistributionP
       setError(null);
 
       try {
-        const data = await getHolderDistribution(tokenAddress, 20);
+        const data = await getHolderDistribution(tokenAddress, 100);
         setDistribution(data);
       } catch (err) {
         console.error("Error loading holder distribution:", err);
@@ -38,6 +39,8 @@ export default function HolderDistribution({ tokenAddress }: HolderDistributionP
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 8)}...${address.slice(-6)}`;
   };
+
+  const unitLabel = tokenSymbol || "tokens";
 
   if (loading) {
     return (
@@ -87,16 +90,16 @@ export default function HolderDistribution({ tokenAddress }: HolderDistributionP
   return (
     <Card className="bg-card/80 border-border/80">
       <CardHeader>
-        <CardTitle className="text-sm font-semibold">Holder Distribution</CardTitle>
+        <CardTitle className="text-sm sm:text-base font-semibold">Holder Distribution</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 text-xs sm:text-sm">
         {/* Summary Stats */}
-        <div className="grid grid-cols-2 gap-4 text-xs">
-          <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-3 sm:p-4 bg-muted/40 rounded-lg border border-border/60">
             <div className="text-muted-foreground mb-1">Total Holders</div>
             <div className="text-lg font-semibold text-foreground">{distribution.totalHolders}</div>
           </div>
-          <div className="p-3 bg-muted/40 rounded-lg border border-border/60">
+          <div className="p-3 sm:p-4 bg-muted/40 rounded-lg border border-border/60">
             <div className="text-muted-foreground mb-1">Top 10 Concentration</div>
             <div className="text-lg font-semibold text-foreground">
               {distribution.top10Percentage.toFixed(1)}%
@@ -106,28 +109,28 @@ export default function HolderDistribution({ tokenAddress }: HolderDistributionP
 
         {/* Top Holders List */}
         <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-foreground">Top Holders</h4>
+          <h4 className="text-[11px] sm:text-sm font-semibold text-foreground">Top Holders</h4>
           <div className="space-y-1 max-h-96 overflow-y-auto">
             {distribution.holders.map((holder, index) => (
               <div
                 key={holder.address}
-                className="flex items-center justify-between p-2 bg-muted/40 rounded border border-border/60"
+                className="flex items-center justify-between p-2.5 bg-muted/40 rounded border border-border/60"
               >
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-semibold text-primary">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[11px] font-semibold text-primary">
                     {index + 1}
                   </div>
                   <div className="flex flex-col">
                     <span className="text-xs font-mono text-foreground">
                       {shortenAddress(holder.address)}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {parseFloat(holder.balanceFormatted).toFixed(4)} tokens
+                    <span className="text-[11px] text-muted-foreground">
+                      {parseFloat(holder.balanceFormatted).toFixed(4)} {unitLabel}
                     </span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-semibold text-foreground">
+                  <div className="text-[11px] sm:text-sm font-semibold text-foreground">
                     {holder.percentage.toFixed(2)}%
                   </div>
                   <div
@@ -142,16 +145,10 @@ export default function HolderDistribution({ tokenAddress }: HolderDistributionP
 
         {/* Concentration Metrics */}
         <div className="pt-4 border-t border-border/60 space-y-2">
-          <div className="flex justify-between text-xs">
+          <div className="flex justify-between text-[11px] sm:text-sm">
             <span className="text-muted-foreground">Top 10 Holders</span>
             <span className="font-semibold text-foreground">
               {distribution.top10Percentage.toFixed(1)}%
-            </span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">Top 20 Holders</span>
-            <span className="font-semibold text-foreground">
-              {distribution.top20Percentage.toFixed(1)}%
             </span>
           </div>
         </div>

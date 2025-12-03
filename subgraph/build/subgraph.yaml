@@ -21,6 +21,7 @@ dataSources:
         - Deposit
         - Harvest
         - GraduationEvent
+        - Holder
       abis:
         - name: SovryLaunchpad
           file: SovryLaunchpad\abis\SovryLaunchpad.json
@@ -40,3 +41,24 @@ dataSources:
         - event: RTWithdrawn(indexed address,indexed address,uint256)
           handler: handleRTWithdrawn
       file: SovryLaunchpad\SovryLaunchpad.wasm
+templates:
+  - kind: ethereum
+    name: WrapperToken
+    network: story-aeneid
+    source:
+      abi: ERC20
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Holder
+        - User
+        - WrapperToken
+      abis:
+        - name: ERC20
+          file: WrapperToken\abis\ERC20.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: templates\WrapperToken\WrapperToken.wasm

@@ -72,6 +72,20 @@ const SOVRY_LAUNCHPAD_ABI = [
   },
 ];
 
+const LAUNCHPAD_VIEW_ABI = [
+  {
+    inputs: [
+      { internalType: 'address', name: '', type: 'address' },
+    ],
+    name: 'rtToWrapper',
+    outputs: [
+      { internalType: 'address', name: '', type: 'address' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
+
 const DEFAULT_BASE_PRICE_WEI = BigInt("10000000000");
 const DEFAULT_PRICE_INCREMENT_WEI = BigInt("10000");
 
@@ -596,7 +610,7 @@ export async function launchOnBondingCurveDynamic(
   tokenName: string,
   tokenSymbol: string,
   launchPercentage: number,
-): Promise<{ success: boolean; approveTxHash?: string; launchTxHash?: string; error?: string }> {
+): Promise<{ success: boolean; approveTxHash?: string; launchTxHash?: string; wrapperAddress?: string; error?: string }> {
   try {
     if (!primaryWallet) {
       throw new Error("No wallet connected");
@@ -785,10 +799,29 @@ export async function launchOnBondingCurveDynamic(
 
     console.log('✅ SovryLaunchpad launch success! Tx Hash:', launchTxHash);
 
+    let wrapperAddress: string | undefined;
+    try {
+      const mapped = await publicClient.readContract({
+        address: SOVRY_LAUNCHPAD_ADDRESS as Address,
+        abi: LAUNCHPAD_VIEW_ABI,
+        functionName: 'rtToWrapper',
+        args: [actualToken as Address],
+      }) as string;
+
+      if (mapped && mapped !== '0x0000000000000000000000000000000000000000') {
+        wrapperAddress = mapped;
+      } else {
+        console.warn('rtToWrapper returned zero address for', actualToken);
+      }
+    } catch (mapError) {
+      console.error('Error reading rtToWrapper from launchpad:', mapError);
+    }
+
     return {
       success: true,
       approveTxHash,
       launchTxHash,
+      wrapperAddress,
     };
   } catch (error) {
     console.error('❌ Launch on bonding curve failed:', error);

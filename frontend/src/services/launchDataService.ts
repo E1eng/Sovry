@@ -321,7 +321,7 @@ async function fetchImageUrl(ipId: string | null, rtAddress: string | null): Pro
   // Try Story Protocol API with RT address as fallback
   if (rtAddress) {
     try {
-      const response = await fetch(`https://api.storyprotocol.xyz/api/v1/assets/${rtAddress}`);
+      const response = await fetch(`https://staging-api.storyprotocol.net/api/v4/assets/${rtAddress}`);
       if (response.ok) {
         const data = await response.json();
         return data?.metadata?.image || data?.image || null;
