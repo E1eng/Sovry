@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTradeHistory, type Timeframe } from "@/hooks/useTradeHistory"
+import { fetchTrades } from "@/services/chartDataService"
 import { trackEvent } from "@/lib/analytics"
 import { memo } from "react"
 
@@ -15,6 +16,8 @@ export interface TradingChartProps {
   tokenAddress: string | null
   height?: number
   className?: string
+  currentPrice?: string | null
+  marketCap?: string | null
 }
 
 const TIMEFRAMES: Timeframe[] = ["1M", "5M", "15M", "1H", "1D", "7D", "ALL"]
@@ -33,6 +36,8 @@ function TradingChartComponent({
   tokenAddress,
   height = 400,
   className,
+  currentPrice,
+  marketCap,
 }: TradingChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("7D")
   const { data, isLoading, error, refetch } = useTradeHistory(tokenAddress, timeframe)
@@ -42,6 +47,78 @@ function TradingChartComponent({
   const candlestickSeriesRef = useRef<any | null>(null)
   const lastPriceLineRef = useRef<any | null>(null)
   const [chartInitialized, setChartInitialized] = useState(false)
+  const [dailyHigh, setDailyHigh] = useState<number | null>(null)
+  const [dailyLow, setDailyLow] = useState<number | null>(null)
+
+  // Fetch 24h high/low from subgraph trades (independent of chart timeframe)
+  useEffect(() => {
+    if (!tokenAddress) {
+      setDailyHigh(null)
+      setDailyLow(null)
+      return
+    }
+
+    let cancelled = false
+
+    const loadDailyStats = async () => {
+      try {
+        const trades = await fetchTrades(tokenAddress, "24H")
+        if (cancelled) return
+        if (!trades || trades.length === 0) {
+          setDailyHigh(null)
+          setDailyLow(null)
+          return
+        }
+
+        let high = trades[0].price
+        let low = trades[0].price
+        for (let i = 1; i < trades.length; i++) {
+          const p = trades[i].price
+          if (p > high) high = p
+          if (p < low) low = p
+        }
+        setDailyHigh(high)
+        setDailyLow(low)
+      } catch (e) {
+        if (!cancelled) {
+          setDailyHigh(null)
+          setDailyLow(null)
+        }
+      }
+    }
+
+    loadDailyStats()
+
+    return () => {
+      cancelled = true
+    }
+  }, [tokenAddress])
+
+  const formatPrice = (value?: number | string | null): string => {
+    if (value === undefined || value === null) return "—"
+    const num = typeof value === "string" ? parseFloat(value) : value
+    if (!isFinite(num)) return "—"
+
+    const abs = Math.abs(num)
+    if (abs === 0) return "0.00000000"
+
+    // For prices >= 1 IP, 6 decimals is enough
+    if (abs >= 1) return num.toFixed(6)
+
+    // For tiny prices, always show 8 decimals, no scientific notation
+    return num.toFixed(8)
+  }
+
+  const formatMarketCap = (value?: string | null): string => {
+    const num = value ? parseFloat(value) : 0
+    if (!isFinite(num) || num < 0) return "0.00 IP"
+
+    if (num === 0) return "0.00 IP"
+
+    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M IP`
+    if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K IP`
+    return `${num.toFixed(2)} IP`
+  }
 
   // Initialize chart
   useEffect(() => {
@@ -198,6 +275,34 @@ function TradingChartComponent({
 
   return (
     <div className={cn("relative w-full space-y-3", className)}>
+      {/* Price / Market Cap / 24h High-Low */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Price</div>
+          <div className="text-sm font-semibold text-zinc-50">
+            {formatPrice(currentPrice ?? (data.length > 0 ? data[data.length - 1].close : undefined))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Market Cap</div>
+          <div className="text-sm font-semibold text-zinc-50">
+            {formatMarketCap(marketCap)}
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">24h High</div>
+          <div className="text-sm font-semibold text-emerald-400">
+            {formatPrice(dailyHigh)}
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">24h Low</div>
+          <div className="text-sm font-semibold text-red-400">
+            {formatPrice(dailyLow)}
+          </div>
+        </div>
+      </div>
+
       {/* Timeframe Selector */}
       <div className="flex gap-2 justify-end items-center">
         {TIMEFRAMES.map((tf) => (
@@ -272,9 +377,11 @@ function TradingChartComponent({
 export const TradingChart = memo(TradingChartComponent, (prevProps, nextProps) => {
   return (
     prevProps.tokenAddress === nextProps.tokenAddress &&
-    prevProps.height === nextProps.height
+    prevProps.height === nextProps.height &&
+    prevProps.currentPrice === nextProps.currentPrice &&
+    prevProps.marketCap === nextProps.marketCap &&
+    prevProps.className === nextProps.className
   )
 })
 
 TradingChart.displayName = "TradingChart"
-

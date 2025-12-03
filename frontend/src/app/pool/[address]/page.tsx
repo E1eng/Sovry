@@ -332,7 +332,12 @@ export default function TokenDetailPage() {
                   <CardTitle>Price Chart</CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
-                  <TradingChart tokenAddress={address} height={300} />
+                  <TradingChart
+                    tokenAddress={address}
+                    height={300}
+                    currentPrice={details.currentPrice || null}
+                    marketCap={details.marketCap || null}
+                  />
                 </CardContent>
               </Card>
             </div>
@@ -390,7 +395,12 @@ export default function TokenDetailPage() {
                     <CardTitle>Price Chart</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <TradingChart tokenAddress={address} height={500} />
+                    <TradingChart
+                      tokenAddress={address}
+                      height={500}
+                      currentPrice={details.currentPrice || null}
+                      marketCap={details.marketCap || null}
+                    />
                   </CardContent>
                 </Card>
               </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { formatEther } from "viem"
 import { enrichLaunchData } from "@/services/launchDataService"
 import { getLaunchInfo, type LaunchInfo } from "@/services/launchpadService"
 import {
@@ -133,6 +134,12 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setDetails({
         tokenAddress,
         ...(enrichedData || {}),
+        // Prefer enriched marketCap when available; otherwise fall back to
+        // on-chain launchInfo.totalRaised (which for the new contract is
+        // derived from getMarketCap) so the Market Cap card stays in sync
+        // with the progress bar.
+        marketCap:
+          enrichedData?.marketCap ?? (launchInfo ? formatEther(launchInfo.totalRaised) : undefined),
         imageUrl: imageUrlFromSupabase ?? enrichedData?.imageUrl,
         name: nameFromSupabase ?? enrichedData?.name,
         symbol: symbolFromSupabase ?? enrichedData?.symbol,
