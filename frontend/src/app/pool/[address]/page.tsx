@@ -261,6 +261,7 @@ export default function TokenDetailPage() {
   const launchInfo = details.launchInfo
   const ticker = details.symbol || "TOKEN"
   const tokenName = details.name || ticker
+  const creatorAddress = details.wrapperMeta?.creator || details.launchInfo?.creator
 
   // Breadcrumb items
   const breadcrumbItems = [
@@ -391,7 +392,11 @@ export default function TokenDetailPage() {
                 animation: "fadeIn 0.5s ease-out 500ms both",
               }}
             >
-              <HolderDistribution tokenAddress={address} tokenSymbol={ticker} />
+              <HolderDistribution
+                tokenAddress={address}
+                tokenSymbol={ticker}
+                creatorAddress={creatorAddress || undefined}
+              />
             </div>
           </div>
 
@@ -515,7 +520,11 @@ export default function TokenDetailPage() {
                   animation: "fadeIn 0.5s ease-out 260ms both",
                 }}
               >
-                <HolderDistribution tokenAddress={address} tokenSymbol={ticker} />
+                <HolderDistribution
+                  tokenAddress={address}
+                  tokenSymbol={ticker}
+                  creatorAddress={creatorAddress || undefined}
+                />
               </div>
             </div>
           </div>

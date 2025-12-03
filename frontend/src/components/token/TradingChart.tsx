@@ -346,7 +346,7 @@ function TradingChartComponent({
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
           <div className="text-[11px] uppercase tracking-wide text-zinc-500">Price</div>
           <div className="flex items-baseline gap-2">
-            <span className="text-lg sm:text-2xl font-semibold text-zinc-50">
+            <span className="text-base sm:text-lg font-semibold text-zinc-50">
               {formatPrice(effectivePrice)}
             </span>
             <span
