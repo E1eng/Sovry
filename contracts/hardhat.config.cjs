@@ -1,18 +1,16 @@
-import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-chai-matchers";
-import "@nomiclabs/hardhat-ethers";
-import "@nomicfoundation/hardhat-verify";
-import "dotenv/config";
+require("@nomicfoundation/hardhat-chai-matchers");
+require("@nomiclabs/hardhat-ethers");
+require("@nomiclabs/hardhat-etherscan");
+require("dotenv/config");
 
 const AENEID_RPC_URL = process.env.AENEID_RPC_URL || "https://aeneid.storyrpc.io";
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://sepolia.infura.io/v3/";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 const TESTNET_PRIVATE_KEY = process.env.TESTNET_PRIVATE_KEY || "";
-const OWNER_ADDRESS = process.env.OWNER_ADDRESS || "";
 const STORYSCAN_API_KEY = process.env.STORYSCAN_API_KEY || "";
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 
-const config: HardhatUserConfig = {
+/** @type import("hardhat/config").HardhatUserConfig */
+const config = {
   solidity: {
     version: "0.8.26",
     settings: {
@@ -24,7 +22,6 @@ const config: HardhatUserConfig = {
     },
   },
   paths: {
-    // Treat this folder (./) as the Solidity sources directory so that
     // files like SovryLaunchpad.sol at the project root are compiled.
     sources: "./",
   },
@@ -65,4 +62,4 @@ const config: HardhatUserConfig = {
   },
 };
 
-export default config;
+module.exports = config;

@@ -109,8 +109,8 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /// @notice Creator premine allocation in basis points of total locked supply (500 = 5%)
     uint256 public constant CREATOR_PREMINE_BPS = 500;
 
-    /// @notice Minimum listing percentage (50%)
-    uint256 public constant MIN_LISTING_PERCENT = 50;
+    /// @notice Minimum listing percentage (10%)
+    uint256 public constant MIN_LISTING_PERCENT = 10;
 
     /// @notice Maximum listing percentage (100%)
     uint256 public constant MAX_LISTING_PERCENT = 100;
@@ -544,9 +544,9 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         if (basePrice == 0 || basePrice > MAX_BASE_PRICE) revert InvalidPrice();
         if (priceIncrement == 0 || priceIncrement > MAX_PRICE_INCREMENT) revert InvalidPrice();
         if (rtToWrapper[rtAddress] != address(0)) revert TokenAlreadyLaunched();
-        if (!approvedRTs[rtAddress]) revert RTNotWhitelisted();
 
         IERC20 rt = IERC20(rtAddress);
+
         uint256 userBalance = rt.balanceOf(msg.sender);
 
         // Validate minimum fixed listing amount (10 RT)
@@ -597,10 +597,7 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         if (basePrice == 0 || basePrice > MAX_BASE_PRICE) revert InvalidPrice();
         if (priceIncrement == 0 || priceIncrement > MAX_PRICE_INCREMENT) revert InvalidPrice();
         if (rtToWrapper[rtAddress] != address(0)) revert TokenAlreadyLaunched();
-        if (!approvedRTs[rtAddress]) revert RTNotWhitelisted();
         if (userDeposits[msg.sender][rtAddress] < amount) revert InsufficientDeposit();
-
-        IERC20 rt = IERC20(rtAddress);
 
         // Deduct from user's deposit balance
         userDeposits[msg.sender][rtAddress] -= amount;
@@ -622,60 +619,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     }
 
     /**
-     * @notice Adds an RT token to the approved whitelist
-     * @param rtToken Address of the RT token to approve
-     * @dev Only owner can call
-     */
-    function addApprovedRT(address rtToken) external onlyOwner {
-        if (rtToken == address(0)) revert InvalidAddress();
-        if (approvedRTs[rtToken]) revert RTAlreadyApproved();
-        
-        approvedRTs[rtToken] = true;
-        approvedRTsList.push(rtToken);
-        emit RTApproved(rtToken);
-    }
-
-    /**
-     * @notice Removes an RT token from the approved whitelist
-     * @param rtToken Address of the RT token to remove
-     * @dev Only owner can call
-     */
-    function removeApprovedRT(address rtToken) external onlyOwner {
-        if (rtToken == address(0)) revert InvalidAddress();
-        if (!approvedRTs[rtToken]) revert RTNotApproved();
-        
-        approvedRTs[rtToken] = false;
-        
-        // Remove from array
-        for (uint256 i = 0; i < approvedRTsList.length; i++) {
-            if (approvedRTsList[i] == rtToken) {
-                approvedRTsList[i] = approvedRTsList[approvedRTsList.length - 1];
-                approvedRTsList.pop();
-                break;
-            }
-        }
-        
-        emit RTRemoved(rtToken);
-    }
-
-    /**
-     * @notice Gets all approved RT tokens
-     * @return Array of approved RT token addresses
-     */
-    function getApprovedRTs() external view returns (address[] memory) {
-        return approvedRTsList;
-    }
-
-    /**
-     * @notice Checks if an RT token is approved
-     * @param rtToken Address of the RT token to check
-     * @return True if approved, false otherwise
-     */
-    function isRTApproved(address rtToken) external view returns (bool) {
-        return approvedRTs[rtToken];
-    }
-
-    /**
      * @notice Deposits RT tokens for prefunding a token launch
      * @param rtToken Address of the RT token to deposit
      * @param amount Amount of RT tokens to deposit
@@ -685,7 +628,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     function depositRT(address rtToken, uint256 amount) external nonReentrant whenNotPaused {
         if (rtToken == address(0)) revert InvalidAddress();
         if (amount == 0) revert InvalidAmount();
-        if (!approvedRTs[rtToken]) revert RTNotWhitelisted();
 
         // Transfer RT from user to contract
         IERC20(rtToken).safeTransferFrom(msg.sender, address(this), amount);

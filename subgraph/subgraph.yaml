@@ -7,9 +7,9 @@ dataSources:
     name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0x101fff014606aADb390289583b741F72DD097041" # Aeneid launchpad (update for mainnet)
+      address: "0x0285659cd53319b7a37c20FFBc5395Ec187Bfffa" # Aeneid launchpad (update for mainnet)
       abi: SovryLaunchpad
-      startBlock: 11702591
+      startBlock: 11799205
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

@@ -58,10 +58,12 @@ export interface IPAsset {
 const SOVRY_LAUNCHPAD_ABI = [
   {
     inputs: [
-      { internalType: 'address', name: 'royaltyToken', type: 'address' },
+      { internalType: 'address', name: 'rtAddress', type: 'address' },
       { internalType: 'uint256', name: 'amount', type: 'uint256' },
       { internalType: 'string', name: 'name', type: 'string' },
       { internalType: 'string', name: 'symbol', type: 'string' },
+      { internalType: 'uint256', name: 'basePrice', type: 'uint256' },
+      { internalType: 'uint256', name: 'priceIncrement', type: 'uint256' },
     ],
     name: 'launchToken',
     outputs: [],
@@ -69,6 +71,9 @@ const SOVRY_LAUNCHPAD_ABI = [
     type: 'function',
   },
 ];
+
+const DEFAULT_BASE_PRICE_WEI = BigInt("10000000000");
+const DEFAULT_PRICE_INCREMENT_WEI = BigInt("10000");
 
 // Token balance interface
 export interface TokenBalance {
@@ -729,6 +734,9 @@ export async function launchOnBondingCurveDynamic(
 
     console.log('✅ Launch token approve success! Tx Hash:', approveTxHash);
 
+    const basePrice = DEFAULT_BASE_PRICE_WEI;
+    const priceIncrement = DEFAULT_PRICE_INCREMENT_WEI;
+
     // Call SovryLaunchpad.launchToken(royaltyToken, amountToLock, name, symbol)
     const launchData = encodeFunctionData({
       abi: SOVRY_LAUNCHPAD_ABI,
@@ -738,6 +746,8 @@ export async function launchOnBondingCurveDynamic(
         amountToLock,
         tokenName,
         tokenSymbol,
+        basePrice,
+        priceIncrement,
       ],
     });
 

@@ -2,7 +2,7 @@
   "name": "sovry-contracts",
   "version": "1.0.0",
   "private": true,
-  "description": "Sovry DEX Smart Contracts",
+  "description": "Sovry Smart Contracts",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
