@@ -55,11 +55,7 @@ export function TransactionHistory({
   limit = 20,
   className,
 }: TransactionHistoryProps) {
-  const { trades, isLoading, error, refetch } = useRawTradeHistory(tokenAddress, limit * 2) // Fetch more for pagination
-  const [displayLimit, setDisplayLimit] = useState(limit)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const observerRef = useRef<IntersectionObserver | null>(null)
-  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const { trades, isLoading, error, refetch } = useRawTradeHistory(tokenAddress, limit)
 
   // Auto-refresh when new trades occur
   useEffect(() => {
@@ -91,34 +87,7 @@ export function TransactionHistory({
     }
   }, [refetch, tokenAddress])
 
-  // Infinite scroll setup
-  useEffect(() => {
-    if (!loadMoreRef.current || isLoading || displayLimit >= trades.length) return
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoadingMore) {
-          setIsLoadingMore(true)
-          setTimeout(() => {
-            setDisplayLimit((prev) => Math.min(prev + limit, trades.length))
-            setIsLoadingMore(false)
-          }, 300)
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    observerRef.current.observe(loadMoreRef.current)
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-    }
-  }, [trades.length, displayLimit, isLoading, isLoadingMore, limit])
-
-  const displayedTrades = trades.slice(0, displayLimit)
-  const hasMore = displayLimit < trades.length
+  const displayedTrades = trades.slice(0, limit)
   const symbolLabel = tokenSymbol || "tokens"
 
   if (isLoading && trades.length === 0) {
@@ -194,7 +163,7 @@ export function TransactionHistory({
                 key={`${trade.txHash}-${trade.timestamp}-${index}`}
                 className="p-4 hover:bg-zinc-900/50 transition-colors"
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-center gap-3">
                   {/* User Avatar */}
                   <div
                     className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold text-white border-2 border-zinc-800"
@@ -267,33 +236,6 @@ export function TransactionHistory({
               </div>
             ))}
           </div>
-
-          {/* Infinite Scroll Trigger */}
-          {hasMore && (
-            <div ref={loadMoreRef} className="p-4 text-center">
-              {isLoadingMore ? (
-                <Loader2 className="h-4 w-4 animate-spin text-zinc-400 mx-auto" />
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDisplayLimit((prev) => Math.min(prev + limit, trades.length))}
-                  className="text-xs text-zinc-400 hover:text-zinc-300"
-                >
-                  Load More
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Show total count */}
-          {trades.length > displayLimit && (
-            <div className="p-4 text-center border-t border-zinc-800">
-              <p className="text-xs text-zinc-500">
-                Showing {displayLimit} of {trades.length} transactions
-              </p>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>

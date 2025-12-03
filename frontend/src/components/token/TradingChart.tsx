@@ -17,7 +17,17 @@ export interface TradingChartProps {
   className?: string
 }
 
-const TIMEFRAMES: Timeframe[] = ["1H", "24H", "7D", "ALL"]
+const TIMEFRAMES: Timeframe[] = ["1M", "5M", "15M", "1H", "1D", "7D", "ALL"]
+
+const TIMEFRAME_LABELS: Record<Timeframe, string> = {
+  "1M": "1m",
+  "5M": "5m",
+  "15M": "15m",
+  "1H": "1h",
+  "1D": "1d",
+  "7D": "7d",
+  "ALL": "ALL",
+}
 
 function TradingChartComponent({
   tokenAddress,
@@ -32,20 +42,6 @@ function TradingChartComponent({
   const candlestickSeriesRef = useRef<any | null>(null)
   const lastPriceLineRef = useRef<any | null>(null)
   const [chartInitialized, setChartInitialized] = useState(false)
-  
-  // Auto-refresh every 30 seconds
-  useEffect(() => {
-    if (!tokenAddress) return
-    
-    const interval = setInterval(() => {
-    
-    if (!document.hidden) {
-      refetch()
-    }
-  }, 30000) // 30 sec
-    
-    return () => clearInterval(interval)
-  }, [tokenAddress, refetch])
 
   // Initialize chart
   useEffect(() => {
@@ -94,6 +90,12 @@ function TradingChartComponent({
       borderVisible: false,
       wickUpColor: "#22c55e",
       wickDownColor: "#ef4444",
+      // Show more precision for tiny IP-denominated prices
+      priceFormat: {
+        type: "price",
+        precision: 8,
+        minMove: 0.00000001,
+      },
     })
 
     chartRef.current = chart
@@ -197,7 +199,7 @@ function TradingChartComponent({
   return (
     <div className={cn("relative w-full space-y-3", className)}>
       {/* Timeframe Selector */}
-      <div className="flex gap-2 justify-end">
+      <div className="flex gap-2 justify-end items-center">
         {TIMEFRAMES.map((tf) => (
           <Button
             key={tf}
@@ -207,7 +209,7 @@ function TradingChartComponent({
             className="h-8 sm:h-7 text-xs px-3 touch-manipulation min-h-[32px]"
             disabled={isLoading}
           >
-            {tf}
+            {TIMEFRAME_LABELS[tf]}
           </Button>
         ))}
       </div>

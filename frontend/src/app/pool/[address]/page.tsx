@@ -95,6 +95,31 @@ export default function TokenDetailPage() {
       }
   }, [details?.launchInfo?.graduated, showGraduationModal])
 
+  // Also refresh launch details immediately when the trading UI or
+  // TransactionHistory dispatches a global "refresh-trades" event for
+  // this token. This keeps the progress bar and header stats in sync
+  // right after a buy/sell without waiting for the poll interval.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ tokenAddress?: string }>
+      const target = custom.detail?.tokenAddress
+
+      if (!target || target.toLowerCase() === address.toLowerCase()) {
+        refreshDetails()
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("refresh-trades", handler)
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("refresh-trades", handler)
+      }
+    }
+  }, [address, refreshDetails])
+
   // Cleanup redirect timer
   useEffect(() => {
     return () => {
@@ -104,8 +129,10 @@ export default function TokenDetailPage() {
     }
   }, [])
 
-  // Loading state
-  if (loading) {
+  // Loading state - only show full skeleton on initial load when we don't
+  // have any details yet. Subsequent refreshes keep the existing UI while
+  // data is being updated in the background so the page doesn't "flash".
+  if (loading && !details) {
     return <TokenDetailSkeleton />
   }
 

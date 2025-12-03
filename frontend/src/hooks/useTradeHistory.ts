@@ -7,7 +7,7 @@ const SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
   "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn"
 
-export type Timeframe = "1H" | "24H" | "7D" | "ALL"
+export type Timeframe = "1M" | "5M" | "15M" | "1H" | "1D" | "7D" | "ALL"
 
 // Shape aligned with current Trade entity in the subgraph
 export interface RawTrade {
@@ -36,29 +36,42 @@ export interface CandlestickData {
   volume: number
 }
 
-const TIME_RANGE_SECONDS: Record<Timeframe, number> = {
-  "1H": 60 * 60,
-  "24H": 24 * 60 * 60,
-  "7D": 7 * 24 * 60 * 60,
+export const TIME_RANGE_SECONDS: Record<Timeframe, number> = {
+  // Short-term: show multiple candles, not just a single bar
+  // 1m timeframe: last 60 minutes (60 candles)
+  "1M": 60 * 60,
+  // 5m timeframe: last 6 hours (~72 candles)
+  "5M": 6 * 60 * 60,
+  // 15m timeframe: last 24 hours (~96 candles)
+  "15M": 24 * 60 * 60,
+
+  // Higher timeframes
+  // 1h timeframe: last 7 days (168 candles)
+  "1H": 7 * 24 * 60 * 60,
+  // 1d timeframe: last 30 days (30 candles)
+  "1D": 30 * 24 * 60 * 60,
+  // 7d timeframe: last 365 days (~52 candles)
+  "7D": 365 * 24 * 60 * 60,
+  // ALL: full history
   "ALL": 0,
+}
+
+const INTERVAL_SECONDS: Record<Timeframe, number> = {
+  // Binance-style candle duration per timeframe
+  "1M": 60, // 1 minute candles
+  "5M": 5 * 60, // 5 minute candles
+  "15M": 15 * 60, // 15 minute candles
+  "1H": 60 * 60, // 1 hour candles
+  "1D": 24 * 60 * 60, // 1 day candles
+  "7D": 7 * 24 * 60 * 60, // 7 day candles
+  "ALL": 24 * 60 * 60, // 1 day candles across full history
 }
 
 /**
  * Get interval in seconds based on timeframe
  */
-function getIntervalSeconds(timeframe: Timeframe): number {
-  switch (timeframe) {
-    case "1H":
-      return 5 * 60 // 5 minutes
-    case "24H":
-      return 15 * 60 // 15 minutes
-    case "7D":
-      return 60 * 60 // 1 hour
-    case "ALL":
-      return 24 * 60 * 60 // 1 day
-    default:
-      return 60 * 60 // Default to 1 hour
-  }
+export function getIntervalSeconds(timeframe: Timeframe): number {
+  return INTERVAL_SECONDS[timeframe] ?? 60 * 60
 }
 
 /**
@@ -117,7 +130,7 @@ async function fetchTradesFromSubgraph(
 /**
  * Process raw trades into processed trades with calculated price
  */
-function processTrades(rawTrades: RawTrade[]): ProcessedTrade[] {
+export function processTrades(rawTrades: RawTrade[]): ProcessedTrade[] {
   return rawTrades.map((trade) => {
     const timestamp = Number(trade.timestamp || 0)
 
@@ -129,12 +142,13 @@ function processTrades(rawTrades: RawTrade[]): ProcessedTrade[] {
     const ipAmount = valueRaw + feeRaw
     const tokenAmount = amountRaw
 
-    // Convert to floating point for price & volume using 18-decimals
-    const tokenWei = tokenAmount * (10n ** 12n) // 6 -> 18 decimals
-    const ipFloat = Number(formatEther(ipAmount))
-    const tokenFloat = Number(formatEther(tokenWei))
+    // Convert to floating point for price & volume:
+    // - ipAmount is native IP in wei (18 decimals)
+    // - tokenAmount is wrapper in smallest units (6 decimals)
+    const ipFloat = Number(formatEther(ipAmount)) // IP
+    const tokenFloat = Number(tokenAmount) / 1e6 // full wrapper tokens
 
-    const price = tokenFloat > 0 ? ipFloat / tokenFloat : 0
+    const price = tokenFloat > 0 ? ipFloat / tokenFloat : 0 // IP per wrapper token
     const volume = ipFloat
 
     return {
@@ -150,7 +164,7 @@ function processTrades(rawTrades: RawTrade[]): ProcessedTrade[] {
 /**
  * Transform processed trades into OHLC candlestick data
  */
-function transformToOHLC(
+export function transformToOHLC(
   trades: ProcessedTrade[],
   intervalSeconds: number
 ): CandlestickData[] {
@@ -165,6 +179,7 @@ function transformToOHLC(
       low: number
       close: number
       volume: number
+      count: number
     }
   >()
 
@@ -181,6 +196,7 @@ function transformToOHLC(
         low: trade.price,
         close: trade.price,
         volume: trade.volume,
+        count: 1,
       })
     } else {
       // Update existing interval
@@ -188,16 +204,38 @@ function transformToOHLC(
       existing.low = Math.min(existing.low, trade.price)
       existing.close = trade.price // Close is always the last price in the interval
       existing.volume += trade.volume
+      existing.count += 1
     }
   })
 
   // Convert map to array and sort by time
-  return Array.from(ohlcMap.entries())
+  const buckets = Array.from(ohlcMap.entries())
     .map(([time, data]) => ({
       time,
       ...data,
     }))
     .sort((a, b) => a.time - b.time)
+
+  // UX tweak for low-liquidity intervals: when a bucket has only a
+  // single trade, treat its open price as the previous candle's close
+  // so that the candle body visually reflects the price move instead of
+  // rendering as a doji dot. This keeps BUYs showing green bars and
+  // SELLs red bars when they move price relative to the last close.
+  for (let i = 0; i < buckets.length; i++) {
+    const bucket = buckets[i]
+    if (bucket.count <= 1) {
+      const prevClose = i > 0 ? buckets[i - 1].close : bucket.close
+      if (bucket.close !== prevClose) {
+        bucket.open = prevClose
+        // Ensure high/low still enclose the body
+        bucket.high = Math.max(bucket.high, bucket.open, bucket.close)
+        bucket.low = Math.min(bucket.low, bucket.open, bucket.close)
+      }
+    }
+  }
+
+  // Strip internal count field before returning
+  return buckets.map(({ count, ...rest }) => rest)
 }
 
 /**
@@ -232,8 +270,8 @@ export function useTradeHistory(
       return ohlcData
     },
     enabled: !!tokenAddress,
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    staleTime: 5000, // 5 seconds
+    refetchInterval: 5000, // Refetch every 5 seconds for near-realtime candles
   })
 
   return {

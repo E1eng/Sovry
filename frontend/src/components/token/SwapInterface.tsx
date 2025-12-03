@@ -104,8 +104,6 @@ function SwapInterfaceComponent({
   // Fetch launch details (for loading state and auxiliary info)
   const { details, loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
 
-  const currentSupply = curveParams?.currentSupply ?? 1n
-
   // Load real bonding curve parameters from the launchpad
   useEffect(() => {
     let cancelled = false
@@ -135,7 +133,7 @@ function SwapInterfaceComponent({
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedFromAmount(fromAmount)
-    }, 1500)
+    }, 1000) // 1s debounce
 
     return () => clearTimeout(handler)
   }, [fromAmount])
@@ -146,8 +144,7 @@ function SwapInterfaceComponent({
       if (
         !amount ||
         parseFloat(amount) <= 0 ||
-        !tokenAddress ||
-        !curveParams
+        !tokenAddress
       ) {
         setToAmount("")
         setPriceImpact(null)
@@ -161,20 +158,37 @@ function SwapInterfaceComponent({
         const amountBigInt = parseEther(amount)
         let impact: number
         if (isBuy) {
-          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(curveParams, amountBigInt)
+          // Always fetch fresh curve params so the quote matches on-chain
+          const freshParams = await launchpadService.getCurveParams(tokenAddress)
+          if (!freshParams) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(freshParams, amountBigInt)
           if (tokenAmount === 0n || totalCost === 0n) {
             setToAmount("")
             setPriceImpact(null)
             setExchangeRate("")
             return
           }
+
+          // Convert 6-decimal wrapper units to 18-decimal token units for display
           const tokenWei = tokenAmount * (10n ** 12n)
-          const outputFormatted = formatEther(tokenWei)
+          const expectedTokens = parseFloat(formatEther(tokenWei))
+
+          // Keep slippage for internal safety (used when building tx), but
+          // show the expected tokens (like Storyscan) in the main UI.
           const slippagePercent = parseFloat(slippage) || 0.5
-          const minOut = parseFloat(outputFormatted) * (1 - slippagePercent / 100)
-          setToAmount(minOut.toFixed(6))
-          impact = calculateRealPriceImpact(curveParams, tokenAmount, true)
-          const rate = parseFloat(outputFormatted) / parseFloat(amount)
+          const _minOut = expectedTokens * (1 - slippagePercent / 100)
+
+          // Display expected tokens received
+          setToAmount(expectedTokens.toFixed(6))
+
+          impact = calculateRealPriceImpact(freshParams, tokenAmount, true)
+          const rate = expectedTokens / parseFloat(amount)
           setExchangeRate(`1 IP = ${rate.toFixed(6)} ${toToken}`)
         } else {
           // SELL: convert 18-dec UI amount to 6-dec wrapper units
@@ -187,7 +201,15 @@ function SwapInterfaceComponent({
             return
           }
 
-          const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
+          const paramsForSell = curveParams || (await launchpadService.getCurveParams(tokenAddress))
+          if (!paramsForSell) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
           if (baseProceeds <= 0n) {
             setToAmount("")
             setPriceImpact(null)
@@ -206,7 +228,7 @@ function SwapInterfaceComponent({
           const minIpOutFloat = parseFloat(formatEther(minProceeds))
           setToAmount(minIpOutFloat.toFixed(6))
 
-          impact = calculateRealPriceImpact(curveParams, wrapperAmount, false)
+          impact = calculateRealPriceImpact(paramsForSell, wrapperAmount, false)
           const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
           setExchangeRate(`1 ${fromToken} = ${rate.toFixed(6)} IP`)
         }
@@ -220,7 +242,7 @@ function SwapInterfaceComponent({
         setIsCalculating(false)
       }
     },
-    [tokenAddress, currentSupply, slippage, fromToken, toToken, curveParams]
+    [tokenAddress, slippage, fromToken, toToken, curveParams]
   )
 
   // Debounced calculation effect
@@ -230,7 +252,7 @@ function SwapInterfaceComponent({
       clearTimeout(debounceTimerRef.current)
     }
 
-    // Set new timer
+    // Set new timer (1s debounce for estimation)
     debounceTimerRef.current = setTimeout(() => {
       if (fromAmount) {
         calculateOutput(fromAmount, activeTab === "buy")
@@ -239,7 +261,7 @@ function SwapInterfaceComponent({
         setPriceImpact(null)
         setExchangeRate("")
       }
-    }, 300) // 300ms debounce
+    }, 1000)
 
     // Cleanup
     return () => {
@@ -247,7 +269,20 @@ function SwapInterfaceComponent({
         clearTimeout(debounceTimerRef.current)
       }
     }
-  }, [fromAmount, activeTab, calculateOutput, tokenAddress, currentSupply])
+  }, [fromAmount, activeTab, calculateOutput, tokenAddress])
+
+  // Periodically refresh the estimate every 10 seconds while the user
+  // keeps a non-empty input (but hasn't swapped yet), so quotes stay
+  // fresh without spamming RPC on every keystroke.
+  useEffect(() => {
+    if (!debouncedFromAmount || !tokenAddress) return
+
+    const interval = setInterval(() => {
+      calculateOutput(debouncedFromAmount, activeTab === "buy")
+    }, 10000) // 10s refresh
+
+    return () => clearInterval(interval)
+  }, [debouncedFromAmount, activeTab, tokenAddress, calculateOutput])
 
   // Handle tab change - direction is always IP -> TOKEN for buy, TOKEN -> IP for sell
   const handleTabChange = (value: string) => {
@@ -396,15 +431,17 @@ function SwapInterfaceComponent({
       }
 
       // Calculate minTokensOut with slippage using real bonding curve math
-      if (!curveParams) {
+      const slippagePercent = parseFloat(slippage) || 1
+      const ipAmountBigInt = parseEther(fromAmount)
+      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
+      if (!freshParamsForTx) {
         toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
           duration: 3000,
         })
         return
       }
-      const slippagePercent = parseFloat(slippage) || 1
-      const ipAmountBigInt = parseEther(fromAmount)
-      const { amount: tokenAmount } = estimateBuyAmountForIp(curveParams, ipAmountBigInt)
+
+      const { amount: tokenAmount } = estimateBuyAmountForIp(freshParamsForTx, ipAmountBigInt)
       if (tokenAmount <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,
