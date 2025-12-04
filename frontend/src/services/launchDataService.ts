@@ -4,6 +4,7 @@ import { SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
 import { getLaunchInfo, getBondingProgress, type LaunchInfo } from "./launchpadService";
 import { getIPAssetMetadata } from "@/utils/ipMetadata";
 import { extractCategory } from "@/utils/ipMetadata";
+import { supabase } from "@/lib/supabaseClient";
 
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
 
@@ -312,7 +313,30 @@ async function fetchCategory(ipId: string | null): Promise<string> {
  * placeholder when none is available.
  */
 async function fetchImageUrl(ipId: string | null, rtAddress: string | null): Promise<string | null> {
-  return null;
+  try {
+    if (!supabase || !rtAddress) return null;
+
+    const candidates = new Set<string>();
+    candidates.add(rtAddress);
+    candidates.add(rtAddress.toLowerCase());
+
+    const { data, error } = await supabase
+      .from("launches")
+      .select("image_url, royalty_token_address")
+      .in("royalty_token_address", Array.from(candidates))
+      .limit(1);
+
+    if (error || !Array.isArray(data) || data.length === 0) {
+      return null;
+    }
+
+    const row = data[0] as any;
+    const imageUrl = row.image_url as string | null | undefined;
+    return imageUrl || null;
+  } catch (error) {
+    console.error("Error fetching image URL from Supabase for RT", rtAddress, error);
+    return null;
+  }
 }
 
 /**

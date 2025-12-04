@@ -1,6 +1,5 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
@@ -10,46 +9,37 @@ export interface LaunchCardSkeletonProps {
 
 export function LaunchCardSkeleton({ className }: LaunchCardSkeletonProps) {
   return (
-    <Card
+    <div
       className={cn(
-        "overflow-hidden rounded-xl border shadow-sm grid grid-rows-2 h-full min-h-[400px]",
+        "relative flex h-full items-start gap-4 overflow-hidden",
+        "rounded-xl border border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950",
+        "px-4 py-3 sm:px-5 sm:py-4",
         className
       )}
     >
-      {/* Top 50% - Image Skeleton */}
-      <div className="relative w-full h-full bg-zinc-800 overflow-hidden flex items-center justify-center">
-        <div className="relative w-full aspect-square h-full max-h-full">
-          <Skeleton className="absolute inset-0 w-full h-full" />
-        </div>
+      {/* Left - Thumbnail skeleton */}
+      <div className="relative h-16 w-16 sm:h-20 sm:w-20 rounded-lg overflow-hidden bg-zinc-900/80 flex-shrink-0">
+        <Skeleton className="absolute inset-0 w-full h-full" />
       </div>
 
-      {/* Bottom 50% - Content Skeleton */}
-      <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4 flex flex-col justify-between h-full">
-        <div className="space-y-3">
-          {/* Ticker Symbol Skeleton */}
-          <Skeleton className="h-8 w-24" />
-
-          {/* Market Cap Badge Skeleton */}
-          <Skeleton className="h-6 w-32 rounded-full" />
+      {/* Right - Content skeleton */}
+      <div className="flex-1 min-w-0 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0 flex-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <Skeleton className="h-4 w-20 rounded-full" />
         </div>
-
         <div className="space-y-2">
-          {/* Created By Skeleton */}
-          <div className="pt-2 border-t border-zinc-800">
-            <Skeleton className="h-3 w-40" />
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-10" />
           </div>
-
-          {/* Bonding Curve Progress Skeleton */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Skeleton className="h-3 w-32" />
-              <Skeleton className="h-3 w-12" />
-            </div>
-            <Skeleton className="h-2 w-full rounded-full" />
-          </div>
+          <Skeleton className="h-1.5 w-full rounded-full" />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 

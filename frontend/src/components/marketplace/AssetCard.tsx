@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { formatMarketCap } from "@/services/launchDataService";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 export interface AssetCardData {
   id: string;
@@ -18,117 +17,115 @@ export interface AssetCardData {
   bondingProgress?: number;
   category?: string;
   currentPrice?: string;
+  priceChange?: number;
 }
 
 interface AssetCardProps {
   launch: AssetCardData;
 }
 
-const categoryColors: Record<string, string> = {
-  Art: "bg-sovry-pink/10 text-sovry-pink border-sovry-pink/20",
-  Music: "bg-sovry-pink/10 text-sovry-pink border-sovry-pink/20",
-  Gaming: "bg-sovry-green/10 text-sovry-green border-sovry-green/20",
-  Photography: "bg-sovry-pink/10 text-sovry-pink border-sovry-pink/20",
-  "3D Art": "bg-sovry-green/10 text-sovry-green border-sovry-green/20",
-  "Commercial IP": "bg-sovry-green/10 text-sovry-green border-sovry-green/20",
-  "Personal IP": "bg-sovry-pink/10 text-sovry-pink border-sovry-pink/20",
-  "IP Asset": "bg-zinc-800/30 text-zinc-400 border-zinc-700",
-};
+// Helper to format time ago
+function timeAgo(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp * 1000;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return "just now";
+}
+
+// Helper to truncate address
+function truncateAddress(address: string): string {
+  if (!address || address.length < 10) return address;
+  return `${address.slice(2, 8)}`;
+}
 
 export default function AssetCard({ launch }: AssetCardProps) {
   const address = launch.token || launch.id;
-  const createdAtDate = launch.createdAt
-    ? new Date(launch.createdAt * 1000)
-    : null;
-  
-  const categoryColor = categoryColors[launch.category || "IP Asset"] || categoryColors["IP Asset"];
   const bondingProgress = launch.bondingProgress || 0;
   const displaySymbol = launch.symbol || address.slice(2, 6).toUpperCase();
   const displayName = launch.name || `Token ${address.slice(0, 6)}`;
-
-  // Category emoji mapping
-  const categoryEmoji: Record<string, string> = {
-    Art: "🎨",
-    Music: "🎵",
-    Gaming: "🎮",
-    Photography: "📷",
-    "3D Art": "🎭",
-    "Commercial IP": "💼",
-    "Personal IP": "👤",
-    "IP Asset": "📦",
-    "AI Agent": "🤖",
-    Meme: "😄",
-  };
-
-  const categoryEmojiIcon = categoryEmoji[launch.category || "IP Asset"] || "📦";
+  const formattedMarketCap = launch.marketCap ? formatMarketCap(launch.marketCap) : "$0";
+  const creatorShort = truncateAddress(launch.creator);
+  const timeAgoStr = launch.createdAt ? timeAgo(launch.createdAt) : "";
+  
+  // Random price change for demo (in real app, this would come from data)
+  const priceChange = launch.priceChange ?? (Math.random() * 30 - 15);
+  const isPositive = priceChange >= 0;
 
   return (
     <Link
       href={`/pool/${address}`}
-      className="group relative rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900/50 backdrop-blur-sm hover:border-sovry-green/50 transition-all duration-300 hover:shadow-lg hover:shadow-sovry-green/10"
+      className="group relative flex flex-row items-stretch rounded-xl border border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 overflow-hidden hover:border-sovry-green/70 hover:shadow-[0_0_40px_rgba(34,197,94,0.25)] hover:bg-zinc-900/95 transition-all duration-200"
     >
-      {/* Image Section - 16:9 Aspect Ratio */}
-      <div className="relative w-full aspect-video bg-gradient-to-br from-sovry-green/20 via-sovry-green/10 to-sovry-pink/20 overflow-hidden">
-        {launch.imageUrl || launch.ipId ? (
-          <div className="absolute inset-0">
-            <img
-              src={launch.imageUrl || undefined}
-              alt={displayName}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = "none";
-              }}
-            />
-          </div>
+      {/* Left - Image Section (square) */}
+      <div className="relative w-28 sm:w-32 lg:w-36 aspect-square bg-zinc-900/80 overflow-hidden flex-shrink-0">
+        {launch.imageUrl ? (
+          <img
+            src={launch.imageUrl}
+            alt={displayName}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.style.display = "none";
+            }}
+          />
         ) : (
-          <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top,_rgba(57,255,20,0.35),_transparent_60%)]" />
-        )}
-        
-        {/* Badge - Top Left: Bonding Curve % in Hot Pink */}
-        <div className="absolute top-3 left-3">
-          <div className="px-3 py-1.5 rounded-lg bg-sovry-pink/90 backdrop-blur-sm border border-sovry-pink/50 shadow-lg">
-            <span className="text-xs font-bold text-white">
-              {Math.round(bondingProgress)}%
+          <div className="absolute inset-0 bg-gradient-to-br from-sovry-green/20 via-zinc-800 to-sovry-pink/20 flex items-center justify-center">
+            <span className="text-2xl font-bold text-zinc-500">
+              {displayName.charAt(0).toUpperCase()}
             </span>
           </div>
-        </div>
-
-        {/* Badge - Top Right: Category Icon in Glass Badge */}
-        {launch.category && (
-          <div className="absolute top-3 right-3">
-            <div className="px-2.5 py-1.5 rounded-lg bg-zinc-900/80 backdrop-blur-sm border border-zinc-800">
-              <span className="text-sm">{categoryEmojiIcon}</span>
-            </div>
-          </div>
         )}
-
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-transparent to-transparent" />
       </div>
 
-      {/* Footer - Minimal: Token Name and Ticker */}
-      <div className="p-4 bg-zinc-900/50">
-        <div className="flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-zinc-50 truncate">
-              {displayName}
-            </div>
-            <div className="text-xs text-zinc-400 font-mono">
-              {displaySymbol}
-            </div>
+      {/* Right - Content Section */}
+      <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0 gap-2">
+        {/* Top: Name + Symbol */}
+        <div className="space-y-0.5">
+          <h3 className="text-sm sm:text-base font-semibold text-zinc-50 truncate leading-snug">
+            {displayName}
+          </h3>
+          <p className="text-[11px] sm:text-xs text-zinc-500 font-medium uppercase">
+            {displaySymbol}
+          </p>
+        </div>
+
+        {/* Middle: Creator + Time */}
+        <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-zinc-500 mt-1">
+          <div className="h-4 w-4 rounded-full bg-sovry-green/20 flex items-center justify-center">
+            <span className="text-[8px] text-sovry-green font-bold">
+              {creatorShort.charAt(0).toUpperCase()}
+            </span>
           </div>
-          {/* Buy Button - Revealed on Hover */}
-          <Button
-            variant="buy"
-            className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-xs px-4 py-1.5"
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.href = `/pool/${address}`;
-            }}
-          >
-            Buy
-          </Button>
+          <span className="truncate">{creatorShort}</span>
+          <span className="text-zinc-600">•</span>
+          <span>{timeAgoStr}</span>
+        </div>
+
+        {/* Bottom: MC + Progress + % Change */}
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-[11px] sm:text-xs text-zinc-400 font-medium whitespace-nowrap">
+            MC {formattedMarketCap}
+          </span>
+          <div className="flex-1 h-1.5 rounded-full bg-zinc-800/80 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-sovry-green transition-all duration-300"
+              style={{ width: `${Math.max(0, Math.min(100, bondingProgress))}%` }}
+            />
+          </div>
+          <div className={`flex items-center gap-0.5 text-[11px] sm:text-xs font-semibold whitespace-nowrap ${isPositive ? 'text-sovry-green' : 'text-red-500'}`}>
+            {isPositive ? (
+              <TrendingUp className="h-3 w-3" />
+            ) : (
+              <TrendingDown className="h-3 w-3" />
+            )}
+            <span>{Math.abs(priceChange).toFixed(2)}%</span>
+          </div>
         </div>
       </div>
     </Link>

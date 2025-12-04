@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { ethers } from "ethers";
 import { useSearchParams } from "next/navigation";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -23,7 +22,6 @@ import {
   CheckCircle,
   Coins,
   Droplets,
-  Database,
   Percent,
   Loader2,
 } from "lucide-react";

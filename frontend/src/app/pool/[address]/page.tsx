@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Breadcrumb } from "@/components/ui/breadcrumb"
@@ -24,7 +23,6 @@ import { isAddress } from "viem"
 import { logError, isNetworkError, isRPCError } from "@/lib/errorUtils"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
-import { harvestAndPump } from "@/services/launchpadService"
 
 export default function TokenDetailPage() {
   const params = useParams()

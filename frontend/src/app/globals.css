@@ -101,6 +101,20 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  /* Infinite horizontal cards animation for hero preview */
+  @keyframes infinite-cards {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-infinite-cards {
+    animation: infinite-cards 24s linear infinite;
+  }
   body {
     @apply bg-zinc-950 text-foreground;
     scrollbar-width: none; /* Firefox */
