@@ -1,823 +1,1200 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ArrowDownUp, Settings, TrendingUp, CheckCircle, AlertCircle } from "lucide-react";
-import { createPublicClient, http, Address } from "viem";
-import { launchpadService, type LaunchInfo } from "@/services/launchpadService";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowDownUp, Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
+import { parseEther, formatEther } from "viem"
+import { createPublicClient, http } from "viem"
+import toast from "react-hot-toast"
+import { cn } from "@/lib/utils"
+import { useLaunchDetails } from "@/hooks/useLaunchDetails"
+import {
+  estimateBuyAmountForIp,
+  calculateRealPriceImpact,
+  calculateBondingCurveSellProceeds,
+} from "@/lib/bondingCurve"
+import { SlippageSettings } from "@/components/swap/SlippageSettings"
+import { launchpadService } from "@/services/launchpadService"
+import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
+import { erc20Abi } from "viem"
+import { parseTransactionError, logError, isSlippageError } from "@/lib/errorUtils"
+import { trackTrade, trackEvent } from "@/lib/analytics"
+import { memo, useEffect as useReactEffect } from "react"
 
-const GOLDSKY_API_URL = process.env.NEXT_PUBLIC_GOLDSKY_API_URL;
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
-
-interface SwapToken {
-  id: string;
-  symbol: string;
-  name: string;
+export interface SwapInterfaceProps {
+  tokenAddress?: string
+  tokenSymbol?: string
+  className?: string
+  onSwap?: (fromToken: string, toToken: string, amount: string) => void
+  isGraduated?: boolean
+  piperXPoolAddress?: string
 }
 
-interface SwapPool {
-  id: string;
-  token0: SwapToken;
-  token1: SwapToken;
-  reserve0: string;
-  reserve1: string;
-  totalSupply: string;
-}
-
-interface SwapInterfaceProps {
-  defaultFromToken?: string;
-  defaultToToken?: string;
-}
-
-const TOKEN_MAPPING: Record<string, { symbol: string; name: string }> = {
-  "0x1514000000000000000000000000000000000000": {
-    symbol: "WIP",
-    name: "Wrapped IP"
-  },
-  "0xb6b837972cfb487451a71279fa78c327bb27646e": {
-    symbol: "RT",
-    name: "Royalty Token"
-  },
-  "native": {
-    symbol: "IP",
-    name: "Native IP Token"
-  }
-};
-
-export default function SwapInterface({
-  defaultFromToken,
-  defaultToToken,
+function SwapInterfaceComponent({
+  tokenAddress,
+  tokenSymbol = "TOKEN",
+  className,
+  onSwap,
+  isGraduated = false,
+  piperXPoolAddress,
 }: SwapInterfaceProps) {
-  const { primaryWallet } = useDynamicContext();
-  const walletAddress = primaryWallet?.address as string | undefined;
+  const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy")
+  const [fromAmount, setFromAmount] = useState("")
+  const [toAmount, setToAmount] = useState("")
+  const [fromToken, setFromToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "IP" : "TOKEN")
+  const [toToken, setToToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "TOKEN" : "IP")
+  const [showSlippageSettings, setShowSlippageSettings] = useState(false)
+  const [debouncedFromAmount, setDebouncedFromAmount] = useState(fromAmount)
 
-  const [fromAmount, setFromAmount] = useState("");
-  const [toAmount, setToAmount] = useState("");
-  const [fromToken, setFromToken] = useState("");
-  const [toToken, setToToken] = useState("");
-  const [slippage, setSlippage] = useState("0.5");
-  const [deadline, setDeadline] = useState("20");
-  const [showSettings, setShowSettings] = useState(false);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationSuccess, setSimulationSuccess] = useState(false);
-  const [isSwapping, setIsSwapping] = useState(false);
-  
-  const [pools, setPools] = useState<SwapPool[]>([]);
-  const [availableTokens, setAvailableTokens] = useState<SwapToken[]>([]);
-  const [poolsLoading, setPoolsLoading] = useState(true);
-  const [poolsError, setPoolsError] = useState<string | null>(null);
-  const [selectedPool, setSelectedPool] = useState<SwapPool | null>(null);
-  const [launchInfo, setLaunchInfo] = useState<LaunchInfo | null>(null);
-  const [bondingProgress, setBondingProgress] = useState(0);
-  const [bondingTokenAddress, setBondingTokenAddress] = useState<string | null>(null);
-  const [launchpadMode, setLaunchpadMode] = useState<"none" | "bonding" | "dex">("none");
-  const [launchpadError, setLaunchpadError] = useState<string | null>(null);
+  // Load slippage from localStorage, default to 1%
+  const [slippage, setSlippage] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sovry-slippage-tolerance")
+      if (saved) {
+        const parsed = parseFloat(saved)
+        if (!isNaN(parsed) && parsed >= 0.1 && parsed <= 10) {
+          return saved
+        }
+      }
+    }
+    return "1" // Default 1%
+  })
+  const [isCalculating, setIsCalculating] = useState(false)
+  const [priceImpact, setPriceImpact] = useState<number | null>(null)
+  const [exchangeRate, setExchangeRate] = useState("")
+  const [isTrading, setIsTrading] = useState(false)
+  const [tradeSuccess, setTradeSuccess] = useState(false)
+  const [userBalance, setUserBalance] = useState<string | null>(null)
+  const [tokenBalance, setTokenBalance] = useState<string | null>(null)
+  const [isApproved, setIsApproved] = useState(false)
+  const [isApproving, setIsApproving] = useState(false)
+  const [balanceError, setBalanceError] = useState<string | null>(null)
+  const [slippageError, setSlippageError] = useState<string | null>(null)
+  const [curveParams, setCurveParams] = useState<any | null>(null)
+  const [isSimulatingTx, setIsSimulatingTx] = useState(false)
+  const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
+  const [simulationError, setSimulationError] = useState<string | null>(null)
 
-  // Fetch swap pools directly from blockchain
-  const fetchSwapPoolsFromBlockchain = async () => {
-    try {
-      console.log('🔗 Fetching swap pools directly from Story Protocol blockchain...');
-      
-      // Create public client for Story Protocol
-      const publicClient = createPublicClient({
+  // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
+  const FEE_BPS = 100n
+  const BPS_DENOMINATOR = 10_000n
+
+  // Get wallet connection
+  const { primaryWallet } = useDynamicContext()
+  const isConnected = !!primaryWallet
+
+  // Track wallet connection state
+  useReactEffect(() => {
+    if (isConnected && primaryWallet?.address) {
+      trackEvent("wallet_connected", {
+        address: primaryWallet.address,
+      })
+    } else {
+      trackEvent("wallet_disconnected", {})
+    }
+  }, [isConnected, primaryWallet?.address])
+
+  // Fetch launch details (for loading state and auxiliary info)
+  const { details, loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
+
+  // Load real bonding curve parameters from the launchpad
+  useEffect(() => {
+    let cancelled = false
+    const loadCurve = async () => {
+      if (!tokenAddress) {
+        if (!cancelled) setCurveParams(null)
+        return
+      }
+      try {
+        const params = await launchpadService.getCurveParams(tokenAddress)
+        if (!cancelled) setCurveParams(params)
+      } catch (error) {
+        console.error("Error loading bonding curve params:", error)
+        if (!cancelled) setCurveParams(null)
+      }
+    }
+    loadCurve()
+    return () => {
+      cancelled = true
+    }
+  }, [tokenAddress])
+
+  // Debounce timer ref
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Debounced fromAmount for expensive allowance checks
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedFromAmount(fromAmount)
+    }, 1000) // 1s debounce
+
+    return () => clearTimeout(handler)
+  }, [fromAmount])
+
+  // Calculate output amount with debouncing
+  const calculateOutput = useCallback(
+    async (amount: string, isBuy: boolean) => {
+      if (
+        !amount ||
+        parseFloat(amount) <= 0 ||
+        !tokenAddress
+      ) {
+        setToAmount("")
+        setPriceImpact(null)
+        setExchangeRate("")
+        return
+      }
+
+      setIsCalculating(true)
+
+      try {
+        const amountBigInt = parseEther(amount)
+        let impact: number
+        if (isBuy) {
+          // Always fetch fresh curve params so the quote matches on-chain
+          const freshParams = await launchpadService.getCurveParams(tokenAddress)
+          if (!freshParams) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(freshParams, amountBigInt)
+          if (tokenAmount === 0n || totalCost === 0n) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          // Convert 6-decimal wrapper units to 18-decimal token units for display
+          const tokenWei = tokenAmount * (10n ** 12n)
+          const expectedTokens = parseFloat(formatEther(tokenWei))
+
+          // Keep slippage for internal safety (used when building tx), but
+          // show the expected tokens (like Storyscan) in the main UI.
+          const slippagePercent = parseFloat(slippage) || 0.5
+          const _minOut = expectedTokens * (1 - slippagePercent / 100)
+
+          // Display expected tokens received
+          setToAmount(expectedTokens.toFixed(6))
+
+          impact = calculateRealPriceImpact(freshParams, tokenAmount, true)
+          const rate = expectedTokens / parseFloat(amount)
+          setExchangeRate(`1 IP = ${rate.toFixed(6)} ${toToken}`)
+        } else {
+          // SELL: convert 18-dec UI amount to 6-dec wrapper units
+          const tokenWeiIn = amountBigInt
+          const wrapperAmount = tokenWeiIn / (10n ** 12n)
+          if (wrapperAmount <= 0n) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          const paramsForSell = curveParams || (await launchpadService.getCurveParams(tokenAddress))
+          if (!paramsForSell) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
+          if (baseProceeds <= 0n) {
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          // Apply 1% trading fee to get net proceeds, mirroring SovryLaunchpad.sell
+          const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
+          const netProceeds = baseProceeds - fee
+
+          const slippagePercent = parseFloat(slippage) || 0.5
+          const slippageBps = BigInt(Math.floor(slippagePercent * 100))
+          const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+
+          const minIpOutFloat = parseFloat(formatEther(minProceeds))
+          setToAmount(minIpOutFloat.toFixed(6))
+
+          impact = calculateRealPriceImpact(paramsForSell, wrapperAmount, false)
+          const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
+          setExchangeRate(`1 ${fromToken} = ${rate.toFixed(6)} IP`)
+        }
+        setPriceImpact(impact)
+      } catch (error) {
+        console.error("Error calculating output:", error)
+        setToAmount("")
+        setPriceImpact(null)
+        setExchangeRate("")
+      } finally {
+        setIsCalculating(false)
+      }
+    },
+    [tokenAddress, slippage, fromToken, toToken, curveParams]
+  )
+
+  // Debounced calculation effect
+  useEffect(() => {
+    // Clear previous timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    // Set new timer (1s debounce for estimation)
+    debounceTimerRef.current = setTimeout(() => {
+      if (fromAmount) {
+        calculateOutput(fromAmount, activeTab === "buy")
+      } else {
+        setToAmount("")
+        setPriceImpact(null)
+        setExchangeRate("")
+      }
+    }, 1000)
+
+    // Cleanup
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [fromAmount, activeTab, calculateOutput, tokenAddress])
+
+  // Periodically refresh the estimate every 10 seconds while the user
+  // keeps a non-empty input (but hasn't swapped yet), so quotes stay
+  // fresh without spamming RPC on every keystroke.
+  useEffect(() => {
+    if (!debouncedFromAmount || !tokenAddress) return
+
+    const interval = setInterval(() => {
+      calculateOutput(debouncedFromAmount, activeTab === "buy")
+    }, 10000) // 10s refresh
+
+    return () => clearInterval(interval)
+  }, [debouncedFromAmount, activeTab, tokenAddress, calculateOutput])
+
+  // Handle tab change - direction is always IP -> TOKEN for buy, TOKEN -> IP for sell
+  const handleTabChange = (value: string) => {
+    const newTab = value as "buy" | "sell"
+    setActiveTab(newTab)
+
+    if (newTab === "buy") {
+      setFromToken("IP")
+      setToToken("TOKEN")
+    } else {
+      setFromToken("TOKEN")
+      setToToken("IP")
+    }
+
+    // Clear amounts and errors
+    setFromAmount("")
+    setToAmount("")
+    setPriceImpact(null)
+    setExchangeRate("")
+    setBalanceError(null)
+    setSlippageError(null)
+  }
+
+  // Handle swap button click: simply toggle between buy and sell directions
+  const handleSwapTokens = () => {
+    const nextTab = activeTab === "buy" ? "sell" : "buy"
+    handleTabChange(nextTab)
+  }
+
+  // Create public client for balance checks (memoized)
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
         chain: {
           id: 1315,
-          name: 'Story Aeneid Testnet',
-          nativeCurrency: { name: 'IP', symbol: 'IP', decimals: 18 },
+          name: "Story Aeneid Testnet",
+          nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
           rpcUrls: {
-            default: { http: [STORY_RPC_URL] },
-            public: { http: [STORY_RPC_URL] },
+            default: { http: [process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"] },
           },
         },
-        transport: http(STORY_RPC_URL),
-      });
+        transport: http(process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"),
+      }),
+    []
+  )
 
-      // Sovry Factory contract address
-      const FACTORY_ADDRESS = '0xAc903015B6828A5290DF0e42504423EBB295c8a3';
-      
-      // Factory ABI to get all pools
-      const factoryABI = [
-        {
-          inputs: [],
-          name: 'getAllPools',
-          outputs: [{ type: 'address[]', name: 'pools' }],
-          stateMutability: 'view',
-          type: 'function',
-        },
-      ] as const;
-
-      try {
-        // Get all pools from factory contract
-        const poolAddresses = await publicClient.readContract({
-          address: FACTORY_ADDRESS as Address,
-          abi: factoryABI,
-          functionName: 'getAllPools',
-        });
-
-        console.log(`📋 Found ${poolAddresses.length} swap pools on blockchain`);
-
-        // Map to SwapPool format
-        const swapPools: SwapPool[] = poolAddresses.map((address, index) => ({
-          id: address,
-          token0: {
-            id: '0x1514000000000000000000000000000000000000',
-            symbol: 'WIP',
-            name: 'Wrapped IP'
-          },
-          token1: {
-            id: '0xb6b837972cfb487451a71279fa78c327bb27646e',
-            symbol: 'RT',
-            name: 'Royalty Token'
-          },
-          reserve0: '1000',
-          reserve1: '2000',
-          totalSupply: '3000'
-        }));
-
-        setPools(swapPools);
-
-        const tokens: SwapToken[] = [
-          { id: '0x1514000000000000000000000000000000000000', symbol: 'WIP', name: 'Wrapped IP' },
-          { id: '0xb6b837972cfb487451a71279fa78c327bb27646e', symbol: 'RT', name: 'Royalty Token' },
-          { id: 'native', symbol: 'IP', name: 'Native IP Token' }
-        ];
-        setAvailableTokens(tokens);
-        setPoolsError(null);
-
-        console.log(`✅ Successfully fetched ${swapPools.length} swap pools from blockchain`);
-      } catch (contractError) {
-        console.log('⚠️ Factory contract not found - showing empty pools');
-        setPools([]);
-        setAvailableTokens([]);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching swap pools from blockchain:', error);
-      setPoolsError('Failed to fetch pools from blockchain');
-    } finally {
-      setPoolsLoading(false);
-    }
-  };
-
-  const fetchPools = async () => {
-    if (!GOLDSKY_API_URL) {
-      console.log("⚠️ Goldsky API URL not configured - fetching from blockchain");
-      // Fetch pools directly from blockchain
-      await fetchSwapPoolsFromBlockchain();
-      return;
-    }
-
-    try {
-      setPoolsLoading(true);
-      setPoolsError(null);
-
-      const query = `
-        query GetSwapPools {
-          pools(first: 100) {
-            id
-            token0 {
-              id
-            }
-            token1 {
-              id
-            }
-            reserve0
-            reserve1
-            totalSupply
-          }
-        }
-      `;
-
-      const response = await fetch(GOLDSKY_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query }),
-      });
-
-      const data = await response.json();
-      console.log("Swap pools response:", data);
-
-      if (data.errors && data.errors.length > 0) {
-        throw new Error(data.errors[0]?.message || "GraphQL error");
-      }
-
-      if (data.data && data.data.pools) {
-        const mappedPools = data.data.pools.map((pool: any) => {
-          const token0Address = pool.token0?.id?.toLowerCase();
-          const token1Address = pool.token1?.id?.toLowerCase();
-          
-          const token0Info = TOKEN_MAPPING[token0Address] || {
-            symbol: "UNKNOWN",
-            name: "Unknown Token"
-          };
-          
-          const token1Info = TOKEN_MAPPING[token1Address] || {
-            symbol: "UNKNOWN", 
-            name: "Unknown Token"
-          };
-          
-          return {
-            ...pool,
-            token0: {
-              id: pool.token0?.id || "",
-              symbol: token0Info.symbol,
-              name: token0Info.name
-            },
-            token1: {
-              id: pool.token1?.id || "",
-              symbol: token1Info.symbol,
-              name: token1Info.name
-            }
-          };
-        });
-
-        console.log("Mapped swap pools:", mappedPools);
-        setPools(mappedPools);
-
-        const tokens: SwapToken[] = [];
-        const tokenSet = new Set<string>();
-
-        mappedPools.forEach((pool: SwapPool) => {
-          if (!tokenSet.has(pool.token0.id)) {
-            tokens.push(pool.token0);
-            tokenSet.add(pool.token0.id);
-          }
-          if (!tokenSet.has(pool.token1.id)) {
-            tokens.push(pool.token1);
-            tokenSet.add(pool.token1.id);
-          }
-        });
-
-        // Add native IP token for auto-wrapping
-        const nativeToken: SwapToken = {
-          id: "native",
-          symbol: "IP",
-          name: "Native IP Token"
-        };
-        tokens.unshift(nativeToken); // Add at beginning
-        
-        setAvailableTokens(tokens);
-        console.log("Available tokens for swap:", tokens);
-      } else {
-        setPools([]);
-        setAvailableTokens([]);
-      }
-    } catch (err) {
-      console.log("❌ Error fetching swap pools - falling back to blockchain:", err);
-      // Fall back to direct blockchain fetch
-      await fetchSwapPoolsFromBlockchain();
-    } finally {
-      setPoolsLoading(false);
-    }
-  };
-
+  // Fetch user's IP balance
   useEffect(() => {
-    console.log("SwapInterface mounted - fetching real pools from Goldsky");
-    fetchPools();
-  }, []);
-
-  useEffect(() => {
-    if (defaultFromToken || defaultToToken) {
-      setFromToken(defaultFromToken || "");
-      setToToken(defaultToToken || "");
-      setFromAmount("");
-      setToAmount("");
-    }
-  }, [defaultFromToken, defaultToToken]);
-
-  useEffect(() => {
-    if (fromToken && toToken && pools.length > 0) {
-      // Handle native IP auto-wrapping to WIP
-      const effectiveFromToken = fromToken === "IP" ? "WIP" : fromToken;
-      const effectiveToToken = toToken === "IP" ? "WIP" : toToken;
-      
-      const pool = pools.find(p => 
-        (p.token0.symbol === effectiveFromToken && p.token1.symbol === effectiveToToken) ||
-        (p.token1.symbol === effectiveFromToken && p.token0.symbol === effectiveToToken)
-      );
-      setSelectedPool(pool || null);
-      console.log("Selected pool for swap:", pool, { fromToken, toToken, effectiveFromToken, effectiveToToken });
-    } else {
-      setSelectedPool(null);
-    }
-  }, [fromToken, toToken, pools]);
-
-  useEffect(() => {
-    const checkLaunchpadStatus = async () => {
-      setLaunchpadError(null);
-      setLaunchInfo(null);
-      setBondingTokenAddress(null);
-      setBondingProgress(0);
-
-      if (!fromToken || !toToken || availableTokens.length === 0) {
-        setLaunchpadMode("none");
-        return;
-      }
-
-      const fromMeta = availableTokens.find((t) => t.symbol === fromToken);
-      const toMeta = availableTokens.find((t) => t.symbol === toToken);
-
-      if (!fromMeta || !toMeta) {
-        setLaunchpadMode("none");
-        return;
-      }
-
-      const isFromIP = fromMeta.symbol === "IP";
-      const isToIP = toMeta.symbol === "IP";
-
-      if (isFromIP === isToIP) {
-        setLaunchpadMode("dex");
-        return;
-      }
-
-      const tokenMeta = isFromIP ? toMeta : fromMeta;
-      const tokenAddress = tokenMeta.id;
-
-      if (!tokenAddress || tokenAddress === "native") {
-        setLaunchpadMode("dex");
-        return;
+    const fetchBalance = async () => {
+      if (!primaryWallet?.address) {
+        setUserBalance(null)
+        return
       }
 
       try {
-        const info = await launchpadService.getLaunchInfo(tokenAddress);
-        if (!info) {
-          setLaunchpadMode("dex");
-          return;
-        }
+        const balance = await publicClient.getBalance({
+          address: primaryWallet.address as `0x${string}`,
+        })
 
-        setLaunchInfo(info);
-        setBondingTokenAddress(tokenAddress);
-        const progress = launchpadService.getBondingProgress(info);
-        setBondingProgress(progress);
-        setLaunchpadMode(info.graduated ? "dex" : "bonding");
+        setUserBalance(formatEther(balance))
       } catch (error) {
-        console.error("Error checking launchpad status:", error);
-        setLaunchpadError("Failed to load Launchpad status");
-        setLaunchpadMode("dex");
+        console.error("Error fetching balance:", error)
+        setUserBalance(null)
       }
-    };
+    }
 
-    checkLaunchpadStatus();
-  }, [fromToken, toToken, availableTokens]);
+    fetchBalance()
+  }, [primaryWallet?.address, publicClient])
 
+  // Fetch user's token balance and check approval (debounced on amount)
   useEffect(() => {
-    if (!fromAmount || !fromToken || !toToken) {
-      setSimulationSuccess(false);
-      setToAmount("");
-      return;
-    }
-
-    if (launchpadMode === "bonding" && bondingTokenAddress) {
-      setIsSimulating(true);
-      setSimulationSuccess(false);
-
-      const timer = setTimeout(async () => {
-        setIsSimulating(false);
-
-        try {
-          const inputValue = parseFloat(fromAmount) || 0;
-          if (inputValue <= 0) {
-            setToAmount("");
-            setSimulationSuccess(false);
-            return;
-          }
-
-          if (fromToken === "IP" && toToken !== "IP") {
-            const estimated = await launchpadService.getEstimatedTokensForIP(
-              bondingTokenAddress,
-              fromAmount
-            );
-            setToAmount(parseFloat(estimated).toFixed(6));
-            setSimulationSuccess(true);
-          } else if (toToken === "IP" && fromToken !== "IP") {
-            const estimated = await launchpadService.estimateIPForTokens(
-              bondingTokenAddress,
-              fromAmount
-            );
-            setToAmount(parseFloat(estimated).toFixed(6));
-            setSimulationSuccess(true);
-          } else {
-            setToAmount("");
-            setSimulationSuccess(false);
-          }
-        } catch (error) {
-          console.error("Launchpad swap calculation error:", error);
-          setToAmount("");
-          setSimulationSuccess(false);
-        }
-      }, 800);
-
-      return () => clearTimeout(timer);
-    }
-
-    if (fromAmount && fromToken && toToken && selectedPool) {
-      setIsSimulating(true);
-      setSimulationSuccess(false);
-      
-      const timer = setTimeout(() => {
-        setIsSimulating(false);
-        
-        try {
-          const inputValue = parseFloat(fromAmount) || 0;
-          if (inputValue <= 0) {
-            setToAmount("");
-            setSimulationSuccess(false);
-            return;
-          }
-
-          const effectiveFromToken = fromToken === "IP" ? "WIP" : fromToken;
-          const isToken0Input = selectedPool.token0.symbol === effectiveFromToken;
-          const reserveIn = parseFloat(isToken0Input ? selectedPool.reserve0 : selectedPool.reserve1);
-          const reserveOut = parseFloat(isToken0Input ? selectedPool.reserve1 : selectedPool.reserve0);
-          
-          if (reserveIn <= 0 || reserveOut <= 0) {
-            setToAmount("");
-            setSimulationSuccess(false);
-            return;
-          }
-
-          const amountInWithFee = inputValue * 0.997;
-          const amountOut = (amountInWithFee * reserveOut) / (reserveIn + amountInWithFee);
-          
-          setToAmount(amountOut.toFixed(6));
-          setSimulationSuccess(true);
-        } catch (error) {
-          console.error("Swap calculation error:", error);
-          setToAmount("");
-          setSimulationSuccess(false);
-        }
-      }, 800);
-      
-      return () => clearTimeout(timer);
-    } else {
-      setSimulationSuccess(false);
-      setToAmount("");
-    }
-  }, [fromAmount, fromToken, toToken, selectedPool, launchpadMode, bondingTokenAddress]);
-
-  const bondingModeActive = launchpadMode === "bonding" && !!bondingTokenAddress;
-  const requiresDexPool = !bondingModeActive;
-
-  const handleSwap = async () => {
-    if (!simulationSuccess || !fromAmount || !toToken) return;
-
-    setIsSwapping(true);
-    
-    try {
-      if (launchpadMode === "bonding" && bondingTokenAddress) {
-        if (!primaryWallet || !walletAddress) {
-          throw new Error("Connect your wallet to trade on the bonding curve");
-        }
-
-        const slippagePct = parseFloat(slippage || "0");
-
-        if (fromToken === "IP" && toToken !== "IP") {
-          const estOut = parseFloat(toAmount || "0");
-          const minOut =
-            estOut > 0 && slippagePct >= 0
-              ? (estOut * (1 - slippagePct / 100)).toString()
-              : "0";
-
-          const result = await launchpadService.buy(
-            bondingTokenAddress,
-            fromAmount,
-            minOut,
-            primaryWallet
-          );
-          if (!result.success) {
-            throw new Error(result.error || "Launchpad buy failed");
-          }
-        } else if (toToken === "IP" && fromToken !== "IP") {
-          const estIpOut = parseFloat(toAmount || "0");
-          const minIpOut =
-            estIpOut > 0 && slippagePct >= 0
-              ? (estIpOut * (1 - slippagePct / 100)).toString()
-              : "0";
-
-          const result = await launchpadService.sell(
-            bondingTokenAddress,
-            fromAmount,
-            minIpOut,
-            primaryWallet
-          );
-          if (!result.success) {
-            throw new Error(result.error || "Launchpad sell failed");
-          }
-        } else {
-          throw new Error("Bonding curve swaps are only supported between IP and a launch token");
-        }
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+    const fetchTokenBalanceAndApproval = async () => {
+      if (!primaryWallet?.address || !tokenAddress) {
+        setTokenBalance(null)
+        setIsApproved(false)
+        return
       }
 
-      setFromAmount("");
-      setToAmount("");
-      setSimulationSuccess(false);
-      
-      alert("Swap successful!");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Swap failed. Please try again.";
-      alert(message);
-    } finally {
-      setIsSwapping(false);
-    }
-  };
+      try {
+        // Fetch token balance (wrapper uses 6 decimals). Convert to 18-decimal
+        // units for display to keep UI consistent with the buy/sell inputs.
+        const balance = await publicClient.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [primaryWallet.address as `0x${string}`],
+        }) as bigint
 
-  const handleReverseTokens = () => {
-    setFromToken(toToken);
-    setToToken(fromToken);
-    setFromAmount(toAmount);
-    setToAmount(fromAmount);
-  };
+        const tokenWei = balance * (10n ** 12n)
+        setTokenBalance(formatEther(tokenWei))
+
+        // Check approval. Allowance is also in 6-decimal units, so normalise
+        // to 18-decimal before comparing with the 18-decimal sell amount.
+        const allowanceRaw = await publicClient.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [primaryWallet.address as `0x${string}`, SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`],
+        }) as bigint
+
+        const allowanceWei = allowanceRaw * (10n ** 12n)
+        const sellAmountWei = debouncedFromAmount && fromToken === "TOKEN" ? parseEther(debouncedFromAmount) : 0n
+        setIsApproved(allowanceWei >= sellAmountWei && sellAmountWei > 0n)
+      } catch (error) {
+        console.error("Error fetching token balance/approval:", error)
+        setTokenBalance(null)
+        setIsApproved(false)
+      }
+    }
+
+    fetchTokenBalanceAndApproval()
+  }, [primaryWallet?.address, tokenAddress, debouncedFromAmount, fromToken, publicClient])
+
+  // Handle place trade
+  const handlePlaceTrade = async () => {
+    if (!fromAmount || parseFloat(fromAmount) <= 0 || !tokenAddress) return
+
+    // Validation
+    if (!isConnected || !primaryWallet) {
+      toast.error("Please connect your wallet", {
+        duration: 3000,
+      })
+      return
+    }
+
+    if (activeTab === "buy" && fromToken === "IP") {
+      // Validate IP balance
+      if (!userBalance || parseFloat(userBalance) < parseFloat(fromAmount)) {
+        const errorMsg = `Insufficient IP balance. You have ${userBalance || "0"} IP, but need ${fromAmount} IP.`
+        setBalanceError(errorMsg)
+        toast.error("Insufficient IP balance", {
+          description: `You have ${userBalance || "0"} IP`,
+          duration: 4000,
+        })
+        logError(new Error(errorMsg), "SwapInterface")
+        return
+      }
+      setBalanceError(null)
+
+      // Validate amount > 0
+      if (parseFloat(fromAmount) <= 0) {
+        toast.error("Amount must be greater than 0", {
+          duration: 3000,
+        })
+        return
+      }
+
+      // Calculate minTokensOut with slippage using real bonding curve math
+      const slippagePercent = parseFloat(slippage) || 1
+      const ipAmountBigInt = parseEther(fromAmount)
+      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
+      if (!freshParamsForTx) {
+        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
+          duration: 3000,
+        })
+        return
+      }
+
+      const { amount: tokenAmount } = estimateBuyAmountForIp(freshParamsForTx, ipAmountBigInt)
+      if (tokenAmount <= 0n) {
+        toast.error("Amount too small for current bonding curve", {
+          duration: 3000,
+        })
+        return
+      }
+      const tokenWei = tokenAmount * (10n ** 12n)
+      const actualTokensOutFormatted = parseFloat(formatEther(tokenWei))
+      const minTokensOut = actualTokensOutFormatted * (1 - slippagePercent / 100)
+
+      // Run Tenderly simulation before sending real transaction
+      setSimulationStatus(null)
+      setSimulationError(null)
+      setIsSimulatingTx(true)
+      try {
+        const simResult = await launchpadService.simulateBuy(
+          tokenAddress,
+          fromAmount,
+          primaryWallet.address as string,
+        )
+        // Simulation passed; proceed silently to on-chain execution
+      } catch (simError: any) {
+        const message = simError?.message || "Simulation failed"
+        console.error("Tenderly simulation error (buy)", simError)
+        const lower = message.toLowerCase()
+        const isRateLimited = lower.includes("429") || simError?.status === 429
+        const isMethodMissing =
+          lower.includes("tenderly_simulate") ||
+          lower.includes("does not exist") ||
+          lower.includes("is not available")
+
+        if (isRateLimited || isMethodMissing) {
+          setSimulationError(
+            "Tenderly simulation is unavailable. Proceeding without preview."
+          )
+          toast.error("Simulation unavailable", {
+            description: message,
+            duration: 5000,
+          })
+        } else {
+          setSimulationError(message)
+          toast.error("Simulation failed", {
+            description: message,
+            duration: 5000,
+          })
+          setIsSimulatingTx(false)
+          return
+        }
+      }
+      setIsSimulatingTx(false)
+
+      setIsTrading(true)
+      setTradeSuccess(false)
+
+      // Track trade initiation
+      trackEvent("trade_initiated", {
+        type: "buy",
+        tokenAddress,
+        amount: fromAmount,
+        slippage: slippagePercent,
+      })
+
+      try {
+        const result = await launchpadService.buy(
+          tokenAddress,
+          fromAmount,
+          minTokensOut.toFixed(18),
+          primaryWallet
+        )
+
+        if (result.success) {
+          setTradeSuccess(true)
+          trackTrade("buy", tokenAddress, fromAmount, true)
+          toast.success("Trade Successful!", {
+            duration: 2000,
+            icon: "✅",
+          })
+
+          // Refresh balances after successful trade
+          if (primaryWallet?.address) {
+            setTimeout(() => {
+              // Trigger balance refresh
+              const event = new CustomEvent("refresh-balances")
+              window.dispatchEvent(event)
+            }, 2000)
+          }
+
+          // Trigger recent activity refresh for this token
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("refresh-trades", {
+                detail: { tokenAddress },
+              })
+            )
+          }
+
+          // Reset form after 2 seconds
+          setTimeout(() => {
+            setFromAmount("")
+            setToAmount("")
+            setPriceImpact(null)
+            setExchangeRate("")
+            setTradeSuccess(false)
+          }, 2000)
+        } else {
+          trackTrade("buy", tokenAddress, fromAmount, false, result.error)
+          const parsedError = parseTransactionError(result.error || new Error("Unknown error"))
+          logError(result.error || new Error("Unknown error"), "SwapInterface.buy")
+
+          if (isSlippageError(result.error)) {
+            setSlippageError(parsedError.userFriendlyMessage)
+            toast.error(parsedError.userFriendlyMessage, {
+              description: parsedError.suggestion,
+              duration: 5000,
+            })
+          } else {
+            toast.error(parsedError.userFriendlyMessage, {
+              description: parsedError.suggestion || parsedError.message,
+              duration: 5000,
+            })
+          }
+        }
+      } catch (error) {
+        const parsedError = parseTransactionError(error)
+        logError(error, "SwapInterface.buy")
+        trackTrade("buy", tokenAddress, fromAmount, false, parsedError.message)
+
+        if (isSlippageError(error)) {
+          setSlippageError(parsedError.userFriendlyMessage)
+          toast.error(parsedError.userFriendlyMessage, {
+            description: parsedError.suggestion,
+            duration: 5000,
+          })
+        } else {
+          toast.error(parsedError.userFriendlyMessage, {
+            description: parsedError.suggestion || parsedError.message,
+            duration: 5000,
+          })
+        }
+      } finally {
+        setIsTrading(false)
+      }
+    } else if (activeTab === "sell" && fromToken === "TOKEN") {
+      // Validate token balance
+      if (!tokenBalance || parseFloat(tokenBalance) < parseFloat(fromAmount)) {
+        const errorMsg = `Insufficient token balance. You have ${tokenBalance || "0"} ${tokenSymbol}, but need ${fromAmount} ${tokenSymbol}.`
+        setBalanceError(errorMsg)
+        toast.error("Insufficient token balance", {
+          description: `You have ${tokenBalance || "0"} ${tokenSymbol}`,
+          duration: 4000,
+        })
+        logError(new Error(errorMsg), "SwapInterface")
+        return
+      }
+      setBalanceError(null)
+
+      // Validate amount > 0
+      if (parseFloat(fromAmount) <= 0) {
+        toast.error("Amount must be greater than 0", {
+          duration: 3000,
+        })
+        return
+      }
+
+      // Run Tenderly simulation before sending real transaction
+      setSimulationStatus(null)
+      setSimulationError(null)
+      setIsSimulatingTx(true)
+      try {
+        const slippagePercent = parseFloat(slippage) || 1
+        const tokenWeiIn = parseEther(fromAmount)
+        const wrapperAmount = tokenWeiIn / (10n ** 12n)
+        if (wrapperAmount <= 0n) {
+          throw new Error("Amount too small for current bonding curve")
+        }
+
+        const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
+        if (!paramsForSell) {
+          throw new Error("Bonding curve not available for this token")
+        }
+
+        const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
+        if (baseProceeds <= 0n) {
+          throw new Error("Amount too small for current bonding curve")
+        }
+
+        const slippagePercentLocal = parseFloat(slippage) || 1
+        const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
+        const netProceeds = baseProceeds - fee
+        const slippageBps = BigInt(Math.floor(slippagePercentLocal * 100))
+        const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+        const minIpOutStr = formatEther(minProceeds)
+
+        const simResult = await launchpadService.simulateSell(
+          tokenAddress,
+          fromAmount,
+          minIpOutStr,
+          primaryWallet.address as string,
+        )
+        // Simulation passed; proceed silently to on-chain execution
+      } catch (simError: any) {
+        const message = simError?.message || "Simulation failed"
+        console.error("Tenderly simulation error (sell)", simError)
+        const lower = message.toLowerCase()
+        const isRateLimited = lower.includes("429") || simError?.status === 429
+        const isMethodMissing =
+          lower.includes("tenderly_simulate") ||
+          lower.includes("does not exist") ||
+          lower.includes("is not available")
+
+        if (isRateLimited || isMethodMissing) {
+          setSimulationError(
+            "Tenderly simulation is unavailable. Proceeding without preview."
+          )
+          toast.error("Simulation unavailable", {
+            description: message,
+            duration: 5000,
+          })
+        } else {
+          setSimulationError(message)
+          toast.error("Simulation failed", {
+            description: message,
+            duration: 5000,
+          })
+          setIsSimulatingTx(false)
+          return
+        }
+      }
+      setIsSimulatingTx(false)
+
+      // Proceed with sell using launchpadService.sell (which manages approvals internally)
+      await handleSell()
+    }
+  }
+
+  // Handle sell transaction
+  const handleSell = async () => {
+    if (!tokenAddress || !primaryWallet || !fromAmount) return
+
+    setIsTrading(true)
+    setTradeSuccess(false)
+
+    // Calculate slippage percent first
+    const slippagePercent = parseFloat(slippage) || 1
+
+    // Track trade initiation
+    trackEvent("trade_initiated", {
+      type: "sell",
+      tokenAddress,
+      amount: fromAmount,
+      slippage: slippagePercent,
+    })
+
+    try {
+      // Create a sell function that only does the sell (not approval)
+      const walletClient = await primaryWallet.getWalletClient()
+      if (!walletClient) {
+        throw new Error("No wallet client available")
+      }
+
+      // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell
+      const tokenWeiIn = parseEther(fromAmount)
+      const wrapperAmount = tokenWeiIn / (10n ** 12n)
+      if (wrapperAmount <= 0n) {
+        toast.error("Amount too small for current bonding curve", {
+          duration: 3000,
+        })
+        return
+      }
+
+      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
+      if (!freshParamsForTx) {
+        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
+          duration: 3000,
+        })
+        return
+      }
+
+      const baseProceeds = calculateBondingCurveSellProceeds(freshParamsForTx, wrapperAmount)
+      if (baseProceeds <= 0n) {
+        toast.error("Amount too small for current bonding curve", {
+          duration: 3000,
+        })
+        return
+      }
+
+      // Apply 1% trading fee: netProceeds = baseProceeds - fee
+      const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
+      const netProceeds = baseProceeds - fee
+
+      // Apply slippage in BigInt basis points
+      const slippageBps = BigInt(Math.floor(slippagePercent * 100))
+      const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+
+      const minIpOutStr = formatEther(minProceeds)
+
+      const result = await launchpadService.sell(
+        tokenAddress,
+        fromAmount,
+        minIpOutStr,
+        primaryWallet
+      )
+
+      if (result.success) {
+        setTradeSuccess(true)
+        trackTrade("sell", tokenAddress, fromAmount, true)
+        toast.success("Trade Successful!", {
+          duration: 2000,
+          icon: "✅",
+        })
+
+        // Refresh balances after successful trade
+        if (primaryWallet?.address) {
+          setTimeout(() => {
+            const event = new CustomEvent("refresh-balances")
+            window.dispatchEvent(event)
+          }, 2000)
+        }
+
+        // Trigger recent activity refresh for this token
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("refresh-trades", {
+              detail: { tokenAddress },
+            })
+          )
+        }
+
+        // Reset form after 2 seconds
+        setTimeout(() => {
+          setFromAmount("")
+          setToAmount("")
+          setPriceImpact(null)
+          setExchangeRate("")
+          setTradeSuccess(false)
+          setIsApproved(false) // Reset approval status
+        }, 2000)
+      } else {
+        trackTrade("sell", tokenAddress, fromAmount, false, result.error)
+        const parsedError = parseTransactionError(result.error || new Error("Unknown error"))
+        logError(result.error || new Error("Unknown error"), "SwapInterface.sell")
+
+        if (isSlippageError(result.error)) {
+          setSlippageError(parsedError.userFriendlyMessage)
+          toast.error(parsedError.userFriendlyMessage, {
+            description: parsedError.suggestion,
+            duration: 5000,
+          })
+        } else {
+          toast.error(parsedError.userFriendlyMessage, {
+            description: parsedError.suggestion || parsedError.message,
+            duration: 5000,
+          })
+        }
+      }
+    } catch (error) {
+      const parsedError = parseTransactionError(error)
+      logError(error, "SwapInterface.sell")
+      trackTrade("sell", tokenAddress, fromAmount, false, parsedError.message)
+      
+      if (isSlippageError(error)) {
+        setSlippageError(parsedError.userFriendlyMessage)
+        toast.error(parsedError.userFriendlyMessage, {
+          description: parsedError.suggestion,
+          duration: 5000,
+        })
+      } else {
+        toast.error(parsedError.userFriendlyMessage, {
+          description: parsedError.suggestion || parsedError.message,
+          duration: 5000,
+        })
+      }
+    } finally {
+      setIsTrading(false)
+    }
+  }
+
+  // Get PiperX DEX URL
+  const getPiperXDEXUrl = () => {
+    if (piperXPoolAddress) {
+      return `https://piperx.io/pool/${piperXPoolAddress}`
+    }
+    if (tokenAddress) {
+      return `https://piperx.io/token/${tokenAddress}`
+    }
+    return "https://piperx.io"
+  }
+
+  const handleTradeOnPiperX = () => {
+    window.open(getPiperXDEXUrl(), "_blank", "noopener,noreferrer")
+  }
+
+  // If graduated, show disabled state with message
+  if (isGraduated) {
+    return (
+      <Card className={cn("overflow-hidden", className)}>
+        <CardHeader className="relative pb-4">
+          <h3 className="text-lg font-semibold text-zinc-50">Swap</h3>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert variant="default" className="bg-zinc-800/50 border-zinc-700">
+            <AlertTriangle className="h-4 w-4 text-yellow-400" />
+            <AlertDescription className="text-zinc-300">
+              This token has graduated to PiperX
+            </AlertDescription>
+          </Alert>
+          <Button
+            onClick={handleTradeOnPiperX}
+            className="w-full h-12 sm:h-12 font-semibold bg-green-500 hover:bg-green-500/90 text-white touch-manipulation min-h-[44px]"
+          >
+            <ExternalLink className="h-5 w-5 mr-2" />
+            Trade on PiperX
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6">
-      {poolsLoading && (
-        <Card className="w-full max-w-2xl mx-auto">
-          <CardContent className="py-12">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin mr-3" />
-              <span className="text-lg">Loading available pools...</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+    <Card className={cn("overflow-hidden", className)}>
+      <CardHeader className="relative pb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-zinc-50">Swap</h3>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => {
+              setShowSlippageSettings(true)
+              trackEvent("slippage_changed", { action: "open_settings" })
+            }}
+            aria-label="Slippage settings"
+            title="Slippage tolerance settings"
+          >
+            <Settings className="h-4 w-4 text-zinc-400" />
+          </Button>
+        </div>
 
-      {poolsError && (
-        <Card className="w-full max-w-2xl mx-auto">
-          <CardContent className="py-6">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{poolsError}</AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      )}
+        {/* Slippage Display */}
+        <div className="flex items-center justify-end">
+          <button
+            onClick={() => setShowSlippageSettings(true)}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            aria-label="Slippage tolerance settings"
+          >
+            Slippage: <span className="text-zinc-300 font-medium">{slippage}%</span>
+          </button>
+        </div>
 
-      {!poolsLoading && !poolsError && (
-        <Card className="w-full max-w-2xl mx-auto">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-bold">Swap Tokens</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowSettings(!showSettings)}
-                className="flex items-center gap-2"
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </Button>
-            </div>
-            {launchpadMode === "bonding" && launchInfo && (
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span className="font-medium">Bonding Curve Phase (SovryLaunchpad)</span>
-                  <span>
-                    {(
-                      Number(launchInfo.totalRaised) / 1e18
-                    ).toFixed(2)} IP / 8 IP
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
-                  <div
-                    className="h-2 bg-sovry-green"
-                    style={{ width: `${bondingProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            {launchpadMode === "dex" && launchInfo?.graduated && (
-              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-sovry-green/40 bg-sovry-green/10 text-xs text-sovry-green">
-                <CheckCircle className="h-3 w-3" />
-                Graduated to DEX (Sovry Router)
-              </div>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {pools.length === 0 && requiresDexPool && (
-              <Alert>
-                <TrendingUp className="h-4 w-4" />
-                <AlertDescription>
-                  No liquidity pools available for swapping. Create pools first in the Liquidity tab.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {selectedPool && (
-              <div className="p-3 bg-sovry-green/10 border border-sovry-green/30 rounded-lg">
-                <p className="text-sm text-zinc-50 font-medium">
-                  Pool: {selectedPool.token0.symbol} / {selectedPool.token1.symbol}
-                </p>
-                <p className="text-xs text-zinc-400 mt-1">
-                  Reserves: {parseFloat(selectedPool.reserve0).toFixed(2)} {selectedPool.token0.symbol} • {parseFloat(selectedPool.reserve1).toFixed(2)} {selectedPool.token1.symbol}
-                </p>
-                {(fromToken === "IP" || toToken === "IP") && (
-                  <p className="text-xs text-sovry-green mt-1">
-                    ⚡ Native IP will be auto-wrapped to WIP for this swap
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-50 uppercase tracking-wide">From</label>
-              <div className="flex gap-2">
-                <Select 
-                  value={fromToken} 
-                  onValueChange={setFromToken}
-                  disabled={requiresDexPool && pools.length === 0}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder={pools.length === 0 ? "No pools available" : "Select token"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTokens.map((token) => (
-                      <SelectItem key={token.id} value={token.symbol}>
-                        <div className="flex items-center gap-2">
-                          <span>{token.symbol}</span>
-                          <span className="text-xs text-zinc-500">{token.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  placeholder="0.0"
-                  value={fromAmount}
-                  onChange={(e) => setFromAmount(e.target.value)}
-                  className="flex-1"
-                  disabled={requiresDexPool && pools.length === 0}
-                />
-              </div>
-              {fromToken && availableTokens.length > 0 && (
-                <p className="text-xs text-zinc-400">
-                  {availableTokens.find(t => t.symbol === fromToken)?.name}
-                </p>
+        {/* Buy/Sell Tabs */}
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger
+              value="buy"
+              className={cn(
+                "data-[state=active]:bg-green-500 data-[state=active]:text-white",
+                "data-[state=active]:hover:bg-green-500/90"
               )}
-            </div>
-
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReverseTokens}
-                className="rounded-full"
-                disabled={!fromToken || !toToken}
-              >
-                <ArrowDownUp className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-50 uppercase tracking-wide">To</label>
-              <div className="flex gap-2">
-                <Select 
-                  value={toToken} 
-                  onValueChange={setToToken}
-                  disabled={requiresDexPool && pools.length === 0}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder={pools.length === 0 ? "No pools available" : "Select token"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTokens
-                      .filter(token => token.symbol !== fromToken)
-                      .map((token) => (
-                        <SelectItem key={token.id} value={token.symbol}>
-                          <div className="flex items-center gap-2">
-                            <span>{token.symbol}</span>
-                            <span className="text-xs text-gray-500">{token.name}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  placeholder="0.0"
-                  value={toAmount}
-                  readOnly
-                  className="flex-1 bg-muted/20"
-                  disabled={requiresDexPool && pools.length === 0}
-                />
-              </div>
-              {toToken && availableTokens.length > 0 && (
-                <p className="text-xs text-zinc-400">
-                  {availableTokens.find(t => t.symbol === toToken)?.name}
-                </p>
-              )}
-            </div>
-
-            {showSettings && (
-              <div className="border border-zinc-800 rounded-lg p-4 space-y-3 bg-zinc-800/30">
-                <h3 className="font-medium text-sm text-zinc-50">Transaction Settings</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-zinc-400 uppercase tracking-wide">Slippage (%)</label>
-                    <Input
-                      type="number"
-                      value={slippage}
-                      onChange={(e) => setSlippage(e.target.value)}
-                      className="h-8"
-                      step="0.1"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-zinc-400 uppercase tracking-wide">Deadline (min)</label>
-                    <Input
-                      type="number"
-                      value={deadline}
-                      onChange={(e) => setDeadline(e.target.value)}
-                      className="h-8"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {fromToken && toToken && !selectedPool && requiresDexPool && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  No liquidity pool available for {fromToken} and {toToken} pair.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {fromAmount && toToken && (selectedPool || bondingModeActive) && (
-              <div className="space-y-2">
-                {isSimulating && (
-                  <Alert>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <AlertDescription>
-                      Calculating swap output...
-                    </AlertDescription>
-                  </Alert>
-                )}
-                
-                {simulationSuccess && (
-                  <Alert className="border-sovry-green/30 bg-sovry-green/10">
-                    <CheckCircle className="h-4 w-4 text-sovry-green" />
-                    <AlertDescription className="text-zinc-400">
-                      Swap calculation complete! Ready to execute.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            )}
-
-            <Button
-              onClick={handleSwap}
-              disabled={
-                !simulationSuccess ||
-                isSwapping ||
-                !fromAmount ||
-                !toToken ||
-                (requiresDexPool && (pools.length === 0 || !selectedPool))
-              }
-              className="w-full py-3 text-base font-medium"
-              size="lg"
+              aria-label="Buy tokens"
             >
-              {pools.length === 0 ? (
-                "No pools available - Create pools first"
-              ) : isSwapping ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Swapping...
-                </>
-              ) : !fromAmount || !toToken ? (
-                "Select tokens and enter amount"
-              ) : !selectedPool ? (
-                "No pool available for this pair"
-              ) : isSimulating ? (
-                "Calculating..."
-              ) : (
-                launchpadMode === "bonding" && bondingTokenAddress ? (
-                  fromToken === "IP" && toToken !== "IP" ? (
-                    "Buy " + (toAmount || "0") + " " + toToken + " with " + (fromAmount || "0") + " IP"
-                  ) : toToken === "IP" && fromToken !== "IP" ? (
-                    "Sell " + (fromAmount || "0") + " " + fromToken + " for IP"
-                  ) : (
-                    "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken
-                  )
-                ) : (
-                  fromToken === "IP" || toToken === "IP"
-                    ? "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken + " (auto-wrap)"
-                    : "Swap " + (fromAmount || "0") + " " + fromToken + " for " + (toAmount || "0") + " " + toToken
-                )
+              Buy
+            </TabsTrigger>
+            <TabsTrigger
+              value="sell"
+              className={cn(
+                "data-[state=active]:bg-red-500 data-[state=active]:text-white",
+                "data-[state=active]:hover:bg-red-500/90"
               )}
+              aria-label="Sell tokens"
+            >
+              Sell
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* You Pay Section */}
+        <div className="space-y-2">
+          <label className="text-xs text-zinc-400 font-medium">You Pay</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              type="text"
+              value={fromAmount}
+              onChange={(e) => {
+                setFromAmount(e.target.value)
+                // Clear errors when user types
+                setBalanceError(null)
+                setSlippageError(null)
+                // Calculation will be handled by debounced effect
+              }}
+              onKeyDown={(e) => {
+                // Allow: backspace, delete, tab, escape, enter, decimal point
+                if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
+                    // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode === 67 && e.ctrlKey === true) ||
+                    (e.keyCode === 86 && e.ctrlKey === true) ||
+                    (e.keyCode === 88 && e.ctrlKey === true) ||
+                    // Allow: home, end, left, right
+                    (e.keyCode >= 35 && e.keyCode <= 39)) {
+                  return
+                }
+                // Ensure that it is a number and stop the keypress
+                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                  e.preventDefault()
+                }
+              }}
+              placeholder={detailsLoading ? "Loading..." : "0.0"}
+              disabled={detailsLoading || !tokenAddress || isTrading || isApproving}
+              className="flex-1 text-base sm:text-lg font-semibold"
+              aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
+              aria-describedby={balanceError ? "balance-error" : undefined}
+            />
+            <Select
+              value={fromToken}
+              disabled
+            >
+              <SelectTrigger className="w-full sm:w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="IP">IP</SelectItem>
+                <SelectItem value="TOKEN">{tokenSymbol}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Balance Display - Stack below on mobile */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 pt-1">
+            <span className="text-xs text-zinc-500">
+              Balance: {fromToken === "IP" 
+                ? (userBalance ? parseFloat(userBalance).toFixed(4) : "0.0000")
+                : (tokenBalance ? parseFloat(tokenBalance).toFixed(4) : "0.0000")
+              } {fromToken === "IP" ? "IP" : tokenSymbol}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const balance = fromToken === "IP" ? userBalance : tokenBalance
+                if (balance && parseFloat(balance) > 0) {
+                  setFromAmount(parseFloat(balance).toString())
+                }
+              }}
+              disabled={!isConnected || (fromToken === "IP" ? !userBalance : !tokenBalance)}
+              className="h-6 px-2 text-xs text-sovry-green hover:text-sovry-green/80 hover:bg-sovry-green/10"
+              aria-label={`Set maximum ${fromToken} balance`}
+            >
+              MAX
             </Button>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
+          </div>
+        </div>
+
+        {/* Swap Arrow Button */}
+        <div className="flex justify-center -my-2 relative z-10">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 rounded-full border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-700 touch-manipulation"
+            onClick={handleSwapTokens}
+            aria-label="Swap tokens"
+            disabled={isTrading || isApproving}
+          >
+            <ArrowDownUp className="h-5 w-5 text-zinc-400" />
+          </Button>
+        </div>
+
+        {/* You Receive Section */}
+        <div className="space-y-2">
+          <label className="text-xs text-zinc-400 font-medium">You Receive</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Input
+                type="text"
+                value={toAmount || (isCalculating ? "..." : "")}
+                readOnly
+                placeholder={detailsLoading ? "Loading..." : "0.0"}
+              disabled={detailsLoading || isTrading || isApproving}
+              className="flex-1 text-base sm:text-lg font-semibold pr-10 bg-zinc-800/50"
+              aria-label={`Amount to ${activeTab === "buy" ? "receive" : "receive"}`}
+              aria-live="polite"
+              aria-atomic="true"
+            />
+              {isCalculating && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+                </div>
+              )}
+            </div>
+            <Select
+              value={toToken}
+              disabled
+            >
+              <SelectTrigger className="w-full sm:w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="IP">IP</SelectItem>
+                <SelectItem value="TOKEN">{tokenSymbol}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Balance Display - Stack below on mobile */}
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-zinc-500">
+              Balance: {toToken === "IP" 
+                ? (userBalance ? parseFloat(userBalance).toFixed(4) : "0.0000")
+                : (tokenBalance ? parseFloat(tokenBalance).toFixed(4) : "0.0000")
+              } {toToken === "IP" ? "IP" : tokenSymbol}
+            </span>
+          </div>
+        </div>
+
+        {/* Exchange Rate and Price Impact */}
+        {(exchangeRate || priceImpact !== null) && (
+          <div className="pt-2 border-t border-zinc-800 space-y-2">
+            {exchangeRate && (
+              <p className="text-xs text-zinc-400 text-center">{exchangeRate}</p>
+            )}
+            {priceImpact !== null && priceImpact > 0 && (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-xs text-zinc-400">
+                  Price Impact: <span className={cn(priceImpact > 5 ? "text-red-400 font-semibold" : "text-zinc-300")}>{priceImpact.toFixed(2)}%</span>
+                </span>
+                {priceImpact > 5 && (
+                  <AlertTriangle className="h-3 w-3 text-red-400" aria-hidden="true" />
+                )}
+              </div>
+            )}
+            {priceImpact !== null && priceImpact > 5 && (
+              <Alert variant="destructive" className="py-2" role="alert">
+                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                <AlertDescription className="text-xs">
+                  High price impact! This trade will significantly affect the token price.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
+
+        {/* Error Messages */}
+        {balanceError && (
+          <Alert variant="destructive" className="py-2">
+            <AlertTriangle className="h-3 w-3" />
+            <AlertDescription className="text-xs">
+              {balanceError}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {slippageError && (
+          <Alert variant="destructive" className="py-2">
+            <AlertTriangle className="h-3 w-3" />
+            <AlertDescription className="text-xs">
+              {slippageError}
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 ml-1 text-xs underline"
+                onClick={() => setShowSlippageSettings(true)}
+              >
+                Increase slippage
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Simulation feedback */}
+        {simulationStatus && (
+          <Alert className="mt-2 border-sovry-green/40 bg-sovry-green/10">
+            <CheckCircle className="h-3 w-3 text-sovry-green" />
+            <AlertDescription className="text-xs text-zinc-200">
+              {simulationStatus}
+            </AlertDescription>
+          </Alert>
+        )}
+        {simulationError && (
+          <Alert variant="destructive" className="mt-2 py-2">
+            <AlertTriangle className="h-3 w-3" />
+            <AlertDescription className="text-xs">
+              {simulationError}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Single trade button: simulate on Tenderly, then execute on-chain */}
+        <div className="mt-3 flex flex-col gap-2">
+          <Button
+            onClick={handlePlaceTrade}
+            disabled={
+              !fromAmount ||
+              parseFloat(fromAmount) <= 0 ||
+              !isConnected ||
+              isTrading ||
+              isSimulatingTx ||
+              detailsLoading ||
+              !tokenAddress ||
+              !!balanceError
+            }
+            className={cn(
+              "w-full h-12 sm:h-12 font-semibold touch-manipulation min-h-[44px]",
+              activeTab === "buy"
+                ? "bg-green-500 hover:bg-green-500/90 text-white disabled:opacity-50"
+                : "bg-red-500 hover:bg-red-500/90 text-white disabled:opacity-50"
+            )}
+          >
+            {isSimulatingTx ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Simulating on Tenderly...
+              </>
+            ) : isTrading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {simulationError ? "Confirming (no preview)" : "Confirming..."}
+              </>
+            ) : tradeSuccess ? (
+              <>
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Trade Successful!
+              </>
+            ) : !isConnected ? (
+              "Connect Wallet"
+            ) : simulationError ? (
+              "Retry (simulation failed)"
+            ) : (
+              "Place Trade"
+            )}
+          </Button>
+        </div>
+      </CardContent>
+
+      {/* Slippage Settings Dialog */}
+      <SlippageSettings
+        open={showSlippageSettings}
+        onOpenChange={setShowSlippageSettings}
+        slippage={slippage}
+        onSlippageChange={setSlippage}
+      />
+    </Card>
+  )
 }
+
+// Memoize component to prevent unnecessary re-renders
+export const SwapInterface = memo(SwapInterfaceComponent, (prevProps, nextProps) => {
+  // Only re-render if these props change
+  return (
+    prevProps.tokenAddress === nextProps.tokenAddress &&
+    prevProps.tokenSymbol === nextProps.tokenSymbol &&
+    prevProps.isGraduated === nextProps.isGraduated &&
+    prevProps.piperXPoolAddress === nextProps.piperXPoolAddress
+  )
+})
+
+SwapInterface.displayName = "SwapInterface"
+

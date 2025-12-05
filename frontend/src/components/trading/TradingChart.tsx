@@ -3,14 +3,13 @@
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 import { createChart, ColorType, LineStyle, CandlestickSeries } from "lightweight-charts"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTradeHistory, type Timeframe } from "@/hooks/useTradeHistory"
+import { useLiveTrades } from "@/hooks/useLiveTrades"
 import { fetchTrades, tradesToOHLCData } from "@/services/chartDataService"
-import { trackEvent } from "@/lib/analytics"
 import { memo } from "react"
 
 export interface TradingChartProps {
@@ -46,6 +45,7 @@ function TradingChartComponent({
 }: TradingChartProps) {
   const [timeframe, setTimeframe] = useState<Timeframe>("7D")
   const { data, isLoading, error, refetch } = useTradeHistory(tokenAddress, timeframe)
+  const { candles: liveCandles } = useLiveTrades(tokenAddress, timeframe)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
@@ -261,18 +261,40 @@ function TradingChartComponent({
     }
   }, [height, tokenAddress])
 
-  // Update chart data when trade data or current price changes
+  // Update chart data when trade data, live candles, or current price change
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !chartInitialized || !data || data.length === 0) {
+    if (!candlestickSeriesRef.current || !chartInitialized) {
+      return
+    }
+
+    const baseCandles = data || []
+
+    // Merge historical subgraph candles with live candles from RPC
+    let mergedCandles = baseCandles
+    if (liveCandles && liveCandles.length > 0) {
+      if (baseCandles.length === 0) {
+        mergedCandles = liveCandles
+      } else {
+        const lastHistoricalTime = baseCandles[baseCandles.length - 1].time
+        const appended = liveCandles.filter((candle) => candle.time > lastHistoricalTime)
+        mergedCandles = [...baseCandles, ...appended]
+      }
+    }
+
+    if (!mergedCandles || mergedCandles.length === 0) {
       return
     }
 
     // Convert data to format expected by lightweight-charts.
     // Use on-chain currentPrice as the close of the latest candle body when available,
     // but keep the Last Price line driven by the subgraph's last trade close.
-    const chartData = data.map((candle, index) => {
+    const chartData = mergedCandles.map((candle, index) => {
       let close = candle.close
-      if (index === data.length - 1 && parsedCurrentPrice !== null && isFinite(parsedCurrentPrice)) {
+      if (
+        index === mergedCandles.length - 1 &&
+        parsedCurrentPrice !== null &&
+        isFinite(parsedCurrentPrice)
+      ) {
         close = parsedCurrentPrice
       }
 
@@ -292,8 +314,8 @@ function TradingChartComponent({
     candlestickSeriesRef.current.setData(chartData)
 
     // Add last price indicator line (subgraph last trade close)
-    if (data.length > 0) {
-      const rawLastCandle = data[data.length - 1]
+    if (baseCandles.length > 0) {
+      const rawLastCandle = baseCandles[baseCandles.length - 1]
       const lastPrice = rawLastCandle.close
 
       // Remove existing price line if any
@@ -327,7 +349,7 @@ function TradingChartComponent({
     if (chartRef.current) {
       chartRef.current.timeScale().fitContent()
     }
-  }, [data, chartInitialized, parsedCurrentPrice])
+  }, [data, liveCandles, chartInitialized, parsedCurrentPrice])
 
   if (!tokenAddress) {
     return (

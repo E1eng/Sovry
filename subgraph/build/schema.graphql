@@ -85,3 +85,15 @@ type Holder @entity {
   createdAt: BigInt!
   updatedAt: BigInt!
 }
+
+type Candle @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  interval: Int!
+  timestamp: BigInt!
+  open: BigInt!
+  high: BigInt!
+  low: BigInt!
+  close: BigInt!
+  volume: BigInt!
+}

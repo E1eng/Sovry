@@ -26,12 +26,6 @@ export interface TradeData {
   txHash: string;
 }
 
-export interface ChartDataPoint {
-  time: number;
-  value: number;
-  volume?: number;
-}
-
 export interface OHLCData {
   time: number;
   open: number;
@@ -133,43 +127,6 @@ export async function fetchTrades(
 }
 
 /**
- * Convert trades to price chart data points
- */
-export function tradesToPriceData(trades: TradeData[]): ChartDataPoint[] {
-  if (trades.length === 0) return [];
-
-  return trades.map((trade) => ({
-    time: trade.timestamp,
-    value: trade.price,
-  }));
-}
-
-/**
- * Convert trades to volume chart data points
- */
-export function tradesToVolumeData(trades: TradeData[]): ChartDataPoint[] {
-  if (trades.length === 0) return [];
-
-  // Aggregate volume by time bucket (e.g., hourly)
-  const volumeMap = new Map<number, number>();
-
-  trades.forEach((trade) => {
-    // Round to nearest hour for aggregation
-    const hour = Math.floor(trade.timestamp / 3600) * 3600;
-    const current = volumeMap.get(hour) || 0;
-    volumeMap.set(hour, current + trade.volume);
-  });
-
-  return Array.from(volumeMap.entries())
-    .map(([time, volume]) => ({
-      time,
-      value: volume,
-      volume,
-    }))
-    .sort((a, b) => a.time - b.time);
-}
-
-/**
  * Convert trades to OHLC (candlestick) data
  */
 export function tradesToOHLCData(trades: TradeData[], intervalMinutes: number = 60): OHLCData[] {
@@ -204,26 +161,4 @@ export function tradesToOHLCData(trades: TradeData[], intervalMinutes: number = 
       ...data,
     }))
     .sort((a, b) => a.time - b.time);
-}
-
-/**
- * Get combined price and volume data for dual chart display
- */
-export async function getChartData(
-  tokenAddress: string,
-  timeRange: TimeRange = "7D"
-): Promise<{
-  priceData: ChartDataPoint[];
-  volumeData: ChartDataPoint[];
-  trades: TradeData[];
-}> {
-  const trades = await fetchTrades(tokenAddress, timeRange);
-  const priceData = tradesToPriceData(trades);
-  const volumeData = tradesToVolumeData(trades);
-
-  return {
-    priceData,
-    volumeData,
-    trades,
-  };
 }

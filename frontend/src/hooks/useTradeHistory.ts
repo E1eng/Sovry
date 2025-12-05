@@ -37,23 +37,23 @@ export interface CandlestickData {
 }
 
 export const TIME_RANGE_SECONDS: Record<Timeframe, number> = {
-  // Short-term ranges: ensure 1m has at least as much history as 5m
-  // so the 1m chart never shows fewer candles just because of a shorter window.
-  // 1m timeframe: last 6 hours
-  "1M": 6 * 60 * 60,
-  // 5m timeframe: last 6 hours (~72 candles)
-  "5M": 6 * 60 * 60,
-  // 15m timeframe: last 24 hours (~96 candles)
-  "15M": 24 * 60 * 60,
+  // Short-term ranges: use a generous history window so 1m/5m/15m
+  // still show meaningful structure for tokens that traded days ago.
+  // 1m timeframe: last 24 hours
+  "1M": 24 * 60 * 60,
+  // 5m timeframe: last 3 days
+  "5M": 3 * 24 * 60 * 60,
+  // 15m timeframe: last 7 days
+  "15M": 7 * 24 * 60 * 60,
 
   // Higher timeframes
-  // 1h timeframe: last 7 days (168 candles)
-  "1H": 7 * 24 * 60 * 60,
-  // 1d timeframe: last 30 days (30 candles)
-  "1D": 30 * 24 * 60 * 60,
-  // 3d timeframe: last 90 days (~30 candles)
-  "3D": 90 * 24 * 60 * 60,
-  // 7d timeframe: last 365 days (~52 candles)
+  // 1h timeframe: last 30 days
+  "1H": 30 * 24 * 60 * 60,
+  // 1d timeframe: last 90 days
+  "1D": 90 * 24 * 60 * 60,
+  // 3d timeframe: last 180 days
+  "3D": 180 * 24 * 60 * 60,
+  // 7d timeframe: last 365 days
   "7D": 365 * 24 * 60 * 60,
 }
 
@@ -76,21 +76,31 @@ export function getIntervalSeconds(timeframe: Timeframe): number {
 }
 
 /**
- * Fetch trades from subgraph
+ * Fetch trades from subgraph.
+ *
+ * Strategy: page backwards in time using a timestamp cursor until we've
+ * covered the timeframe window or reached a global max trade count. This is
+ * robust for both quiet and very active tokens without overloading the
+ * subgraph in a single huge query.
  */
 async function fetchTradesFromSubgraph(
   tokenAddress: string,
   timeframe: Timeframe
 ): Promise<RawTrade[]> {
+  const PAGE_SIZE = 1000
+  const MAX_TRADES = 10_000
+
   const now = Math.floor(Date.now() / 1000)
-  const from = now - TIME_RANGE_SECONDS[timeframe]
+  const rangeSeconds = TIME_RANGE_SECONDS[timeframe]
+  const cutoff = rangeSeconds > 0 ? now - rangeSeconds : 0
 
   const query = `
-    query TradesForToken($token: String!, $from: BigInt!) {
+    query TradesForToken($token: String!, $before: BigInt!, $pageSize: Int!) {
       trades(
-        where: { wrapper: $token, timestamp_gte: $from }
+        where: { wrapper: $token, timestamp_lte: $before }
         orderBy: timestamp
-        orderDirection: asc
+        orderDirection: desc
+        first: $pageSize
       ) {
         timestamp
         type
@@ -102,30 +112,67 @@ async function fetchTradesFromSubgraph(
     }
   `
 
-  const response = await fetch(SUBGRAPH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query,
-      variables: {
-        token: tokenAddress.toLowerCase(),
-        from: from.toString(),
-      },
-    }),
-  })
+  const lowerToken = tokenAddress.toLowerCase()
+  let allTrades: RawTrade[] = []
 
-  if (!response.ok) {
-    throw new Error("Subgraph request failed")
+  // Start with a very high timestamp cursor so we definitely include the
+  // newest trades on the first page.
+  let before = "9999999999999"
+
+  // Page backwards until we've either hit the cutoff, run out of trades, or
+  // reached the global MAX_TRADES limit.
+  while (allTrades.length < MAX_TRADES) {
+    const response = await fetch(SUBGRAPH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        variables: {
+          token: lowerToken,
+          before,
+          pageSize: PAGE_SIZE,
+        },
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error("Subgraph request failed")
+    }
+
+    const json = await response.json()
+
+    if (json.errors && json.errors.length > 0) {
+      throw new Error(json.errors[0]?.message || "GraphQL error")
+    }
+
+    const page = (json?.data?.trades || []) as RawTrade[]
+    if (!page || page.length === 0) {
+      break
+    }
+
+    allTrades = allTrades.concat(page)
+
+    // Oldest trade in this page (since orderDirection is desc)
+    const oldest = page[page.length - 1]
+    const oldestTs = Number(oldest.timestamp || 0)
+
+    // Stop paging once we've gone past the timeframe cutoff
+    if (oldestTs <= cutoff || oldestTs <= 0) {
+      break
+    }
+
+    // Move cursor just before the oldest timestamp to avoid duplicates
+    before = String(Math.max(oldestTs - 1, 0))
+
+    // If we received fewer than PAGE_SIZE trades, there are no more pages
+    if (page.length < PAGE_SIZE) {
+      break
+    }
   }
 
-  const json = await response.json()
-
-  if (json.errors && json.errors.length > 0) {
-    throw new Error(json.errors[0]?.message || "GraphQL error")
-  }
-
-  const trades = (json?.data?.trades || []) as RawTrade[]
-  return trades
+  // Ensure trades are in ascending time order for downstream processing
+  return allTrades
+    .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0))
 }
 
 /**
@@ -235,8 +282,42 @@ export function transformToOHLC(
     }
   }
 
+  // Fill missing intervals so the chart shows continuous candles across the
+  // selected time range. Buckets with no trades become flat candles that carry
+  // forward the last close price with zero volume.
+  let filledBuckets = buckets
+  if (buckets.length > 0 && intervalSeconds > 0) {
+    const firstTime = buckets[0].time
+    const lastTime = buckets[buckets.length - 1].time
+
+    const continuous: typeof buckets = []
+    let bucketIndex = 0
+    let currentBucket = buckets[0]
+
+    for (let t = firstTime; t <= lastTime; t += intervalSeconds) {
+      if (bucketIndex < buckets.length && buckets[bucketIndex].time === t) {
+        currentBucket = buckets[bucketIndex]
+        continuous.push(currentBucket)
+        bucketIndex += 1
+      } else {
+        const lastClose = currentBucket.close
+        continuous.push({
+          time: t,
+          open: lastClose,
+          high: lastClose,
+          low: lastClose,
+          close: lastClose,
+          volume: 0,
+          count: 0,
+        })
+      }
+    }
+
+    filledBuckets = continuous
+  }
+
   // Strip internal count field before returning
-  return buckets.map(({ count, ...rest }) => rest)
+  return filledBuckets.map(({ count, ...rest }) => rest)
 }
 
 /**
@@ -256,11 +337,23 @@ export function useTradeHistory(
         throw new Error("Token address is required")
       }
 
-      // Fetch raw trades
+      // Fetch raw trades (most recent N trades for this wrapper)
       const rawTrades = await fetchTradesFromSubgraph(tokenAddress, timeframe)
 
       // Process trades (calculate prices)
-      const processedTrades = processTrades(rawTrades)
+      let processedTrades = processTrades(rawTrades)
+
+      // Apply timeframe window on the client side so charts can still show
+      // older tokens even when no recent trades fall into a strict
+      // timestamp_gte window.
+      const now = Math.floor(Date.now() / 1000)
+      const rangeSeconds = TIME_RANGE_SECONDS[timeframe]
+      if (rangeSeconds > 0) {
+        const cutoff = now - rangeSeconds
+        processedTrades = processedTrades.filter(
+          (trade) => trade.timestamp >= cutoff,
+        )
+      }
 
       // Get interval based on timeframe
       const intervalSeconds = getIntervalSeconds(timeframe)

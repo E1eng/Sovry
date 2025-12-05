@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import { ethers } from "ethers";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,12 +18,12 @@ import { fetchWalletIPAssets } from "@/services/storyProtocolService";
 import UserProfile from "@/components/social/UserProfile";
 
 import {
-  DollarSign,
   TrendingUp,
   Gift,
   CheckCircle,
   Coins,
   Droplets,
+  Database,
   Percent,
   Loader2,
 } from "lucide-react";
@@ -41,60 +43,70 @@ interface PortfolioAsset {
 
 const MOCK_ASSETS: PortfolioAsset[] = [
   {
-    id: "1",
-    symbol: "rMUSIC",
-    name: "Music Royalties",
-    image:
-      "https://ttmbengqanqzfrkjajgk.supabase.co/storage/v1/object/public/images/pack-art/20874abc-latinpack.jpg",
+    id: "template-1",
+    symbol: "MEME",
+    name: "Dank Meme Token",
+    image: "/nft-images/0_1WJiB8mUJKcylomi.jpg",
     balance: 1250.5,
-    valueUSD: 1563.12,
+    valueUSD: 1250.0,
     claimableRevenue: 45.8,
     apy: "15.8%",
-    category: "Music",
+    category: "Meme",
   },
   {
-    id: "2",
-    symbol: "rART",
-    name: "Art Royalties",
-    image: "https://cdn.pixabay.com/photo/2024/02/28/07/42/easter-8601492_640.jpg",
+    id: "template-2",
+    symbol: "AIAG",
+    name: "AI Agent Protocol",
+    image: "/nft-images/045A39D6-3381-473C-A1F1-FD9AE6408087.png",
     balance: 890.25,
-    valueUSD: 1112.81,
+    valueUSD: 890.0,
     claimableRevenue: 28.45,
     apy: "12.3%",
-    category: "Art",
+    category: "AI Agent",
   },
   {
-    id: "3",
-    symbol: "rGAME",
-    name: "Game Royalties",
-    image: "https://cdn.pixabay.com/photo/2024/01/25/10/38/minecraft-8532000_640.png",
+    id: "template-3",
+    symbol: "GAME",
+    name: "GameFi Universe",
+    image: "/nft-images/65217fd9e31608b8b6814492_-9ojwcB1tqVmdclia_Sx-oevPA3tjR3E4Y4Qtywk7fp90800zZijuZNz7dsIGPdmsNlpnfq3l1ayZSh1qWraCQqpIuIcNpEuRBg9tW96irdFURf6DDqWgjZ2EKAbqng6wgyhmrxb5fPt20yMRrWwpcg.png",
     balance: 2100.0,
-    valueUSD: 1365.0,
+    valueUSD: 1560.0,
     claimableRevenue: 67.2,
     apy: "18.2%",
     category: "Gaming",
   },
   {
-    id: "4",
-    symbol: "$WIP",
-    name: "Wrapped IP Token",
-    image: "https://cdn.pixabay.com/photo/2024/01/25/10/38/minecraft-8532000_640.png",
-    balance: 5000.0,
-    valueUSD: 5000.0,
-    claimableRevenue: 0,
-    apy: "0%",
-    category: "Base Token",
+    id: "template-4",
+    symbol: "MUSIC",
+    name: "Sound Waves NFT",
+    image: "/nft-images/809E1643-B14A-4377-8A71-A17DB8C014C8.png",
+    balance: 980.0,
+    valueUSD: 980.0,
+    claimableRevenue: 32.1,
+    apy: "14.5%",
+    category: "Music",
   },
   {
-    id: "5",
-    symbol: "rPHOTO",
-    name: "Photography Royalties",
-    image: "https://cdn.pixabay.com/photo/2024/02/28/07/42/easter-8601492_640.jpg",
-    balance: 450.75,
-    valueUSD: 563.44,
-    claimableRevenue: 12.3,
-    apy: "8.7%",
-    category: "Photography",
+    id: "template-5",
+    symbol: "ART",
+    name: "Digital Canvas",
+    image: "/nft-images/Creep.png",
+    balance: 2030.0,
+    valueUSD: 2030.0,
+    claimableRevenue: 89.5,
+    apy: "16.2%",
+    category: "Art",
+  },
+  {
+    id: "template-6",
+    symbol: "MEME2",
+    name: "Viral Token",
+    image: "/nft-images/NFT-creators-money-meme.jpg",
+    balance: 670.0,
+    valueUSD: 670.0,
+    claimableRevenue: 18.3,
+    apy: "10.8%",
+    category: "Meme",
   },
 ];
 
@@ -149,7 +161,7 @@ const formatDate = (timestamp: string) => {
 };
 
 export default function ProfilePage() {
-  const { primaryWallet } = useDynamicContext();
+  const { primaryWallet, setShowAuthFlow } = useDynamicContext();
   const isConnected = !!primaryWallet;
   const walletAddress = primaryWallet?.address;
 
@@ -182,37 +194,19 @@ export default function ProfilePage() {
   const [liquidityError, setLiquidityError] = useState("");
   const [liquiditySuccess, setLiquiditySuccess] = useState("");
 
-  // Load holdings (mock)
+  // Load holdings (mock - for hackathon demo)
   useEffect(() => {
     const loadHoldings = async () => {
-      if (!walletAddress) {
-        setAssets([]);
-        setHoldingsLoading(false);
-        return;
-      }
-
+      // For hackathon demo, always show placeholder data
+      setHoldingsLoading(true);
       try {
-        const ipAssets = await fetchWalletIPAssets(walletAddress, primaryWallet);
-
-        if (ipAssets && ipAssets.length > 0) {
-          const mappedAssets: PortfolioAsset[] = ipAssets.map((asset) => ({
-            id: asset.ipId,
-            symbol: "RT",
-            name: asset.name,
-            image: asset.imageUrl,
-            balance: 0,
-            valueUSD: 0,
-            claimableRevenue: 0,
-            apy: "0%",
-            category: "IP",
-          }));
-
-          setAssets(mappedAssets);
-        } else {
-          setAssets([]);
-        }
+        // Simulate loading delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        
+        // Always use mock assets for demo
+        setAssets(MOCK_ASSETS);
       } catch (error) {
-        console.error("Error loading holdings from Story Protocol:", error);
+        console.error("Error loading holdings:", error);
         setAssets(MOCK_ASSETS);
       } finally {
         setHoldingsLoading(false);
@@ -291,11 +285,24 @@ export default function ProfilePage() {
   return (
     <>
         <section className="mb-8">
-          <div className="h-40 sm:h-48 md:h-56 w-full rounded-3xl bg-gradient-to-r from-sovry-green/20 via-sovry-green/10 to-sovry-pink/20 shadow-lg border border-zinc-800" />
+          <div className="h-40 sm:h-48 md:h-56 w-full rounded-3xl shadow-lg border border-zinc-800 overflow-hidden relative">
+            <Image
+              src="/nft-images/elijahblds_Create_a_1600900_NFT_Art_2D_render_in_the_Bored_Ap_1ae416d8-4a95-4d9d-9f1a-b8275bff1d1e_1.png"
+              alt="Hero banner"
+              fill
+              className="object-cover"
+              priority
+            />
+          </div>
           <div className="-mt-12 sm:-mt-16 flex flex-col gap-4 md:flex-row md:items-end md:justify-between px-2 sm:px-4">
             <div className="flex items-end gap-4">
-              <div className="flex h-20 w-20 md:h-24 md:w-24 items-center justify-center rounded-full bg-gradient-to-br from-sovry-green via-sovry-green/80 to-sovry-green/60 border-4 border-zinc-950 shadow-xl text-2xl font-bold text-black">
-                {getInitials()}
+              <div className="relative flex h-20 w-20 md:h-24 md:w-24 items-center justify-center rounded-full border-4 border-zinc-950 shadow-xl overflow-hidden">
+                <Image
+                  src="/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png"
+                  alt="Profile picture"
+                  fill
+                  className="object-cover"
+                />
               </div>
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
@@ -325,7 +332,7 @@ export default function ProfilePage() {
               </div>
               <div className="rounded-xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 px-3 py-2">
                 <div className="text-zinc-400 text-xs uppercase tracking-wide mb-1">Claimable rewards</div>
-                <div className="text-sm font-semibold text-sovry-green">
+                <div className="text-sm font-semibold text-sovry-crimson">
                   {new Intl.NumberFormat("en-US", {
                     style: "currency",
                     currency: "USD",
@@ -342,6 +349,72 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+          
+          {/* Connect Buttons */}
+          <div className="flex flex-wrap gap-3 mt-6 px-2 sm:px-4 items-center">
+            <Button
+              onClick={() => {
+                if (setShowAuthFlow) {
+                  setShowAuthFlow(true);
+                }
+              }}
+              className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 hover:border-sovry-crimson/50 hover:bg-zinc-800/90 transition-all duration-300 group"
+            >
+              <div className="flex items-center gap-1.5">
+                {/* Ghost icon */}
+                <Image
+                  src="/nft-images/4850.sp3ow1.192x192.png"
+                  alt="Ghost icon"
+                  width={20}
+                  height={20}
+                  className="w-5 h-5"
+                />
+                {/* MetaMask icon */}
+                <Image
+                  src="/nft-images/MetaMask-icon-fox.svg"
+                  alt="MetaMask"
+                  width={20}
+                  height={20}
+                  className="w-5 h-5"
+                />
+              </div>
+              <span className="text-sm font-medium text-zinc-50">Connect Wallet</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                // TODO: Implement X (Twitter) OAuth connection
+                console.log("Connect X clicked");
+              }}
+              className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/90 transition-all duration-300"
+            >
+              <Image
+                src="/profile-logos/X_logo_2023_(white).svg.png"
+                alt="X (Twitter)"
+                width={20}
+                height={20}
+                className="w-5 h-5"
+              />
+              <span className="text-sm font-medium text-zinc-50">Connect X</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                // TODO: Implement Discord OAuth connection
+                console.log("Connect Discord clicked");
+              }}
+              className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 hover:border-indigo-500/50 hover:bg-zinc-800/90 transition-all duration-300"
+            >
+              <Image
+                src="/profile-logos/discord-white-icon.png"
+                alt="Discord"
+                width={20}
+                height={20}
+                className="w-5 h-5"
+              />
+              <span className="text-sm font-medium text-zinc-50">Connect Discord</span>
+            </Button>
+          </div>
         </section>
 
         <Tabs defaultValue={initialTab} className="space-y-6">
@@ -355,7 +428,7 @@ export default function ProfilePage() {
           <TabsContent value="holdings" className="space-y-6">
             {holdingsLoading ? (
               <div className="py-16 text-center">
-                <Coins className="h-10 w-10 text-sovry-green mx-auto mb-4 animate-pulse" />
+                <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
                 <p className="text-zinc-400">Loading your holdings...</p>
               </div>
             ) : (
@@ -375,19 +448,18 @@ export default function ProfilePage() {
                         Total value of all your IP assets
                       </p>
                     </div>
-                    <DollarSign className="h-16 w-16 text-sovry-green/40" />
                   </CardContent>
                 </Card>
 
                 {/* Claim All */}
-                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-sovry-green/30 rounded-xl">
+                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-sovry-crimson/30 rounded-xl">
                   <CardContent className="p-6 flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
-                        <Gift className="h-6 w-6 text-sovry-green" />
+                        <Gift className="h-6 w-6 text-sovry-crimson" />
                         <h3 className="text-lg font-semibold text-zinc-50">Available to Claim</h3>
                       </div>
-                      <p className="text-2xl font-bold text-sovry-green">
+                      <p className="text-2xl font-bold text-sovry-crimson">
                         {new Intl.NumberFormat("en-US", {
                           style: "currency",
                           currency: "USD",
@@ -415,8 +487,8 @@ export default function ProfilePage() {
                   </CardContent>
                   {lastClaimTime && (
                     <CardContent className="pt-0">
-                      <Alert className="mt-4 border-sovry-green/30 bg-sovry-green/10">
-                        <CheckCircle className="h-4 w-4 text-sovry-green" />
+                      <Alert className="mt-4 border-sovry-crimson/30 bg-sovry-crimson/10">
+                        <CheckCircle className="h-4 w-4 text-sovry-crimson" />
                         <AlertDescription className="text-zinc-400">
                           Successfully claimed rewards at {lastClaimTime.toLocaleTimeString()}
                         </AlertDescription>
@@ -429,7 +501,7 @@ export default function ProfilePage() {
                 <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
-                      <TrendingUp className="h-5 w-5 text-sovry-green" />
+                      <TrendingUp className="h-5 w-5 text-sovry-crimson" />
                       My Assets
                     </CardTitle>
                   </CardHeader>
@@ -487,7 +559,7 @@ export default function ProfilePage() {
                               </td>
                               <td className="text-right py-4 px-4">
                                 {asset.claimableRevenue > 0 ? (
-                                  <span className="inline-flex items-center gap-1 bg-sovry-green/25 text-sovry-green px-3 py-1 rounded-full text-xs font-medium border border-sovry-green/40">
+                                  <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-3 py-1 rounded-full text-xs font-medium border border-sovry-crimson/40">
                                     {new Intl.NumberFormat("en-US", {
                                       style: "currency",
                                       currency: "USD",
@@ -498,7 +570,7 @@ export default function ProfilePage() {
                                 )}
                               </td>
                               <td className="text-right py-4 px-4">
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-sovry-green/20 text-sovry-green border border-sovry-green/30">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-sovry-crimson/20 text-sovry-crimson border border-sovry-crimson/30">
                                   {asset.apy}
                                 </span>
                               </td>
@@ -543,14 +615,14 @@ export default function ProfilePage() {
                 <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
-                      <Droplets className="h-5 w-5 text-sovry-green" />
+                      <Droplets className="h-5 w-5 text-sovry-crimson" />
                       Your Liquidity Pools
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {poolsLoading ? (
                       <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-6 w-6 animate-spin text-sovry-green" />
+                        <Loader2 className="h-6 w-6 animate-spin text-sovry-crimson" />
                         <span className="ml-3 text-zinc-400">Loading your pools...</span>
                       </div>
                     ) : poolsError ? (
@@ -567,21 +639,21 @@ export default function ProfilePage() {
                           {userPools.map((pool) => (
                             <Card
                               key={pool.id}
-                              className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl hover:border-sovry-green/50 transition-all duration-300"
+                              className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl hover:border-sovry-crimson/50 transition-all duration-300"
                             >
                               <CardContent className="p-5 space-y-4">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-sovry-green/20 rounded-lg border border-sovry-green/30">
-                                      <Droplets className="h-4 w-4 text-sovry-green" />
+                                    <div className="p-2 bg-sovry-crimson/20 rounded-lg border border-sovry-crimson/30">
+                                      <Droplets className="h-4 w-4 text-sovry-crimson" />
                                     </div>
                                     <div>
                                       <h3 className="font-semibold text-zinc-50 text-sm">
                                         {pool.token0?.symbol ?? "UNKNOWN"} / {pool.token1?.symbol ?? "UNKNOWN"}
                                       </h3>
                                       <div className="flex items-center gap-2 mt-1">
-                                        <span className="w-2 h-2 bg-sovry-green rounded-full animate-pulse" />
-                                        <span className="text-xs text-sovry-green">Active</span>
+                                        <span className="w-2 h-2 bg-sovry-crimson rounded-full animate-pulse" />
+                                        <span className="text-xs text-sovry-crimson">Active</span>
                                       </div>
                                     </div>
                                   </div>
@@ -598,7 +670,7 @@ export default function ProfilePage() {
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Volume USD</span>
-                                    <span className="text-sovry-green">
+                                    <span className="text-sovry-crimson">
                                       ${formatNumber(pool.volumeUSD)}
                                     </span>
                                   </div>
@@ -610,7 +682,7 @@ export default function ProfilePage() {
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Your Share</span>
-                                    <span className="text-sovry-green">
+                                    <span className="text-sovry-crimson">
                                       {pool.userLpPercentage?.toFixed(2) || "0.00"}%
                                     </span>
                                   </div>
@@ -663,7 +735,7 @@ export default function ProfilePage() {
                           <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                             <CardHeader>
                               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
-                                <Droplets className="h-5 w-5 text-sovry-green" />
+                                <Droplets className="h-5 w-5 text-sovry-crimson" />
                                 Manage Liquidity
                                 <span className="text-xs text-zinc-400 font-normal">
                                   {selectedPoolForLiquidity.token0.symbol}/

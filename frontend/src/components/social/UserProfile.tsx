@@ -144,7 +144,7 @@ const UserProfile = () => {
                 {saving ? "Saving..." : "Save Profile"}
               </Button>
               {message && (
-                <span className="text-[11px] text-sovry-green">{message}</span>
+                <span className="text-[11px] text-sovry-crimson">{message}</span>
               )}
               {error && (
                 <span className="text-[11px] text-sovry-pink">{error}</span>

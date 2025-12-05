@@ -950,6 +950,150 @@ export class Holder extends Entity {
   }
 }
 
+export class Candle extends Entity {
+  constructor(id: string) {
+    super();
+    this.set("id", Value.fromString(id));
+  }
+
+  save(): void {
+    let id = this.get("id");
+    assert(id != null, "Cannot save Candle entity without an ID");
+    if (id) {
+      assert(
+        id.kind == ValueKind.STRING,
+        `Entities of type Candle must have an ID of type String but the id '${id.displayData()}' is of type ${id.displayKind()}`,
+      );
+      store.set("Candle", id.toString(), this);
+    }
+  }
+
+  static loadInBlock(id: string): Candle | null {
+    return changetype<Candle | null>(store.get_in_block("Candle", id));
+  }
+
+  static load(id: string): Candle | null {
+    return changetype<Candle | null>(store.get("Candle", id));
+  }
+
+  get id(): string {
+    let value = this.get("id");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toString();
+    }
+  }
+
+  set id(value: string) {
+    this.set("id", Value.fromString(value));
+  }
+
+  get wrapper(): string {
+    let value = this.get("wrapper");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toString();
+    }
+  }
+
+  set wrapper(value: string) {
+    this.set("wrapper", Value.fromString(value));
+  }
+
+  get interval(): i32 {
+    let value = this.get("interval");
+    if (!value || value.kind == ValueKind.NULL) {
+      return 0;
+    } else {
+      return value.toI32();
+    }
+  }
+
+  set interval(value: i32) {
+    this.set("interval", Value.fromI32(value));
+  }
+
+  get timestamp(): BigInt {
+    let value = this.get("timestamp");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set timestamp(value: BigInt) {
+    this.set("timestamp", Value.fromBigInt(value));
+  }
+
+  get open(): BigInt {
+    let value = this.get("open");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set open(value: BigInt) {
+    this.set("open", Value.fromBigInt(value));
+  }
+
+  get high(): BigInt {
+    let value = this.get("high");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set high(value: BigInt) {
+    this.set("high", Value.fromBigInt(value));
+  }
+
+  get low(): BigInt {
+    let value = this.get("low");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set low(value: BigInt) {
+    this.set("low", Value.fromBigInt(value));
+  }
+
+  get close(): BigInt {
+    let value = this.get("close");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set close(value: BigInt) {
+    this.set("close", Value.fromBigInt(value));
+  }
+
+  get volume(): BigInt {
+    let value = this.get("volume");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set volume(value: BigInt) {
+    this.set("volume", Value.fromBigInt(value));
+  }
+}
+
 export class WrapperTokenLoader extends Entity {
   _entity: string;
   _field: string;

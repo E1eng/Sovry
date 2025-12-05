@@ -18,6 +18,7 @@ import {
   Deposit,
   Harvest,
   GraduationEvent,
+  Candle,
 } from "../generated/schema";
 import { WrapperToken as WrapperTemplate } from "../generated/templates";
 
@@ -67,6 +68,51 @@ function getOrCreateWrapper(
     wrapper.updatedAt = BigInt.zero();
   }
   return wrapper as WrapperToken;
+}
+
+function updateCandle(
+  wrapperAddr: Address,
+  timestamp: BigInt,
+  price: BigInt,
+  volume: BigInt,
+): void {
+  let timeframes = [60, 900, 3600];
+
+  for (let i = 0; i < timeframes.length; i++) {
+    let interval = timeframes[i];
+    let candleTimestamp = (timestamp.toI32() / interval) * interval;
+
+    let candleId =
+      wrapperAddr.toHex() +
+      "-" +
+      interval.toString() +
+      "-" +
+      candleTimestamp.toString();
+
+    let candle = Candle.load(candleId);
+    if (candle == null) {
+      candle = new Candle(candleId);
+      candle.wrapper = wrapperAddr.toHex();
+      candle.interval = interval;
+      candle.timestamp = BigInt.fromI32(candleTimestamp);
+      candle.open = price;
+      candle.high = price;
+      candle.low = price;
+      candle.close = price;
+      candle.volume = volume;
+    } else {
+      if (price > candle.high) {
+        candle.high = price;
+      }
+      if (price < candle.low) {
+        candle.low = price;
+      }
+      candle.close = price;
+      candle.volume = candle.volume.plus(volume);
+    }
+
+    candle.save();
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -129,6 +175,15 @@ export function handleTokensPurchased(event: TokensPurchasedEvent): void {
   trade.timestamp = event.block.timestamp;
   trade.save();
 
+  let grossValue = event.params.cost.plus(
+    event.params.cost.div(BigInt.fromI32(100)),
+  );
+  let price = BigInt.zero();
+  if (!event.params.amount.equals(BigInt.zero())) {
+    price = grossValue.div(event.params.amount);
+  }
+  updateCandle(event.params.wrapperToken, event.block.timestamp, price, grossValue);
+
   launchpad.totalTrades += 1;
   launchpad.totalVolume = launchpad.totalVolume.plus(event.params.cost);
   launchpad.totalFees = launchpad.totalFees.plus(trade.fee);
@@ -160,6 +215,15 @@ export function handleTokensSold(event: TokensSoldEvent): void {
   trade.txHash = event.transaction.hash;
   trade.timestamp = event.block.timestamp;
   trade.save();
+
+  let grossProceeds = event.params.proceeds.plus(
+    event.params.proceeds.div(BigInt.fromI32(100)),
+  );
+  let price = BigInt.zero();
+  if (!event.params.amount.equals(BigInt.zero())) {
+    price = grossProceeds.div(event.params.amount);
+  }
+  updateCandle(event.params.wrapperToken, event.block.timestamp, price, grossProceeds);
 
   launchpad.totalTrades += 1;
   launchpad.totalVolume = launchpad.totalVolume.plus(event.params.proceeds);
