@@ -1,63 +1,91 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useRef, useState } from "react";
+
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabaseClient";
-import type { Profile } from "@/types/supabase";
 
-const UserProfile = () => {
+import { supabase } from "@/lib/supabaseClient";
+
+const AVATAR_BUCKET = "Profile Image"; // Make sure this bucket exists in Supabase
+
+interface UserProfileProps {
+  onClose?: () => void;
+}
+
+const UserProfile = ({ onClose }: UserProfileProps) => {
   const { primaryWallet } = useDynamicContext();
   const walletAddress = primaryWallet?.address?.toLowerCase();
 
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      if (!supabase || !walletAddress) return;
-      setLoading(true);
-      setError(null);
-      setMessage(null);
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("wallet_address, username, bio, avatar_url, created_at")
-          .eq("wallet_address", walletAddress)
-          .maybeSingle();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-        if (error) throw error;
-        if (data) {
-          const p = data as Profile;
-          setProfile(p);
-          setUsername(p.username || "");
-          setBio(p.bio || "");
-        } else {
-          setProfile(null);
-          setUsername("");
-          setBio("");
-        }
-      } catch (err: any) {
-        console.warn("Failed to load profile from Supabase", {
-          message: err?.message,
-          code: err?.code,
-          name: err?.name,
-        });
-        setError("Failed to load profile from Supabase");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const handleAvatarSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!supabase || !walletAddress) return;
 
-    loadProfile();
-  }, [walletAddress]);
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Maximum file size is 2MB");
+      return;
+    }
+
+    const validTypes = ["image/jpeg", "image/png", "image/gif"];
+    if (!validTypes.includes(file.type)) {
+      setError("Only JPG, PNG, or GIF files are allowed");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const filePath = `${walletAddress}/avatar-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(filePath);
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            wallet_address: walletAddress,
+            avatar_url: publicUrl,
+          },
+          { onConflict: "wallet_address" }
+        );
+
+      if (profileError) throw profileError;
+
+      setAvatarUrl(publicUrl);
+      setMessage("Profile image updated");
+    } catch (err: any) {
+      console.error("Failed to upload avatar", err);
+      setError(err.message || "Failed to upload avatar");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!supabase || !walletAddress) return;
@@ -79,6 +107,9 @@ const UserProfile = () => {
       if (error) throw error;
 
       setMessage("Profile saved");
+      if (onClose) {
+        onClose();
+      }
     } catch (err: any) {
       console.error("Failed to save profile", err);
       setError(err.message || "Failed to save profile");
@@ -89,71 +120,140 @@ const UserProfile = () => {
 
   if (!walletAddress) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Social Profile</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-zinc-400">
-            Connect your wallet to create a Sovry profile and attach a username to your comments.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-2 text-sm text-zinc-400">
+        <p>Connect your wallet to create a Sovry profile and attach a username to your comments.</p>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Social Profile</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        {loading ? (
-          <p className="text-zinc-400">Loading profile...</p>
-        ) : (
-          <>
-            <div>
-              <p className="text-xs text-zinc-400 mb-1">Wallet</p>
-              <p className="font-mono text-xs break-all text-zinc-50">{walletAddress}</p>
+    <div className="space-y-6">
+      {loading ? (
+        <p className="text-sm text-zinc-400">Loading profile...</p>
+      ) : (
+        <>
+          <div className="space-y-1">
+            <h3 className="text-sm font-medium text-zinc-200">Profile Details</h3>
+            <p className="text-xs text-zinc-400">
+              Edit and customize how your profile appears across Sovry.
+            </p>
+          </div>
+
+          {/* Username */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <label className="font-medium text-zinc-200 flex items-center gap-1">
+                <span>Username</span>
+                <span className="text-sovry-crimson">*</span>
+              </label>
+              <span className="text-zinc-500">
+                {username.trim().length}/15
+              </span>
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-zinc-400">Username</p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-500">@</span>
               <Input
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. chillguy.eth"
-                className="h-8 text-xs"
+                onChange={(e) => {
+                  const value = e.target.value.slice(0, 15);
+                  setUsername(value);
+                }}
+                placeholder="yourname"
+                className="text-sm"
               />
             </div>
-            <div className="space-y-1">
-              <p className="text-xs text-zinc-400">Bio</p>
-              <Input
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Producer, collector, IP explorer..."
-                className="h-8 text-xs"
+            <p className="text-[11px] text-zinc-500">
+              Official username used for IP World.
+            </p>
+          </div>
+
+          {/* Short Bio */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <label className="font-medium text-zinc-200 flex items-center gap-1">
+                <span>Short Bio</span>
+                <span className="text-sovry-crimson">*</span>
+              </label>
+              <span className="text-zinc-500">
+                {bio.trim().length}/180
+              </span>
+            </div>
+            <Input
+              value={bio}
+              onChange={(e) => {
+                const value = e.target.value.slice(0, 180);
+                setBio(value);
+              }}
+              placeholder="Provide a short bio about yourself"
+              className="text-sm"
+            />
+          </div>
+
+          {/* Profile Picture */}
+          <div className="space-y-2">
+            <div className="space-y-1 text-xs">
+              <p className="font-medium text-zinc-200">Profile Picture</p>
+              <p className="text-zinc-500">
+                This will be displayed across the platform.
+              </p>
+            </div>
+            <div
+              className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 px-4 py-6 text-center cursor-pointer hover:border-sovry-crimson/60 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {avatarUrl && (
+                <img
+                  src={avatarUrl}
+                  alt="Profile avatar"
+                  className="h-16 w-16 rounded-full object-cover border border-zinc-700"
+                />
+              )}
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-zinc-200">Select Or Drag Media</p>
+                <p className="text-[11px] text-zinc-500">
+                  JPG, PNG, or GIF. - Max 2MB
+                </p>
+              </div>
+              {uploadingAvatar && (
+                <p className="text-[11px] text-zinc-400">Uploading...</p>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif"
+                className="hidden"
+                onChange={handleAvatarSelect}
               />
             </div>
-            <div className="flex items-center justify-between pt-2">
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-2 gap-2">
+            <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+              <span className="font-mono truncate max-w-[140px] sm:max-w-[220px]">
+                {walletAddress}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {error && (
+                <span className="text-[11px] text-sovry-pink">{error}</span>
+              )}
+              {message && !error && (
+                <span className="text-[11px] text-sovry-crimson">{message}</span>
+              )}
               <Button
                 size="sm"
                 onClick={handleSave}
                 disabled={saving}
                 className="text-xs"
               >
-                {saving ? "Saving..." : "Save Profile"}
+                {saving ? "Saving..." : "Save Changes"}
               </Button>
-              {message && (
-                <span className="text-[11px] text-sovry-crimson">{message}</span>
-              )}
-              {error && (
-                <span className="text-[11px] text-sovry-pink">{error}</span>
-              )}
             </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </div>
+        </>
+      )}
+    </div>
   );
 };
 

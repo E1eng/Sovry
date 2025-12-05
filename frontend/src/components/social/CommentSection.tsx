@@ -10,7 +10,10 @@ import type { Comment as DbComment, Profile } from "@/types/supabase";
 
 interface CommentWithProfile extends DbComment {
   username?: string | null;
+  avatarUrl?: string | null;
 }
+
+const PAGE_SIZE = 20;
 
 interface CommentSectionProps {
   tokenAddress: string;
@@ -28,7 +31,7 @@ const formatTime = (iso: string) => {
   }
 };
 
-const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
+export default function CommentSection({ tokenAddress }: CommentSectionProps) {
   const { primaryWallet } = useDynamicContext();
   const walletAddress = primaryWallet?.address;
 
@@ -37,6 +40,8 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!supabase || !tokenAddress) {
@@ -46,7 +51,7 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
 
     let isMounted = true;
 
-    const loadComments = async () => {
+    const loadInitialComments = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -55,13 +60,15 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
           .from("comments")
           .select("id, token_address, user_address, content, created_at")
           .eq("token_address", tokenAddress)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .limit(PAGE_SIZE + 1);
 
         if (error) throw error;
 
         const rows = (data || []) as DbComment[];
+        const pageRows = rows.slice(0, PAGE_SIZE);
         const uniqueUsers = Array.from(
-          new Set(rows.map((c) => c.user_address.toLowerCase()))
+          new Set(pageRows.map((c) => c.user_address.toLowerCase()))
         );
 
         let profilesByAddress: Record<string, Profile> = {};
@@ -78,15 +85,17 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
 
         if (!isMounted) return;
 
-        const enriched: CommentWithProfile[] = rows.map((c) => {
+        const enriched: CommentWithProfile[] = pageRows.map((c) => {
           const prof = profilesByAddress[c.user_address.toLowerCase()];
           return {
             ...c,
             username: prof?.username ?? null,
+            avatarUrl: prof?.avatar_url ?? null,
           };
         });
 
         setComments(enriched);
+        setHasMore(rows.length > PAGE_SIZE);
       } catch (err: any) {
         if (!isMounted) return;
         console.error("Error loading comments from Supabase", err);
@@ -96,7 +105,7 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
       }
     };
 
-    loadComments();
+    loadInitialComments();
 
     const channel = supabase
       .channel(`comments:${tokenAddress}`)
@@ -112,19 +121,22 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
           const newRow = payload.new as DbComment;
 
           let username: string | null = null;
+          let avatarUrl: string | null = null;
           try {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("username")
+              .select("username, avatar_url")
               .eq("wallet_address", newRow.user_address.toLowerCase())
               .maybeSingle();
             username = (profile as any)?.username ?? null;
+            avatarUrl = (profile as any)?.avatar_url ?? null;
           } catch {}
 
           setComments((prev) => [
             {
               ...newRow,
               username,
+              avatarUrl,
             },
             ...prev,
           ]);
@@ -138,15 +150,91 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
     };
   }, [tokenAddress]);
 
+  const handleLoadMore = async () => {
+    if (!supabase || !tokenAddress || loadingMore || comments.length === 0) return;
+
+    setLoadingMore(true);
+    setError(null);
+
+    try {
+      const oldest = comments[comments.length - 1];
+
+      const { data, error } = await supabase
+        .from("comments")
+        .select("id, token_address, user_address, content, created_at")
+        .eq("token_address", tokenAddress)
+        .lt("created_at", oldest.created_at)
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE + 1);
+
+      if (error) throw error;
+
+      const rows = (data || []) as DbComment[];
+      const pageRows = rows.slice(0, PAGE_SIZE);
+
+      const uniqueUsers = Array.from(
+        new Set(pageRows.map((c) => c.user_address.toLowerCase()))
+      );
+
+      let profilesByAddress: Record<string, Profile> = {};
+      if (uniqueUsers.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("wallet_address, username, bio, avatar_url, created_at")
+          .in("wallet_address", uniqueUsers);
+
+        (profilesData || []).forEach((p: any) => {
+          profilesByAddress[(p.wallet_address as string).toLowerCase()] = p as Profile;
+        });
+      }
+
+      const enriched: CommentWithProfile[] = pageRows.map((c) => {
+        const prof = profilesByAddress[c.user_address.toLowerCase()];
+        return {
+          ...c,
+          username: prof?.username ?? null,
+          avatarUrl: prof?.avatar_url ?? null,
+        };
+      });
+
+      setComments((prev) => [...prev, ...enriched]);
+      setHasMore(rows.length > PAGE_SIZE);
+    } catch (err: any) {
+      console.error("Error loading more comments from Supabase", err);
+      setError("Failed to load more comments");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const handlePost = async () => {
     const trimmed = value.trim();
     if (!trimmed || !walletAddress || !supabase) return;
 
     setPosting(true);
     try {
+      const userAddress = walletAddress.toLowerCase();
+
+      // Pastikan user sudah punya profile supaya tidak melanggar FK
+      const { data: existingProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("wallet_address")
+        .eq("wallet_address", userAddress)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Failed to check profile before commenting", profileError);
+        throw profileError;
+      }
+
+      if (!existingProfile) {
+        setError("Buat profile sosial dulu di halaman Profile sebelum mengirim komentar.");
+        return;
+      }
+
       const { error } = await supabase.from("comments").insert({
         token_address: tokenAddress,
-        user_address: walletAddress.toLowerCase(),
+        user_address: userAddress,
         content: trimmed,
       });
 
@@ -161,11 +249,23 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
     }
   };
 
+  const commentCountLabel =
+    comments.length === 0
+      ? "0"
+      : hasMore
+        ? `${comments.length}+`
+        : `${comments.length}`;
+
   return (
     <Card className="bg-background/80 border-border/80">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold flex items-center justify-between">
-          <span>Comments</span>
+          <span className="flex items-center gap-2">
+            <span>Comments</span>
+            <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {commentCountLabel}
+            </span>
+          </span>
           {tokenAddress && (
             <span className="text-[11px] font-normal text-muted-foreground">
               Thread for {tokenAddress.slice(0, 6)}…{tokenAddress.slice(-4)}
@@ -216,10 +316,25 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
                 key={comment.id}
                 className="rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-xs space-y-1"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-primary">
-                    {comment.username || shortenAddress(comment.user_address)}
-                  </span>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {comment.avatarUrl ? (
+                      <img
+                        src={comment.avatarUrl}
+                        alt="Profile avatar"
+                        className="h-6 w-6 rounded-full object-cover border border-border/60"
+                      />
+                    ) : (
+                      <div className="h-6 w-6 rounded-full bg-muted text-[10px] flex items-center justify-center text-muted-foreground">
+                        {(comment.username || shortenAddress(comment.user_address))
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+                    )}
+                    <span className="font-medium text-primary">
+                      {comment.username || shortenAddress(comment.user_address)}
+                    </span>
+                  </div>
                   <span className="text-[11px] text-muted-foreground">
                     {formatTime(comment.created_at)}
                   </span>
@@ -231,9 +346,21 @@ const CommentSection = ({ tokenAddress }: CommentSectionProps) => {
             ))
           )}
         </div>
+
+        {!loading && comments.length > 0 && hasMore && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="h-7 px-3 text-[11px]"
+            >
+              {loadingMore ? "Loading more..." : "Load older comments"}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
-};
-
-export default CommentSection;
+}
