@@ -160,6 +160,7 @@ export default function Home() {
       {/* Hero Section */}
       <ImmersiveHero
         tokenCount={totalTokens}
+        liveCount={liveLaunches.length}
         sampleLaunch={
           heroSample
             ? {

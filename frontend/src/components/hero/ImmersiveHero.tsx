@@ -16,10 +16,11 @@ interface ImmersiveHeroSampleLaunch {
 
 interface ImmersiveHeroProps {
   tokenCount?: number;
+  liveCount?: number;
   sampleLaunch?: ImmersiveHeroSampleLaunch;
 }
 
-export function ImmersiveHero({ tokenCount, sampleLaunch }: ImmersiveHeroProps) {
+export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: ImmersiveHeroProps) {
   const targetValue = 98375.19;
   const [displayValue, setDisplayValue] = useState(0);
 
@@ -131,7 +132,11 @@ export function ImmersiveHero({ tokenCount, sampleLaunch }: ImmersiveHeroProps) 
               <div className="flex-1 rounded-xl border border-zinc-800/80 bg-zinc-950/70 px-3 py-2 sm:px-4 sm:py-3">
                 <div className="text-[11px] sm:text-xs text-zinc-400">Live bonding curves</div>
                 <div className="text-sm sm:text-lg font-semibold text-sovry-green">
-                  {typeof tokenCount === "number" ? Math.max(1, Math.floor(tokenCount / 3)) : 42}
+                  {typeof liveCount === "number"
+                    ? liveCount
+                    : typeof tokenCount === "number"
+                      ? Math.max(1, Math.floor(tokenCount / 3))
+                      : 42}
                 </div>
               </div>
             </div>

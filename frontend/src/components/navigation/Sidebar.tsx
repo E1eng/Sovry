@@ -27,15 +27,15 @@ export function Sidebar() {
             href="/"
             className="flex items-center rounded-2xl px-3.5 py-1.5 transition-all duration-200 justify-start gap-3.5"
           >
-            <div className="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-sm border border-zinc-800/50 flex items-center justify-center shadow-inner flex-shrink-0">
-              <SovrySymbol size={24} className="text-foreground" />
+            <div className="h-10 w-10 flex items-center justify-center flex-shrink-0">
+              <SovrySymbol size={30} className="text-foreground" />
             </div>
             <div className="flex flex-col overflow-hidden ml-1.5 hidden group-hover:flex">
               <span className="text-foreground font-semibold leading-tight text-base whitespace-nowrap">
                 Sovry
               </span>
               <span className="text-xs text-muted-foreground tracking-wide whitespace-nowrap">
-                IP Markets
+                v1.0.0
               </span>
             </div>
           </Link>
