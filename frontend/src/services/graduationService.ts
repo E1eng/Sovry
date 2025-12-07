@@ -179,3 +179,112 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
     return null
   }
 }
+
+export interface PremineClaimInfo {
+  creator: string
+  amount: bigint
+  timestamp: number
+  txHash: string
+}
+
+export interface ThresholdUpdateInfo {
+  newThreshold: bigint
+  timestamp: number
+  txHash: string
+}
+
+export async function getLatestPremineClaim(
+  tokenAddress: string,
+): Promise<PremineClaimInfo | null> {
+  try {
+    const query = `
+      query GetPremineClaims($wrapper: String!) {
+        premineClaims(
+          where: { wrapper: $wrapper }
+          orderBy: timestamp
+          orderDirection: desc
+          first: 1
+        ) {
+          creator
+          amount
+          txHash
+          timestamp
+        }
+      }
+    `
+
+    const response = await fetch(SUBGRAPH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        variables: { wrapper: tokenAddress.toLowerCase() },
+      }),
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const json = await response.json()
+    const claims = json?.data?.premineClaims || []
+    if (claims.length === 0) {
+      return null
+    }
+
+    const claim = claims[0]
+    return {
+      creator: claim.creator as string,
+      amount: BigInt(claim.amount || "0"),
+      timestamp: Number(claim.timestamp ?? 0),
+      txHash: claim.txHash as string,
+    }
+  } catch (error) {
+    console.error("Error fetching latest premine claim:", error)
+    return null
+  }
+}
+
+export async function getLatestGraduationThreshold(): Promise<ThresholdUpdateInfo | null> {
+  try {
+    const query = `
+      query GetLatestGraduationThreshold {
+        graduationThresholdUpdates(
+          orderBy: timestamp
+          orderDirection: desc
+          first: 1
+        ) {
+          newThreshold
+          txHash
+          timestamp
+        }
+      }
+    `
+
+    const response = await fetch(SUBGRAPH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const json = await response.json()
+    const updates = json?.data?.graduationThresholdUpdates || []
+    if (updates.length === 0) {
+      return null
+    }
+
+    const upd = updates[0]
+    return {
+      newThreshold: BigInt(upd.newThreshold || "0"),
+      timestamp: Number(upd.timestamp ?? 0),
+      txHash: upd.txHash as string,
+    }
+  } catch (error) {
+    console.error("Error fetching latest graduation threshold:", error)
+    return null
+  }
+}

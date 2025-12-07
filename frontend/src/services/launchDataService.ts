@@ -64,6 +64,55 @@ const newLaunchpadAbi = [
   },
   {
     inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
+    name: "getTokenState",
+    outputs: [
+      {
+        components: [
+          {
+            components: [
+              { internalType: "address", name: "rtAddress", type: "address" },
+              { internalType: "address", name: "wrapperAddress", type: "address" },
+              { internalType: "address", name: "creator", type: "address" },
+              { internalType: "uint256", name: "launchTime", type: "uint256" },
+              { internalType: "uint256", name: "totalLocked", type: "uint256" },
+              { internalType: "bool", name: "graduated", type: "bool" },
+              { internalType: "uint256", name: "totalRoyaltiesHarvested", type: "uint256" },
+              { internalType: "address", name: "vaultAddress", type: "address" },
+              { internalType: "uint256", name: "dexReserve", type: "uint256" },
+              { internalType: "uint256", name: "initialCurveSupply", type: "uint256" },
+            ],
+            internalType: "struct SovryLaunchpad.LaunchedToken",
+            name: "token",
+            type: "tuple",
+          },
+          {
+            components: [
+              { internalType: "uint256", name: "basePrice", type: "uint256" },
+              { internalType: "uint256", name: "priceIncrement", type: "uint256" },
+              { internalType: "uint256", name: "currentSupply", type: "uint256" },
+              { internalType: "uint256", name: "reserveBalance", type: "uint256" },
+              { internalType: "bool", name: "isActive", type: "bool" },
+            ],
+            internalType: "struct SovryLaunchpad.BondingCurve",
+            name: "curve",
+            type: "tuple",
+          },
+          { internalType: "uint256", name: "currentPrice", type: "uint256" },
+          { internalType: "uint256", name: "marketCap", type: "uint256" },
+          { internalType: "bool", name: "canGraduate", type: "bool" },
+          { internalType: "uint256", name: "secondsSinceLaunch", type: "uint256" },
+          { internalType: "uint256", name: "secondsToGraduationDelay", type: "uint256" },
+        ],
+        internalType: "struct SovryLaunchpad.TokenState",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
     name: "getCurrentPrice",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
@@ -141,6 +190,37 @@ async function fetchTokenSymbol(tokenAddress: string): Promise<string | null> {
   } catch (error) {
     console.error(`Error fetching symbol for ${tokenAddress}:`, error);
     return null;
+  }
+}
+
+async function fetchTokenState(
+  wrapperToken: string,
+  launchpadAddress: string
+): Promise<{ marketCap: string | null; currentPrice: string | null }> {
+  try {
+    const version = await detectContractVersion(launchpadAddress);
+    if (version !== "new") {
+      return { marketCap: null, currentPrice: null };
+    }
+
+    const rawState = await publicClient.readContract({
+      address: launchpadAddress as Address,
+      abi: newLaunchpadAbi,
+      functionName: "getTokenState",
+      args: [wrapperToken as Address],
+    });
+
+    const state = rawState as any;
+    const marketCap = state?.marketCap as bigint | undefined;
+    const currentPrice = state?.currentPrice as bigint | undefined;
+
+    return {
+      marketCap: marketCap !== undefined ? formatEther(marketCap) : null,
+      currentPrice: currentPrice !== undefined ? formatEther(currentPrice) : null,
+    };
+  } catch (error) {
+    console.error(`Error fetching token state for ${wrapperToken}:`, error);
+    return { marketCap: null, currentPrice: null };
   }
 }
 
@@ -354,13 +434,12 @@ export async function enrichLaunchData(
 
   try {
     // Fetch data in parallel
-    const [symbol, name, rtAddress, marketCap, bondingProgress, currentPrice] = await Promise.all([
+    const [symbol, name, rtAddress, tokenState, bondingProgress] = await Promise.all([
       fetchTokenSymbol(wrapperToken),
       fetchTokenName(wrapperToken),
       getRtAddressFromWrapper(wrapperToken, launchpadAddress),
-      fetchMarketCap(wrapperToken, launchpadAddress),
+      fetchTokenState(wrapperToken, launchpadAddress),
       fetchBondingProgress(wrapperToken),
-      fetchCurrentPrice(wrapperToken, launchpadAddress),
     ]);
 
     // Resolve IP ID. For now we default to using the wrapper token address
@@ -378,10 +457,10 @@ export async function enrichLaunchData(
       name: name || undefined,
       ipId: ipId || undefined,
       imageUrl: imageUrl || undefined,
-      marketCap: marketCap || undefined,
+      marketCap: tokenState.marketCap || undefined,
       bondingProgress: bondingProgress || undefined,
       category: category || undefined,
-      currentPrice: currentPrice || undefined,
+      currentPrice: tokenState.currentPrice || undefined,
       rtAddress: rtAddress || undefined,
     };
 

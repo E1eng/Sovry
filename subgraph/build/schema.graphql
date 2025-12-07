@@ -77,6 +77,23 @@ type GraduationEvent @entity {
   timestamp: BigInt!
 }
 
+type PremineClaim @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  creator: Bytes!
+  amount: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
+type GraduationThresholdUpdate @entity {
+  id: ID!
+  launchpad: Launchpad!
+  newThreshold: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
 type Holder @entity {
   id: ID!                 # wrapper-address + user-address
   wrapper: WrapperToken!

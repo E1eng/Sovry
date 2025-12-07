@@ -925,12 +925,12 @@ export default function CreatePage() {
                   </div>
                   <Slider
                     value={[launchPercentage]}
-                    min={10}
+                    min={25}
                     max={100}
                     step={1}
                     onValueChange={(v) => {
-                      const next = v[0] ?? 10;
-                      setLaunchPercentage(next < 10 ? 10 : next);
+                      const next = v[0] ?? 25;
+                      setLaunchPercentage(next < 25 ? 25 : next);
                     }}
                   />
                   <p className="text-xs text-zinc-200">

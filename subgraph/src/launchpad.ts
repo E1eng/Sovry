@@ -8,6 +8,8 @@ import {
   Graduated as GraduatedEvent,
   RTDeposited as RTDepositedEvent,
   RTWithdrawn as RTWithdrawnEvent,
+  CreatorPremineClaimed as CreatorPremineClaimedEvent,
+  GraduationThresholdUpdated as GraduationThresholdUpdatedEvent,
 } from "../generated/SovryLaunchpad/SovryLaunchpad";
 
 import {
@@ -19,6 +21,8 @@ import {
   Harvest,
   GraduationEvent,
   Candle,
+  PremineClaim,
+  GraduationThresholdUpdate,
 } from "../generated/schema";
 import { WrapperToken as WrapperTemplate } from "../generated/templates";
 
@@ -326,5 +330,47 @@ export function handleRTWithdrawn(event: RTWithdrawnEvent): void {
   deposit.amount = deposit.amount.minus(event.params.amount);
   deposit.updatedAt = event.block.timestamp;
   deposit.save();
+}
+
+export function handleCreatorPremineClaimed(
+  event: CreatorPremineClaimedEvent,
+): void {
+  let launchpadId = event.address.toHex();
+  let wrapper = getOrCreateWrapper(launchpadId, event.params.wrapperToken);
+  wrapper.updatedAt = event.block.timestamp;
+  wrapper.save();
+
+  let id = event.transaction.hash
+    .toHex()
+    .concat("-")
+    .concat(event.logIndex.toString());
+
+  let claim = new PremineClaim(id);
+  claim.wrapper = wrapper.id;
+  claim.creator = event.params.creator;
+  claim.amount = event.params.amount;
+  claim.txHash = event.transaction.hash;
+  claim.timestamp = event.block.timestamp;
+  claim.save();
+}
+
+export function handleGraduationThresholdUpdated(
+  event: GraduationThresholdUpdatedEvent,
+): void {
+  let launchpadId = event.address.toHex();
+  let launchpad = getOrCreateLaunchpad(launchpadId);
+  launchpad.save();
+
+  let id = event.transaction.hash
+    .toHex()
+    .concat("-")
+    .concat(event.logIndex.toString());
+
+  let update = new GraduationThresholdUpdate(id);
+  update.launchpad = launchpadId;
+  update.newThreshold = event.params.newThreshold;
+  update.txHash = event.transaction.hash;
+  update.timestamp = event.block.timestamp;
+  update.save();
 }
 

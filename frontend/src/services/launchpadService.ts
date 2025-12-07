@@ -58,6 +58,26 @@ const publicClient = createPublicClient({
   transport: http(STORY_RPC_URL),
 });
 
+// Cache for contract version so we don't re-detect on every call
+const contractVersionCache = new Map<string, "new" | "old">();
+
+/**
+ * Detect which SovryLaunchpad contract version is deployed.
+ * For the current Aeneid deployment we always treat it as "new" to avoid
+ * mis-detecting when probing with dummy wrapper addresses.
+ */
+export async function detectContractVersion(
+  launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS,
+): Promise<"new" | "old"> {
+  const cached = contractVersionCache.get(launchpadAddress);
+  if (cached) return cached;
+
+  // Frontend is wired against the latest SovryLaunchpad deployment which
+  // exposes getMarketCap/getBondingCurve/getTokenInfo/getTokenState.
+  contractVersionCache.set(launchpadAddress, "new");
+  return "new";
+}
+
 export interface LaunchInfo {
   creator: string;
   token: string;
@@ -94,59 +114,41 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
     const version = await detectContractVersion(SOVRY_LAUNCHPAD_ADDRESS);
     if (version === "new") {
       try {
-        // Read LaunchedToken + BondingCurve + MarketCap in parallel.
-        // viem returns structs as objects with named fields, not iterable tuples.
-        const [rawTokenInfo, rawCurve, marketCap] = await Promise.all([
-          publicClient.readContract({
-            address: SOVRY_LAUNCHPAD_ADDRESS as Address,
-            abi: newLaunchpadAbi,
-            functionName: "getTokenInfo",
-            args: [tokenAddress as Address],
-          }) as Promise<any>,
-          publicClient.readContract({
-            address: SOVRY_LAUNCHPAD_ADDRESS as Address,
-            abi: newLaunchpadAbi,
-            functionName: "getBondingCurve",
-            args: [tokenAddress as Address],
-          }) as Promise<any>,
-          publicClient.readContract({
-            address: SOVRY_LAUNCHPAD_ADDRESS as Address,
-            abi: newLaunchpadAbi,
-            functionName: "getMarketCap",
-            args: [tokenAddress as Address],
-          }) as Promise<bigint>,
-        ]);
+        // Read consolidated TokenState from the new SovryLaunchpad contract.
+        const rawState = (await publicClient.readContract({
+          address: SOVRY_LAUNCHPAD_ADDRESS as Address,
+          abi: newLaunchpadAbi,
+          functionName: "getTokenState",
+          args: [tokenAddress as Address],
+        })) as any;
 
-        const tokenInfo = rawTokenInfo as any;
-        const curve = rawCurve as any;
+        const tokenState = rawState as any;
+        const tokenInfo = tokenState.token as any;
+        const curve = tokenState.curve as any;
 
-        const rtAddress = tokenInfo.rtAddress as string;
         const wrapperAddress = tokenInfo.wrapperAddress as string;
-        const creator = tokenInfo.creator as string;
-        const totalLocked = BigInt(tokenInfo.totalLocked ?? 0n);
-        const graduated = Boolean(tokenInfo.graduated);
-        const vaultAddress = tokenInfo.vaultAddress as string;
-        const dexReserve = BigInt(tokenInfo.dexReserve ?? 0n);
 
         // If the wrapper was never launched, wrapperAddress will be zero
         if (!wrapperAddress || wrapperAddress === "0x0000000000000000000000000000000000000000") {
           return null;
         }
-        const currentSupply = BigInt(curve.currentSupply ?? 0n);
-        const reserveBalance = BigInt(curve.reserveBalance ?? 0n);
 
-        // Only the bonding-curve portion is actually tradable on the curve:
-        // initialCurveSupply = totalLocked - dexReserve
-        const initialCurveSupply =
-          totalLocked > dexReserve ? totalLocked - dexReserve : 0n;
+        const rtAddress = tokenInfo.rtAddress as string;
+        const creator = tokenInfo.creator as string;
+        const graduated = Boolean(tokenInfo.graduated);
+        const vaultAddress = tokenInfo.vaultAddress as string;
+
+        const reserveBalance = BigInt(curve.reserveBalance ?? 0n);
+        const initialCurveSupply = BigInt(tokenInfo.initialCurveSupply ?? 0n);
+        const currentSupply = BigInt(curve.currentSupply ?? 0n);
 
         // tokensSold = initialCurveSupply - currentSupply (never negative)
         const tokensSold =
-          initialCurveSupply > (currentSupply as bigint)
-            ? initialCurveSupply - (currentSupply as bigint)
-            : 0n;
+          initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
 
-        const totalRaised = marketCap ?? 0n;
+        // For the purposes of the current UI, "totalRaised" is approximated by
+        // the current market cap of the token.
+        const totalRaised = BigInt(tokenState.marketCap ?? 0n);
 
         return {
           creator,
@@ -182,6 +184,42 @@ export function getBondingProgress(info: LaunchInfo | null): number {
   if (!info || TARGET_RAISE_IP === 0n) return 0;
   const ratio = Number(info.totalRaised) / Number(TARGET_RAISE_IP);
   return Math.max(0, Math.min(100, ratio * 100));
+}
+
+/**
+ * Get market cap for a wrapper token using the SovryLaunchpad view.
+ * Returns a human-readable string (IP units) or null on error.
+ */
+export async function getMarketCap(
+  tokenAddress: string,
+  launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS,
+): Promise<string | null> {
+  try {
+    const version = await detectContractVersion(launchpadAddress);
+
+    if (version === "new") {
+      try {
+        const marketCap = await publicClient.readContract({
+          address: launchpadAddress as Address,
+          abi: newLaunchpadAbi,
+          functionName: "getMarketCap",
+          args: [tokenAddress as Address],
+        });
+        return formatBigIntToFloat(marketCap as bigint, 18).toString();
+      } catch (error) {
+        console.error(`Error fetching market cap (new contract) for ${tokenAddress}:`, error);
+        return null;
+      }
+    } else {
+      // Legacy path: approximate from totalRaised if available
+      const launchInfo = await getLaunchInfo(tokenAddress);
+      if (!launchInfo) return null;
+      return formatBigIntToFloat(launchInfo.totalRaised, 18).toString();
+    }
+  } catch (error) {
+    console.error(`Error fetching market cap for ${tokenAddress}:`, error);
+    return null;
+  }
 }
 
 export async function getEstimatedTokensForIP(
@@ -623,6 +661,55 @@ const newLaunchpadAbi = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
+    name: "getTokenState",
+    outputs: [
+      {
+        components: [
+          {
+            components: [
+              { internalType: "address", name: "rtAddress", type: "address" },
+              { internalType: "address", name: "wrapperAddress", type: "address" },
+              { internalType: "address", name: "creator", type: "address" },
+              { internalType: "uint256", name: "launchTime", type: "uint256" },
+              { internalType: "uint256", name: "totalLocked", type: "uint256" },
+              { internalType: "bool", name: "graduated", type: "bool" },
+              { internalType: "uint256", name: "totalRoyaltiesHarvested", type: "uint256" },
+              { internalType: "address", name: "vaultAddress", type: "address" },
+              { internalType: "uint256", name: "dexReserve", type: "uint256" },
+              { internalType: "uint256", name: "initialCurveSupply", type: "uint256" },
+            ],
+            internalType: "struct SovryLaunchpad.LaunchedToken",
+            name: "token",
+            type: "tuple",
+          },
+          {
+            components: [
+              { internalType: "uint256", name: "basePrice", type: "uint256" },
+              { internalType: "uint256", name: "priceIncrement", type: "uint256" },
+              { internalType: "uint256", name: "currentSupply", type: "uint256" },
+              { internalType: "uint256", name: "reserveBalance", type: "uint256" },
+              { internalType: "bool", name: "isActive", type: "bool" },
+            ],
+            internalType: "struct SovryLaunchpad.BondingCurve",
+            name: "curve",
+            type: "tuple",
+          },
+          { internalType: "uint256", name: "currentPrice", type: "uint256" },
+          { internalType: "uint256", name: "marketCap", type: "uint256" },
+          { internalType: "bool", name: "canGraduate", type: "bool" },
+          { internalType: "uint256", name: "secondsSinceLaunch", type: "uint256" },
+          { internalType: "uint256", name: "secondsToGraduationDelay", type: "uint256" },
+        ],
+        internalType: "struct SovryLaunchpad.TokenState",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       { internalType: "address", name: "wrapperToken", type: "address" },
       { internalType: "address", name: "ancestorIpId", type: "address" },
@@ -637,85 +724,20 @@ const newLaunchpadAbi = [
   },
 ] as const;
 
-// Cache for contract version
-const contractVersionCache = new Map<string, "new" | "old">();
-
-/**
- * Detect which contract version is deployed
- */
-export async function detectContractVersion(
-  launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS
-): Promise<"new" | "old"> {
-  const cached = contractVersionCache.get(launchpadAddress);
-  if (cached) return cached;
-
-  // This frontend is wired against the latest SovryLaunchpad deployment
-  // on Story Aeneid, which exposes getMarketCap/getBondingCurve/getTokenInfo.
-  // To avoid false "old" detection (due to calling getMarketCap on a dummy
-  // wrapper address that reverts), we explicitly treat this contract as "new".
-  contractVersionCache.set(launchpadAddress, "new");
-  return "new";
-}
-
-/**
- * Get market cap for a token (supports both contract versions)
- */
-export async function getMarketCap(
-  tokenAddress: string,
-  launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS
-): Promise<string | null> {
-  try {
-    const version = await detectContractVersion(launchpadAddress);
-    
-    if (version === "new") {
-      try {
-        const marketCap = await publicClient.readContract({
-          address: launchpadAddress as Address,
-          abi: newLaunchpadAbi,
-          functionName: "getMarketCap",
-          args: [tokenAddress as Address],
-        });
-        return formatBigIntToFloat(marketCap as bigint, 18).toString();
-      } catch (error) {
-        console.error(`Error fetching market cap (new contract) for ${tokenAddress}:`, error);
-        return null;
-      }
-    } else {
-      // Old contract - calculate from totalRaised
-      const launchInfo = await getLaunchInfo(tokenAddress);
-      if (!launchInfo) return null;
-      
-      // Approximate market cap = totalRaised (in IP)
-      return formatBigIntToFloat(launchInfo.totalRaised, 18).toString();
-    }
-  } catch (error) {
-    console.error(`Error fetching market cap for ${tokenAddress}:`, error);
-    return null;
-  }
-}
-
 export async function getCurveParams(tokenAddress: string): Promise<BondingCurveParams | null> {
   try {
     const version = await detectContractVersion(SOVRY_LAUNCHPAD_ADDRESS);
     if (version !== "new") return null;
 
-    const [rawCurve, rawToken] = await Promise.all([
-      publicClient.readContract({
-        address: SOVRY_LAUNCHPAD_ADDRESS as Address,
-        abi: newLaunchpadAbi,
-        functionName: "getBondingCurve",
-        args: [tokenAddress as Address],
-      }) as Promise<any>,
-      publicClient.readContract({
-        address: SOVRY_LAUNCHPAD_ADDRESS as Address,
-        abi: newLaunchpadAbi,
-        functionName: "getTokenInfo",
-        args: [tokenAddress as Address],
-      }) as Promise<any>,
-    ]);
+    const rawState = (await publicClient.readContract({
+      address: SOVRY_LAUNCHPAD_ADDRESS as Address,
+      abi: newLaunchpadAbi,
+      functionName: "getTokenState",
+      args: [tokenAddress as Address],
+    })) as any;
 
-    const curve = rawCurve as any;
-    const tokenInfo = rawToken as any;
+    const curve = (rawState as any).curve as any;
+    const tokenInfo = (rawState as any).token as any;
 
     if (!curve?.isActive) return null;
 

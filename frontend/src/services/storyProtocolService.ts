@@ -87,8 +87,12 @@ const LAUNCHPAD_VIEW_ABI = [
   },
 ];
 
-const DEFAULT_BASE_PRICE_WEI = BigInt("10000000000");
-const DEFAULT_PRICE_INCREMENT_WEI = BigInt("10000");
+const DEFAULT_BASE_PRICE_WEI = BigInt(
+  process.env.NEXT_PUBLIC_BASE_PRICE_WEI,
+);
+const DEFAULT_PRICE_INCREMENT_WEI = BigInt(
+  process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI,
+);
 
 // Token balance interface
 export interface TokenBalance {
@@ -588,6 +592,32 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
 // ===== WRITE OPERATIONS (Use Dynamic Wallet ONLY) =====
 // These functions use user's wallet for signing transactions
 
+function mapLaunchError(error: unknown): string {
+  const anyErr = error as any;
+  const shortMessage =
+    anyErr && typeof anyErr.shortMessage === "string" ? anyErr.shortMessage : "";
+  const errorName =
+    anyErr && anyErr.data && typeof anyErr.data.errorName === "string"
+      ? anyErr.data.errorName
+      : "";
+  const message = anyErr && typeof anyErr.message === "string" ? anyErr.message : "";
+  const combined = `${shortMessage} ${message} ${errorName}`;
+
+  if (combined.includes("MinListingRequired") || errorName === "MinListingRequired") {
+    return "Minimal launch 25 RT. Please increase the launch percentage or acquire more royalty tokens.";
+  }
+
+  if (message) {
+    return message;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Unknown error launching on bonding curve";
+}
+
 // Dynamic SDK Launch Function - WRITE ONLY (Sovry Launchpad bonding curve)
 // Uses a wrapper token (SovryToken) around the locked royalty token.
 export async function launchOnBondingCurveDynamic(
@@ -706,10 +736,10 @@ export async function launchOnBondingCurveDynamic(
       throw new Error('You have no royalty tokens to launch. Please Get Royalty Tokens first.');
     }
 
-    // Clamp percentage between 1 and 100
+    // Clamp percentage between 25 and 100 to respect minimum launch size
     const pct = BigInt(
       Math.min(
-        Math.max(Math.floor(launchPercentage || 0), 1),
+        Math.max(Math.floor(launchPercentage || 0), 25),
         100
       )
     );
@@ -779,7 +809,7 @@ export async function launchOnBondingCurveDynamic(
         success: false,
         approveTxHash,
         launchTxHash,
-        error: 'Failed to confirm launch transaction status',
+        error: mapLaunchError(waitError),
       };
     }
 
@@ -813,7 +843,7 @@ export async function launchOnBondingCurveDynamic(
     console.error('❌ Launch on bonding curve failed:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error launching on bonding curve',
+      error: mapLaunchError(error),
     };
   }
 }

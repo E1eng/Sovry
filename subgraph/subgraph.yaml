@@ -7,9 +7,9 @@ dataSources:
     name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0x0285659cd53319b7a37c20FFBc5395Ec187Bfffa" # Aeneid launchpad (update for mainnet)
+      address: "0x5d07144D1F5C6041b19d430ead5d91ac6665B91c" # Aeneid launchpad (update for mainnet)
       abi: SovryLaunchpad
-      startBlock: 11799205
+      startBlock: 11964481
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -23,6 +23,8 @@ dataSources:
         - Harvest
         - GraduationEvent
         - Holder
+        - PremineClaim
+        - GraduationThresholdUpdate
       abis:
         - name: SovryLaunchpad
           file: ./abis/SovryLaunchpad.json
@@ -41,6 +43,10 @@ dataSources:
           handler: handleRTDeposited
         - event: RTWithdrawn(indexed address,indexed address,uint256)
           handler: handleRTWithdrawn
+        - event: CreatorPremineClaimed(indexed address,indexed address,uint256)
+          handler: handleCreatorPremineClaimed
+        - event: GraduationThresholdUpdated(uint256)
+          handler: handleGraduationThresholdUpdated
       file: ./src/launchpad.ts
 
 templates:

@@ -6,7 +6,7 @@ dataSources:
     name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0x0285659cd53319b7a37c20FFBc5395Ec187Bfffa"
+      address: "0x5d07144D1F5C6041b19d430ead5d91ac6665B91c"
       abi: SovryLaunchpad
       startBlock: 11799205
     mapping:
@@ -22,6 +22,8 @@ dataSources:
         - Harvest
         - GraduationEvent
         - Holder
+        - PremineClaim
+        - GraduationThresholdUpdate
       abis:
         - name: SovryLaunchpad
           file: SovryLaunchpad\abis\SovryLaunchpad.json
@@ -40,6 +42,10 @@ dataSources:
           handler: handleRTDeposited
         - event: RTWithdrawn(indexed address,indexed address,uint256)
           handler: handleRTWithdrawn
+        - event: CreatorPremineClaimed(indexed address,indexed address,uint256)
+          handler: handleCreatorPremineClaimed
+        - event: GraduationThresholdUpdated(uint256)
+          handler: handleGraduationThresholdUpdated
       file: SovryLaunchpad\SovryLaunchpad.wasm
 templates:
   - kind: ethereum

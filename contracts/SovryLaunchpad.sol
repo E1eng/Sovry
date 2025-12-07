@@ -115,8 +115,8 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /// @notice RT unit in smallest units
     uint256 public constant RT_UNIT = 10 ** RT_DECIMALS;
 
-    /// @notice Minimum listing amount (10 RT)
-    uint256 public constant MIN_LISTING_AMOUNT = 10 * RT_UNIT;
+    /// @notice Minimum listing amount (25 RT)
+    uint256 public constant MIN_LISTING_AMOUNT = 25 * RT_UNIT;
 
     /// @notice Wrapper token decimals (SovryToken uses 6 decimals)
     uint8 public constant WRAPPER_DECIMALS = 6;
@@ -201,6 +201,16 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         address vaultAddress;
         uint256 dexReserve;
         uint256 initialCurveSupply;
+    }
+
+    struct TokenState {
+        LaunchedToken token;
+        BondingCurve curve;
+        uint256 currentPrice;
+        uint256 marketCap;
+        bool canGraduate;
+        uint256 secondsSinceLaunch;
+        uint256 secondsToGraduationDelay;
     }
 
     /// @notice Mapping from wrapper token address to bonding curve data
@@ -331,6 +341,14 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         address indexed creator,
         uint256 amount
     );
+
+    event CreatorPremineClaimed(
+        address indexed wrapperToken,
+        address indexed creator,
+        uint256 amount
+    );
+
+    event GraduationThresholdUpdated(uint256 newThreshold);
 
     /// @notice Event emitted when wrapper token ownership is renounced upon graduation
     /// @param wrapperToken Address of the wrapper token
@@ -509,6 +527,7 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
         creatorPremineLocked[wrapperToken] = 0;
         IERC20(wrapperToken).safeTransfer(msg.sender, amount);
+        emit CreatorPremineClaimed(wrapperToken, msg.sender, amount);
     }
 
     /**
@@ -1173,8 +1192,8 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
         LaunchedToken memory token = launchedTokens[wrapperToken];
 
-        // Total wrapper supply in whole-wrapper units
-        uint256 totalWrapped = token.totalLocked * WRAP_PER_RT;
+        // Total wrapper supply in whole-wrapper units using actual ERC20 totalSupply
+        uint256 totalWrapped = IERC20(wrapperToken).totalSupply();
         uint256 totalSupplyUnits = totalWrapped / WRAP_UNIT;
 
         // Current price based on circulating supply (tokens sold) in whole-wrapper units
@@ -1189,26 +1208,59 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         return currentPrice * totalSupplyUnits;
     }
 
-    /**
-     * @notice Gets comprehensive token information
-     * @param wrapperToken Address of the wrapper token
-     * @return Token information struct
-     */
-    function getTokenInfo(
+    function getTokenState(
         address wrapperToken
-    ) external view returns (LaunchedToken memory) {
-        return launchedTokens[wrapperToken];
-    }
+    ) external view returns (TokenState memory) {
+        LaunchedToken memory token = launchedTokens[wrapperToken];
+        BondingCurve memory curve = bondingCurves[wrapperToken];
 
-    /**
-     * @notice Gets bonding curve information
-     * @param wrapperToken Address of the wrapper token
-     * @return Bonding curve struct
-     */
-    function getBondingCurve(
-        address wrapperToken
-    ) external view returns (BondingCurve memory) {
-        return bondingCurves[wrapperToken];
+        uint256 currentPrice;
+        uint256 marketCap;
+        bool canGraduate;
+        uint256 secondsSinceLaunch;
+        uint256 secondsToGraduationDelay;
+
+        if (token.wrapperAddress != address(0)) {
+            if (token.launchTime > 0 && block.timestamp >= token.launchTime) {
+                secondsSinceLaunch = block.timestamp - token.launchTime;
+
+                if (secondsSinceLaunch >= GRADUATION_DELAY) {
+                    secondsToGraduationDelay = 0;
+                } else {
+                    secondsToGraduationDelay = GRADUATION_DELAY - secondsSinceLaunch;
+                }
+            }
+
+            if (curve.isActive) {
+                uint256 initialCurveSupply = token.initialCurveSupply;
+                uint256 soldRaw = initialCurveSupply > curve.currentSupply
+                    ? (initialCurveSupply - curve.currentSupply)
+                    : 0;
+                uint256 soldUnits = soldRaw / WRAP_UNIT;
+                currentPrice = curve.basePrice + (soldUnits * curve.priceIncrement);
+            }
+
+            marketCap = getMarketCap(wrapperToken);
+
+            if (
+                !token.graduated &&
+                curve.isActive &&
+                marketCap >= graduationThreshold &&
+                secondsSinceLaunch >= GRADUATION_DELAY
+            ) {
+                canGraduate = true;
+            }
+        }
+
+        return TokenState({
+            token: token,
+            curve: curve,
+            currentPrice: currentPrice,
+            marketCap: marketCap,
+            canGraduate: canGraduate,
+            secondsSinceLaunch: secondsSinceLaunch,
+            secondsToGraduationDelay: secondsToGraduationDelay
+        });
     }
 
     /**
@@ -1248,6 +1300,7 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     function updateGraduationThreshold(uint256 newThreshold) external onlyOwner {
         require(newThreshold > 0, "Invalid threshold");
         graduationThreshold = newThreshold;
+        emit GraduationThresholdUpdated(newThreshold);
     }
 
     /**

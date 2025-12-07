@@ -25,7 +25,7 @@ async function main() {
   }
 
   // Graduation threshold in ETH (default 1 ETH if not provided)
-  const graduationThresholdEth = process.env.GRADUATION_THRESHOLD_ETH || "0.8";
+  const graduationThresholdEth = process.env.GRADUATION_THRESHOLD_ETH || "2000";
   const graduationThreshold = ethers.utils.parseEther(graduationThresholdEth);
 
   console.log("📦 Deploying SovryLaunchpad contract with args:");
