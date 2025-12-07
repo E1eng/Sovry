@@ -12,9 +12,14 @@ const AVATAR_BUCKET = "Profile Image"; // Make sure this bucket exists in Supaba
 
 interface UserProfileProps {
   onClose?: () => void;
+  onProfileUpdated?: (update: {
+    username?: string | null;
+    bio?: string | null;
+    avatarUrl?: string | null;
+  }) => void;
 }
 
-const UserProfile = ({ onClose }: UserProfileProps) => {
+const UserProfile = ({ onClose, onProfileUpdated }: UserProfileProps) => {
   const { primaryWallet } = useDynamicContext();
   const walletAddress = primaryWallet?.address?.toLowerCase();
 
@@ -78,6 +83,9 @@ const UserProfile = ({ onClose }: UserProfileProps) => {
       if (profileError) throw profileError;
 
       setAvatarUrl(publicUrl);
+      if (onProfileUpdated) {
+        onProfileUpdated({ avatarUrl: publicUrl });
+      }
       setMessage("Profile image updated");
     } catch (err: any) {
       console.error("Failed to upload avatar", err);
@@ -107,6 +115,9 @@ const UserProfile = ({ onClose }: UserProfileProps) => {
       if (error) throw error;
 
       setMessage("Profile saved");
+      if (onProfileUpdated) {
+        onProfileUpdated({ username: payload.username, bio: payload.bio });
+      }
       if (onClose) {
         onClose();
       }

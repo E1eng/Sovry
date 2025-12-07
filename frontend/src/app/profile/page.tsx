@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +19,10 @@ import {
 
 import UserProfile from "@/components/social/UserProfile";
 import { supabase } from "@/lib/supabaseClient";
+import { getTokenBalance, type TokenBalance } from "@/services/storyProtocolService";
+import { enrichLaunchesData } from "@/services/launchDataService";
 
-import { TrendingUp, Coins, Copy } from "lucide-react";
+import { Coins, Copy } from "lucide-react";
 
 // ===== Holdings (from Portfolio) =====
 interface PortfolioAsset {
@@ -30,78 +33,55 @@ interface PortfolioAsset {
   balance: number;
   valueUSD: number;
   claimableRevenue: number;
-  apy: string;
   category: string;
 }
 
-const MOCK_ASSETS: PortfolioAsset[] = [
-  {
-    id: "template-1",
-    symbol: "MEME",
-    name: "Dank Meme Token",
-    image: "/nft-images/0_1WJiB8mUJKcylomi.jpg",
-    balance: 1250.5,
-    valueUSD: 1250.0,
-    claimableRevenue: 45.8,
-    apy: "15.8%",
-    category: "Meme",
-  },
-  {
-    id: "template-2",
-    symbol: "AIAG",
-    name: "AI Agent Protocol",
-    image: "/nft-images/045A39D6-3381-473C-A1F1-FD9AE6408087.png",
-    balance: 890.25,
-    valueUSD: 890.0,
-    claimableRevenue: 28.45,
-    apy: "12.3%",
-    category: "AI Agent",
-  },
-  {
-    id: "template-3",
-    symbol: "GAME",
-    name: "GameFi Universe",
-    image: "/nft-images/65217fd9e31608b8b6814492_-9ojwcB1tqVmdclia_Sx-oevPA3tjR3E4Y4Qtywk7fp90800zZijuZNz7dsIGPdmsNlpnfq3l1ayZSh1qWraCQqpIuIcNpEuRBg9tW96irdFURf6DDqWgjZ2EKAbqng6wgyhmrxb5fPt20yMRrWwpcg.png",
-    balance: 2100.0,
-    valueUSD: 1560.0,
-    claimableRevenue: 67.2,
-    apy: "18.2%",
-    category: "Gaming",
-  },
-  {
-    id: "template-4",
-    symbol: "MUSIC",
-    name: "Sound Waves NFT",
-    image: "/nft-images/809E1643-B14A-4377-8A71-A17DB8C014C8.png",
-    balance: 980.0,
-    valueUSD: 980.0,
-    claimableRevenue: 32.1,
-    apy: "14.5%",
-    category: "Music",
-  },
-  {
-    id: "template-5",
-    symbol: "ART",
-    name: "Digital Canvas",
-    image: "/nft-images/Creep.png",
-    balance: 2030.0,
-    valueUSD: 2030.0,
-    claimableRevenue: 89.5,
-    apy: "16.2%",
-    category: "Art",
-  },
-  {
-    id: "template-6",
-    symbol: "MEME2",
-    name: "Viral Token",
-    image: "/nft-images/NFT-creators-money-meme.jpg",
-    balance: 670.0,
-    valueUSD: 670.0,
-    claimableRevenue: 18.3,
-    apy: "10.8%",
-    category: "Meme",
-  },
-];
+interface WrapperToken {
+  id: string;
+  creator: string;
+  launchTime: number;
+  graduated: boolean;
+}
+
+const SUBGRAPH_URL =
+  process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
+  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/Sovry-Aeneid/1.0.0/gn";
+
+async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promise<WrapperToken[]> {
+  try {
+    const query = `
+      query GetWrapperTokens($first: Int!, $skip: Int!) {
+        wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
+          id
+          creator
+          launchTime
+          graduated
+        }
+      }
+    `;
+
+    const res = await fetch(SUBGRAPH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables: { first, skip } }),
+    });
+
+    if (!res.ok) return [];
+
+    const json = await res.json();
+    const raw = json?.data?.wrapperTokens || [];
+
+    return raw.map((l: any) => ({
+      id: l.id as string,
+      creator: (l.creator as string) || "",
+      launchTime: Number(l.launchTime || 0),
+      graduated: Boolean(l.graduated),
+    }));
+  } catch (err) {
+    console.error("Error fetching wrapper tokens from subgraph:", err);
+    return [];
+  }
+}
 
 export default function ProfilePage() {
   const { primaryWallet } = useDynamicContext();
@@ -112,41 +92,170 @@ export default function ProfilePage() {
     (searchParams.get("tab") as "tokens" | "holdings") || "tokens";
 
   // Holdings state
-  const [assets, setAssets] = useState<PortfolioAsset[]>([]);
+  const [launchedAssets, setLaunchedAssets] = useState<PortfolioAsset[]>([]);
+  const [holdingAssets, setHoldingAssets] = useState<PortfolioAsset[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(true);
 
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [profileBio, setProfileBio] = useState<string | null>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
 
-  // Load holdings (mock - for hackathon demo)
+  const handleProfileUpdated = (update: {
+    username?: string | null;
+    bio?: string | null;
+    avatarUrl?: string | null;
+  }) => {
+    if (update.username !== undefined) {
+      setProfileUsername(update.username);
+    }
+    if (update.bio !== undefined) {
+      setProfileBio(update.bio);
+    }
+    if (update.avatarUrl !== undefined) {
+      setProfileAvatarUrl(update.avatarUrl);
+    }
+  };
+
+  // Load launched tokens & holdings from subgraph + on-chain balances
   useEffect(() => {
     const loadHoldings = async () => {
       setHoldingsLoading(true);
       try {
-        // Simulate loading delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!walletAddress || !primaryWallet) {
+          setLaunchedAssets([]);
+          setHoldingAssets([]);
+          return;
+        }
 
-        // Always use mock assets for demo
-        setAssets(MOCK_ASSETS);
+        const userAddress = walletAddress.toLowerCase();
+
+        // Fetch all launched wrapper tokens from subgraph
+        const wrapperTokens = await fetchWrapperTokens(100, 0);
+        if (!wrapperTokens || wrapperTokens.length === 0) {
+          setLaunchedAssets([]);
+          setHoldingAssets([]);
+          return;
+        }
+
+        const wrapperIds = wrapperTokens.map((w) => w.id);
+        const enrichedMap = await enrichLaunchesData(wrapperIds);
+
+        // Fetch balances for all wrapper tokens for this user
+        const balanceResults = await Promise.all(
+          wrapperTokens.map(async (wrapper) => {
+            try {
+              const balanceInfo: TokenBalance | null = await getTokenBalance(
+                userAddress,
+                wrapper.id,
+              );
+              if (!balanceInfo) return null;
+
+              const balanceNum = parseFloat(balanceInfo.balance || "0");
+              if (!isFinite(balanceNum) || balanceNum <= 0) return null;
+
+              return { wrapper, balanceInfo, balanceNum };
+            } catch (err) {
+              console.error(
+                "Error loading wrapper token balance",
+                wrapper.id,
+                err,
+              );
+              return null;
+            }
+          }),
+        );
+
+        const nonNullBalances = balanceResults.filter(
+          (
+            r,
+          ): r is {
+            wrapper: WrapperToken;
+            balanceInfo: TokenBalance;
+            balanceNum: number;
+          } => !!r,
+        );
+
+        // Build holdings: all tokens with balance > 0
+        const holdings: PortfolioAsset[] = nonNullBalances.map(
+          ({ wrapper, balanceInfo, balanceNum }) => {
+            const enriched = enrichedMap.get(wrapper.id) || {};
+            return {
+              id: wrapper.id,
+              symbol: balanceInfo.symbol || (enriched.symbol as string) || "RT",
+              name:
+                (enriched.name as string) ||
+                balanceInfo.symbol ||
+                `Token ${wrapper.id.slice(0, 8)}`,
+              image:
+                (enriched.imageUrl as string) ||
+                "/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png",
+              balance: balanceNum,
+              valueUSD: 0,
+              claimableRevenue: 0,
+              category: (enriched.category as string) || "Launched Token",
+            };
+          },
+        );
+
+        // Launched tokens: all tokens created by this user (regardless of current balance)
+        const launched: PortfolioAsset[] = wrapperTokens
+          .filter((w) => w.creator?.toLowerCase() === userAddress)
+          .map((wrapper) => {
+            const enriched = enrichedMap.get(wrapper.id) || {};
+            const balanceEntry = nonNullBalances.find(
+              (r) => r.wrapper.id === wrapper.id,
+            );
+            const balanceInfo = balanceEntry?.balanceInfo;
+            const balanceNum = balanceEntry?.balanceNum ?? 0;
+
+            return {
+              id: wrapper.id,
+              symbol:
+                balanceInfo?.symbol || (enriched.symbol as string) || "RT",
+              name:
+                (enriched.name as string) ||
+                balanceInfo?.symbol ||
+                `Token ${wrapper.id.slice(0, 8)}`,
+              image:
+                (enriched.imageUrl as string) ||
+                "/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png",
+              balance: balanceNum,
+              valueUSD: 0,
+              claimableRevenue: 0,
+              category: (enriched.category as string) || "Launched Token",
+            };
+          });
+
+        setHoldingAssets(holdings);
+        setLaunchedAssets(launched);
       } catch (error) {
-        console.error("Error loading holdings:", error);
-        setAssets(MOCK_ASSETS);
+        console.error("Error loading holdings from subgraph:", error);
+        setLaunchedAssets([]);
+        setHoldingAssets([]);
       } finally {
         setHoldingsLoading(false);
       }
     };
 
+    if (!walletAddress || !primaryWallet) {
+      setLaunchedAssets([]);
+      setHoldingAssets([]);
+      setHoldingsLoading(false);
+      return;
+    }
+
     loadHoldings();
   }, [walletAddress, primaryWallet]);
 
+  // Load profile header (username, bio, avatar)
   useEffect(() => {
     const loadProfileHeader = async () => {
       if (!walletAddress || !supabase) return;
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("username, bio")
+          .select("username, bio, avatar_url")
           .eq("wallet_address", walletAddress.toLowerCase())
           .maybeSingle();
 
@@ -166,6 +275,16 @@ export default function ProfilePage() {
         } else {
           setProfileBio(null);
         }
+
+        if (
+          data &&
+          typeof (data as any).avatar_url === "string" &&
+          (data as any).avatar_url.trim().length > 0
+        ) {
+          setProfileAvatarUrl((data as any).avatar_url as string);
+        } else {
+          setProfileAvatarUrl(null);
+        }
       } catch (err) {
         console.warn("Failed to load profile header", err);
       }
@@ -175,10 +294,10 @@ export default function ProfilePage() {
   }, [walletAddress]);
 
   const handleHarvestAsset = (assetId: string) => {
-    setAssets((prev) =>
+    setLaunchedAssets((prev) =>
       prev.map((asset) =>
-        asset.id === assetId ? { ...asset, claimableRevenue: 0 } : asset
-      )
+        asset.id === assetId ? { ...asset, claimableRevenue: 0 } : asset,
+      ),
     );
   };
 
@@ -211,7 +330,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <div className="relative h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-full border-4 border-zinc-900 shadow-xl overflow-hidden bg-zinc-800">
               <Image
-                src="/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png"
+                src={profileAvatarUrl || "/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png"}
                 alt="Profile picture"
                 fill
                 className="object-cover"
@@ -222,14 +341,14 @@ export default function ProfilePage() {
                 {headerName}
               </h1>
               {walletAddress && (
-                <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-zinc-300 font-mono bg-zinc-900/70 border border-zinc-800 rounded-full px-3 py-1 mt-0.5">
-                  <span className="truncate max-w-[160px] sm:max-w-[260px]">
+                <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-zinc-100 font-mono bg-zinc-900/80 border border-sovry-crimson/50 rounded-full px-3 py-1 mt-1 shadow-sm">
+                  <span className="truncate max-w-[180px] sm:max-w-[300px] md:max-w-[420px]">
                     {walletAddress}
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyAddress}
-                    className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-zinc-300 hover:text-zinc-100"
+                    className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs text-sovry-crimson hover:text-sovry-crimson/80"
                   >
                     <Copy className="h-3 w-3" />
                     <span>Copy</span>
@@ -263,30 +382,32 @@ export default function ProfilePage() {
             </DialogDescription>
           </DialogHeader>
 
-              <UserProfile onClose={() => setIsProfileDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
+          <UserProfile
+            onClose={() => setIsProfileDialogOpen(false)}
+            onProfileUpdated={handleProfileUpdated}
+          />
+        </DialogContent>
+      </Dialog>
 
-          <Tabs defaultValue={initialTab} className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="tokens">My Tokens</TabsTrigger>
-              <TabsTrigger value="holdings">Holding</TabsTrigger>
-            </TabsList>
+      <Tabs defaultValue={initialTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="tokens">Launched Tokens</TabsTrigger>
+          <TabsTrigger value="holdings">Holding</TabsTrigger>
+        </TabsList>
 
             {/* My Tokens Tab */}
             <TabsContent value="tokens" className="space-y-6">
               {holdingsLoading ? (
                 <div className="py-16 text-center">
                   <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-                  <p className="text-zinc-400">Loading your holdings...</p>
+                  <p className="text-zinc-400">Loading your tokens...</p>
                 </div>
               ) : (
                 <>
                   <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
-                        <TrendingUp className="h-5 w-5 text-sovry-crimson" />
-                        My Tokens
+                      <CardTitle className="text-lg font-semibold text-zinc-50">
+                        Launched Tokens
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -304,7 +425,7 @@ export default function ProfilePage() {
                                 Value
                               </th>
                               <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                                Harvested
+                                Available to Harvest
                               </th>
                               <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
                                 Harvest
@@ -312,7 +433,7 @@ export default function ProfilePage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {assets.map((asset) => (
+                            {launchedAssets.map((asset) => (
                               <tr
                                 key={asset.id}
                                 className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
@@ -343,7 +464,7 @@ export default function ProfilePage() {
                                 </td>
                                 <td className="text-right py-4 px-4">
                                   {asset.claimableRevenue > 0 ? (
-                                    <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-3 py-1 rounded-full text-xs font-medium border border-sovry-crimson/40">
+                                    <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-3 py-1 rounded-full text-sm font-medium border border-sovry-crimson/40">
                                       {new Intl.NumberFormat("en-US", {
                                         style: "currency",
                                         currency: "USD",
@@ -355,9 +476,9 @@ export default function ProfilePage() {
                                 </td>
                                 <td className="text-right py-4 px-4">
                                   <Button
-                                    size="xs"
+                                    size="sm"
                                     variant="outline"
-                                    className="h-7 px-3 text-[11px]"
+                                    className="h-9 px-4 text-xs font-medium"
                                     onClick={() => handleHarvestAsset(asset.id)}
                                     disabled={asset.claimableRevenue <= 0}
                                   >
@@ -375,12 +496,11 @@ export default function ProfilePage() {
               )}
             </TabsContent>
 
-            {/* Holding Tab (copy of My Tokens for now) */}
+            {/* Holding Tab */}
             <TabsContent value="holdings" className="space-y-6">
               <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-50">
-                    <TrendingUp className="h-5 w-5 text-sovry-crimson" />
+                  <CardTitle className="text-lg font-semibold text-zinc-50">
                     Holding
                   </CardTitle>
                 </CardHeader>
@@ -399,15 +519,12 @@ export default function ProfilePage() {
                             Value
                           </th>
                           <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                            Harvested
-                          </th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                            Harvest
+                            Trade
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {assets.map((asset) => (
+                        {holdingAssets.map((asset) => (
                           <tr
                             key={asset.id}
                             className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
@@ -437,27 +554,15 @@ export default function ProfilePage() {
                               }).format(asset.valueUSD)}
                             </td>
                             <td className="text-right py-4 px-4">
-                              {asset.claimableRevenue > 0 ? (
-                                <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-3 py-1 rounded-full text-xs font-medium border border-sovry-crimson/40">
-                                  {new Intl.NumberFormat("en-US", {
-                                    style: "currency",
-                                    currency: "USD",
-                                  }).format(asset.claimableRevenue)}
-                                </span>
-                              ) : (
-                                <span className="text-zinc-400">-</span>
-                              )}
-                            </td>
-                            <td className="text-right py-4 px-4">
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                className="h-7 px-3 text-[11px]"
-                                onClick={() => handleHarvestAsset(asset.id)}
-                                disabled={asset.claimableRevenue <= 0}
-                              >
-                                Harvest
-                              </Button>
+                              <Link href={`/pool/${asset.id}`}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-9 px-4 text-xs font-medium"
+                                >
+                                  Trade
+                                </Button>
+                              </Link>
                             </td>
                           </tr>
                         ))}

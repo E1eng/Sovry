@@ -3,6 +3,15 @@ const path = require('path');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cupllnxfdbxfigzrmqjy.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   // Empty turbopack config to silence Next.js 16 warning (we use webpack)
   turbopack: {},
   // Ensure output file tracing starts from the monorepo root (Sovry)
