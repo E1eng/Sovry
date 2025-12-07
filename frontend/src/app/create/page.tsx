@@ -34,11 +34,7 @@ import {
   SOVRY_LAUNCHPAD_ADDRESS,
 } from "@/services/storyProtocolService";
 import { launchpadService } from "@/services/launchpadService";
-import {
-  claimRevenue,
-  mintLicenseToken,
-  transferRoyaltyTokensFromIP,
-} from "@/services/storyProtocolRegistration";
+import { mintLicenseToken, transferRoyaltyTokensFromIP } from "@/services/storyProtocolRegistration";
 
 import { pinFileToIPFS, pinJSONToIPFS } from "@/services/pinataService";
 import { supabase } from "@/lib/supabaseClient";
@@ -62,7 +58,6 @@ export default function CreatePage() {
   const [unlockingTokens, setUnlockingTokens] = useState<string | null>(null);
   const [mintStatus, setMintStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [transferStatus, setTransferStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
-  const [claimStatus, setClaimStatus] = useState<"idle" | "pending" | "success" | "error">("idle");
   const [tokenName, setTokenName] = useState("");
   const [tokenSymbolLaunch, setTokenSymbolLaunch] = useState("");
   const [launchImageUrl, setLaunchImageUrl] = useState("");
@@ -185,7 +180,6 @@ export default function CreatePage() {
     // Do not touch global success banner here; use toasts for unlock flow
     setMintStatus("pending");
     setTransferStatus("idle");
-    setClaimStatus("idle");
 
     try {
       // 1. Mint license token (triggers royalty vault deployment)
@@ -234,22 +228,6 @@ export default function CreatePage() {
           toast.success(`Royalty token balance updated: ${balance.balance} ${balance.symbol}`, {
             duration: 3500,
           });
-
-          // Auto-claim all available revenue
-          try {
-            const claimResult = await claimRevenue(ipAsset.ipId, primaryWallet);
-            if (claimResult.success) {
-              setClaimStatus("success");
-              toast.success("All revenue claimed successfully", {
-                duration: 3500,
-              });
-            }
-          } catch (claimError) {
-            setClaimStatus("error");
-            toast.error("Could not auto-claim revenue", {
-              duration: 4000,
-            });
-          }
         }
       } else {
         setTransferStatus("error");
@@ -464,6 +442,39 @@ export default function CreatePage() {
     currentStepLabel = "Launch";
   }
 
+  const normalizeTwitterUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+
+    const username = trimmed
+      .replace(/^https?:\/\/(www\.)?twitter\.com\//i, "")
+      .replace(/^@/, "");
+
+    return `https://twitter.com/${username}`;
+  };
+
+  const normalizeTelegramUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+
+    const handle = trimmed
+      .replace(/^https?:\/\/(www\.)?t\.me\//i, "")
+      .replace(/^@/, "");
+
+    return `https://t.me/${handle}`;
+  };
+
+  const normalizeWebsiteUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    return `https://${trimmed.replace(/^https?:\/\//i, "")}`;
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 px-4 md:px-6 lg:px-8 py-8 sm:py-12">
       <div className="w-full space-y-8">
@@ -657,7 +668,7 @@ export default function CreatePage() {
                       return (
                         <div
                           key={ipAsset.ipId}
-                          className={`group overflow-hidden rounded-2xl border bg-zinc-950/80 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-[0_0_40px_rgba(34,197,94,0.08)] ${
+                          className={`group overflow-hidden rounded-2xl border bg-zinc-950/80 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-[0_0_0_1px_rgba(255,255,255,0.03)] ${
                             selectedIP === ipAsset.ipId
                               ? "border-sovry-green/80 bg-zinc-900/80"
                               : "border-zinc-800/80 hover:border-sovry-green/60 hover:bg-zinc-900/80"
@@ -752,7 +763,7 @@ export default function CreatePage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-sovry-green/80" />
-                  <p className="text-xs md:text-sm font-semibold uppercase tracking-[0.24em] text-zinc-500">
+                  <p className="text-xs md:text-sm font-semibold uppercase tracking-wide text-zinc-500">
                     Selected IP & Launch
                   </p>
                 </div>
@@ -912,7 +923,7 @@ export default function CreatePage() {
                     </Label>
                     <Input
                       value={twitterUrl}
-                      onChange={(e) => setTwitterUrl(e.target.value)}
+                      onChange={(e) => setTwitterUrl(normalizeTwitterUrl(e.target.value))}
                       placeholder="https://twitter.com/username"
                       className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs sm:text-sm"
                     />
@@ -923,7 +934,7 @@ export default function CreatePage() {
                     </Label>
                     <Input
                       value={telegramUrl}
-                      onChange={(e) => setTelegramUrl(e.target.value)}
+                      onChange={(e) => setTelegramUrl(normalizeTelegramUrl(e.target.value))}
                       placeholder="https://t.me/channel"
                       className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs sm:text-sm"
                     />
@@ -934,7 +945,7 @@ export default function CreatePage() {
                     </Label>
                     <Input
                       value={websiteUrl}
-                      onChange={(e) => setWebsiteUrl(e.target.value)}
+                      onChange={(e) => setWebsiteUrl(normalizeWebsiteUrl(e.target.value))}
                       placeholder="https://project.site"
                       className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs sm:text-sm"
                     />
@@ -1024,18 +1035,6 @@ export default function CreatePage() {
                           <span className="h-2 w-2 rounded-full border border-zinc-500" />
                         )}
                         <span>Transfer Royalty Tokens</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {claimStatus === "pending" ? (
-                          <Loader2 className="h-3 w-3 animate-spin text-sovry-green" />
-                        ) : claimStatus === "success" ? (
-                          <CheckCircle className="h-3 w-3 text-sovry-green" />
-                        ) : claimStatus === "error" ? (
-                          <AlertCircle className="h-3 w-3 text-amber-400" />
-                        ) : (
-                          <span className="h-2 w-2 rounded-full border border-zinc-500" />
-                        )}
-                        <span>Claim Revenue (optional)</span>
                       </div>
                     </div>
                   </div>
@@ -1135,7 +1134,7 @@ export default function CreatePage() {
                   router.push(`/pool/${launchedTokenAddress}`);
                 }}
               >
-                View Pool on Sovry
+                Trade on Sovry
               </Button>
               <Button
                 className="flex-1 justify-center"

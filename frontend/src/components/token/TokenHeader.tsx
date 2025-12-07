@@ -149,7 +149,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                   {name}
                 </h1>
                 <div className="mt-1 inline-flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-zinc-900/70 border border-zinc-700 text-[11px] sm:text-xs font-mono tracking-wide uppercase text-zinc-100">
+                  <span className="px-3 py-1 rounded-full bg-zinc-900/70 border border-zinc-700 text-xs sm:text-sm font-mono tracking-wide uppercase text-zinc-100">
                     {ticker}
                   </span>
                 </div>

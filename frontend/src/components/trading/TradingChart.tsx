@@ -77,6 +77,7 @@ function TradingChartComponent({
   }, [timeframe, timeframeStorageKey])
 
   // Fetch 24h high/low from subgraph trades (independent of chart timeframe)
+  // Re-run when trade history or live candles change so 24h stats don't get stuck
   useEffect(() => {
     if (!tokenAddress) {
       setDailyHigh(null)
@@ -141,7 +142,7 @@ function TradingChartComponent({
     return () => {
       cancelled = true
     }
-  }, [tokenAddress, onDailyChangePct])
+  }, [tokenAddress, onDailyChangePct, data, liveCandles])
 
   const formatPrice = (value?: number | string | null): string => {
     if (value === undefined || value === null) return "—"
@@ -160,13 +161,13 @@ function TradingChartComponent({
 
   const formatMarketCap = (value?: string | null): string => {
     const num = value ? parseFloat(value) : 0
-    if (!isFinite(num) || num < 0) return "0.00 IP"
-
-    if (num === 0) return "0.00 IP"
+    if (!isFinite(num) || num <= 0) return "0.0000 IP"
 
     if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M IP`
     if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K IP`
-    return `${num.toFixed(2)} IP`
+    if (num >= 1) return `${num.toFixed(2)} IP`
+    if (num >= 0.01) return `${num.toFixed(4)} IP`
+    return `${num.toFixed(6)} IP`
   }
 
   const parsedCurrentPrice =

@@ -100,7 +100,6 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
               </h1>
               <p className="max-w-xl text-sm sm:text-base text-zinc-400">
                 Register your IP, launch a bonding curve token, and let the market discover it.
-                Sovry handles the mechanics so you can focus on the idea.
               </p>
             </div>
 

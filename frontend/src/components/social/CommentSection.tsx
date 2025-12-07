@@ -236,7 +236,7 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
       }
 
       if (!existingProfile) {
-        setError("Buat profile sosial dulu di halaman Profile sebelum mengirim komentar.");
+        setError("Please make a profile to comment.");
         return;
       }
 
