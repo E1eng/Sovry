@@ -1,15 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { LayoutGrid, Coins, User, PlusCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SovrySymbol } from "@/components/ui/SovrySymbol";
+import { supabase } from "@/lib/supabaseClient";
 
 export const NAV_ITEMS = [
   { label: "Home", href: "/", icon: LayoutGrid },
   { label: "Create", href: "/create", icon: PlusCircle },
+  { label: "Register", href: "/register", icon: PlusCircle },
   { label: "Bridge", href: "/bridge", icon: Coins },
   { label: "Profile", href: "/profile", icon: User },
 ];
@@ -17,6 +20,53 @@ export const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const { primaryWallet } = useDynamicContext();
+
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!primaryWallet?.address || !supabase) {
+      setAvatarUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadProfileAvatar = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("avatar_url")
+          .eq("wallet_address", primaryWallet.address.toLowerCase())
+          .maybeSingle();
+
+        if (error) {
+          if (!cancelled) {
+            setAvatarUrl(null);
+          }
+          return;
+        }
+
+        const url = (data as any)?.avatar_url as string | undefined;
+        if (!cancelled) {
+          if (url && typeof url === "string" && url.trim().length > 0) {
+            setAvatarUrl(url);
+          } else {
+            setAvatarUrl(null);
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setAvatarUrl(null);
+        }
+      }
+    };
+
+    loadProfileAvatar();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryWallet?.address]);
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-16 hover:w-64 flex-col bg-black/50 backdrop-blur-md border-r border-zinc-900/70 transition-[width] duration-200 group md:flex">
@@ -84,8 +134,16 @@ export function Sidebar() {
           {primaryWallet && (
             <div className="flex items-center mb-1 justify-start gap-3.5 px-3.5">
               {/* Icon bubble always visible, like nav icons */}
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-amber-400 to-primary/80 text-sm font-bold text-background flex-shrink-0">
-                {primaryWallet.address?.slice(2, 4).toUpperCase()}
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-amber-400 to-primary/80 text-sm font-bold text-background flex-shrink-0 overflow-hidden">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Profile avatar"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  primaryWallet.address?.slice(2, 4).toUpperCase()
+                )}
               </div>
               {/* Text appears when sidebar expands (group-hover), same as nav labels */}
               <div className="flex flex-col min-w-0 hidden group-hover:flex">

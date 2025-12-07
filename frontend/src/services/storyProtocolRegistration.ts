@@ -1,8 +1,8 @@
 // Story Protocol IP Asset Registration Service
 // For creating new IP assets and getting royalty tokens
 
-import { StoryClient } from '@story-protocol/core-sdk';
-import { createPublicClient, http, Address, custom, keccak256, stringToHex } from 'viem';
+import { StoryClient, PILFlavor, WIP_TOKEN_ADDRESS } from '@story-protocol/core-sdk';
+import { createPublicClient, http, Address, custom } from 'viem';
 import { pinJSONToIPFS, pinFileToIPFS } from './pinataService';
 
 // Environment variables
@@ -101,6 +101,8 @@ export interface RegistrationResult {
   txHash?: string;
   error?: string;
   royaltyVaultAddress?: string;
+  // Default license terms ID created/attached when registering (if any)
+  licenseTermsId?: string;
   status?: 'uploading' | 'registering' | 'confirming' | 'success' | 'error';
 }
 
@@ -136,60 +138,6 @@ async function calculateSHA256(data: any): Promise<string> {
   }
 }
 
-// Extract ipId from transaction receipt events
-function extractIpIdFromReceipt(receipt: any): string | null {
-  try {
-    // Look for IPAssetRegistered event
-    // Event signature: IPAssetRegistered(address indexed ipId, address indexed caller, string ipMetadataURI, bytes32 ipMetadataHash)
-    if (!receipt.logs || !Array.isArray(receipt.logs)) {
-      return null;
-    }
-    
-    // Calculate event signature hash
-    // IPAssetRegistered(address,address,string,bytes32)
-    const eventSignature = 'IPAssetRegistered(address,address,string,bytes32)';
-    const eventTopic = keccak256(stringToHex(eventSignature));
-    
-    // Look through logs for IPAssetRegistered event
-    for (const log of receipt.logs) {
-      if (log.topics && log.topics[0] && log.topics[0].toLowerCase() === eventTopic.toLowerCase()) {
-        // Topic[1] is the indexed ipId (first indexed parameter)
-        if (log.topics[1]) {
-          // Extract ipId from topic[1] - it's a 32-byte value, last 20 bytes are the address
-          const ipId = '0x' + log.topics[1].slice(26); // Remove padding, keep last 20 bytes
-          if (/^0x[a-fA-F0-9]{40}$/.test(ipId)) {
-            return ipId;
-          }
-        }
-      }
-    }
-
-    // Alternative: Look for any event that might contain ipId
-    // Some contracts emit events with ipId as the first indexed parameter
-    for (const log of receipt.logs) {
-      if (log.topics && log.topics.length > 1) {
-        // Check if topic[1] looks like an address (ipId)
-        const potentialIpId = log.topics[1];
-        if (potentialIpId && potentialIpId.startsWith('0x') && potentialIpId.length === 66) {
-          // Extract address from padded topic
-          const ipId = '0x' + potentialIpId.slice(26);
-          if (/^0x[a-fA-F0-9]{40}$/.test(ipId)) {
-            // Additional validation: check if it's not a zero address
-            if (ipId !== '0x0000000000000000000000000000000000000000') {
-              return ipId;
-            }
-          }
-        }
-      }
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Error extracting ipId from receipt:', error);
-    return null;
-  }
-}
-
 // Register IP Asset with transaction polling and event extraction
 export async function registerIPAssetWithPolling(
   ipMetadata: IPMetadata,
@@ -222,6 +170,16 @@ export async function registerIPAssetWithPolling(
         type: 'mint',
         spgNftContract: SPG_NFT_CONTRACT as Address,
       },
+      // Attach PIL license terms directly on registration (similar to mintAndRegisterIpAssetWithPilTerms)
+      licenseTermsData: [
+        {
+          terms: PILFlavor.commercialRemix({
+            commercialRevShare: 0,
+            defaultMintingFee: 0n,
+            currency: WIP_TOKEN_ADDRESS,
+          }),
+        },
+      ],
       ipMetadata: {
         ipMetadataURI: `https://ipfs.io/ipfs/${ipIpfsHash}`,
         ipMetadataHash: `0x${ipHash}`,
@@ -238,32 +196,28 @@ export async function registerIPAssetWithPolling(
     console.log('⏳ Waiting for transaction confirmation...');
     
     const publicClient = createPublicClientForStory();
-    let receipt;
-    let extractedIpId: string | null = null;
-    
     try {
-      receipt = await publicClient.waitForTransactionReceipt({
+      const receipt = await publicClient.waitForTransactionReceipt({
         hash: response.txHash as `0x${string}`,
         timeout: 120_000, // 2 minutes timeout
       });
       
-      console.log('✅ Transaction confirmed!');
-      
-      // Extract ipId from receipt events
-      extractedIpId = extractIpIdFromReceipt(receipt);
-      
-      if (extractedIpId) {
-        console.log(`📋 Extracted IP ID from events: ${extractedIpId}`);
-      } else {
-        console.log('⚠️ Could not extract ipId from events, using SDK response');
+      console.log('✅ Transaction receipt received! Status:', receipt.status);
+
+      if (receipt.status !== 'success') {
+        throw new Error(`IP registration transaction reverted or failed (status=${receipt.status})`);
       }
+      
+      console.log('✅ Transaction confirmed on-chain!');
     } catch (pollError) {
       console.error('❌ Error waiting for transaction receipt:', pollError);
-      // Continue with SDK response ipId as fallback
+      // We will still trust the SDK response.ipId below, but surface the error message.
     }
     
-    // Use extracted ipId or fallback to SDK response
-    const finalIpId = extractedIpId || response.ipId;
+    // Always trust the SDK-returned ipId from registerIpAsset
+    const finalIpId = response.ipId;
+    const defaultLicenseTermsId =
+      (response as any).licenseTermsIds?.[0]?.toString() ?? undefined;
     
     if (!finalIpId) {
       throw new Error('Failed to get IP ID from transaction');
@@ -287,6 +241,7 @@ export async function registerIPAssetWithPolling(
       ipId: finalIpId,
       txHash: response.txHash,
       royaltyVaultAddress: royaltyVaultAddress,
+      licenseTermsId: defaultLicenseTermsId,
       status: 'success',
     };
     
@@ -387,16 +342,15 @@ export async function mintLicenseToken(
     // Create Story SDK client
     const client = await createStoryProtocolClient(primaryWallet);
     
-    // Mint license token sesuai docs example
+    // Mint license token sesuai docs example (no explicit licenseTemplate, rely on existing terms)
     const response = await client.license.mintLicenseTokens({
       licensorIpId: ipId as Address,
-      licenseTemplate: "0x2E896b0b2Fdb7457499B56AAaA4AE55BCB4Cd316", // Default license template
-      licenseTermsId: licenseTermsId,
+      licenseTermsId,
       amount: 1,
       receiver: primaryWallet.address as Address,
       royaltyContext: "0x", // Empty royalty context
       maxMintingFee: BigInt(0), // disabled
-      maxRevenueShare: 100, // default
+      maxRevenueShare: 100, // cap only
     });
     
     console.log('✅ License token minted successfully!');
@@ -446,8 +400,8 @@ export async function transferRoyaltyTokensFromIP(
     // Get royalty vault address (ini adalah address dari ERC-20 Royalty Tokens)
     const royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(ipId as Address);
     
-    if (!royaltyVaultAddress) {
-      throw new Error('No royalty vault found for this IP');
+    if (!royaltyVaultAddress || royaltyVaultAddress === '0x0000000000000000000000000000000000000000') {
+      throw new Error('No royalty vault found for this IP. This IP may not have any royalty tokens yet.');
     }
     
     console.log('✅ Royalty vault address found:', royaltyVaultAddress);

@@ -249,14 +249,18 @@ export default function ProfilePage() {
 
   // Load profile header (username, bio, avatar)
   useEffect(() => {
+    let cancelled = false;
+
     const loadProfileHeader = async () => {
-      if (!walletAddress || !supabase) return;
+      if (!walletAddress || !supabase || cancelled) return;
       try {
         const { data, error } = await supabase
           .from("profiles")
           .select("username, bio, avatar_url")
           .eq("wallet_address", walletAddress.toLowerCase())
           .maybeSingle();
+
+        if (cancelled) return;
 
         if (error) {
           console.warn("Failed to load profile header", error);
@@ -285,11 +289,17 @@ export default function ProfilePage() {
           setProfileAvatarUrl(null);
         }
       } catch (err) {
-        console.warn("Failed to load profile header", err);
+        if (!cancelled) {
+          console.warn("Failed to load profile header", err);
+        }
       }
     };
 
     loadProfileHeader();
+
+    return () => {
+      cancelled = true;
+    };
   }, [walletAddress]);
 
   const handleHarvestAsset = (assetId: string) => {
@@ -500,7 +510,7 @@ export default function ProfilePage() {
               <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-zinc-50">
-                    Holding
+                    Holdings
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

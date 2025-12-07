@@ -265,6 +265,12 @@ export async function getTokenBalance(userAddress: string, tokenAddress: string)
   try {
     console.log('Getting token balance for:', userAddress, 'token:', tokenAddress);
     
+    // If token address is zero address, there's no ERC20 to query
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+      console.warn('getTokenBalance called with zero token address, returning null');
+      return null;
+    }
+
     const client = createPublicClientForStory();
     
     // Get balance
@@ -560,14 +566,11 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
           })
         );
 
-        // Filter only IP assets that have royalty tokens
-        const ipAssetsWithRoyalties = ipAssets.filter(asset => asset.hasRoyaltyTokens);
-        
-        if (ipAssetsWithRoyalties.length > 0) {
+        if (ipAssets.length > 0) {
           console.log(
-            `SUCCESS: Approach ${i + 1} found ${ipAssetsWithRoyalties.length} IP assets with royalty tokens`,
+            `SUCCESS: Approach ${i + 1} found ${ipAssets.length} IP assets (with/without royalty tokens)`,
           );
-          return ipAssetsWithRoyalties;
+          return ipAssets;
         }
       } catch (error) {
         console.error(`Approach ${i + 1} error:`, error);

@@ -34,7 +34,7 @@ import {
   SOVRY_LAUNCHPAD_ADDRESS,
 } from "@/services/storyProtocolService";
 import { launchpadService } from "@/services/launchpadService";
-import { mintLicenseToken, transferRoyaltyTokensFromIP } from "@/services/storyProtocolRegistration";
+import { transferRoyaltyTokensFromIP } from "@/services/storyProtocolRegistration";
 
 import { pinFileToIPFS, pinJSONToIPFS } from "@/services/pinataService";
 import { supabase } from "@/lib/supabaseClient";
@@ -176,60 +176,24 @@ export default function CreatePage() {
     if (!walletAddress || !primaryWallet) return;
 
     setUnlockingTokens(ipAsset.ipId);
+
     setError(null);
-    // Do not touch global success banner here; use toasts for unlock flow
     setMintStatus("pending");
-    setTransferStatus("idle");
+    setTransferStatus("pending");
 
     try {
-      // 1. Mint license token (triggers royalty vault deployment)
-      // 2. Transfer royalty tokens from IP Account to user wallet
-      const licenseTermsIds = ["1", "2", "3", "10", "100"];
-      let licenseResult: { success: boolean; txHash?: string } = { success: false };
-
-      for (const termsId of licenseTermsIds) {
-        try {
-          licenseResult = await mintLicenseToken(ipAsset.ipId, termsId, primaryWallet);
-          if (licenseResult.success && licenseResult.txHash) break;
-        } catch {
-          continue;
-        }
-      }
-
-      if (!licenseResult.success || !licenseResult.txHash) {
-        setMintStatus("error");
-        throw new Error("Failed to mint license token with any license terms ID");
-      }
-
-      setMintStatus("success");
-      toast.success("License token minted", {
-        duration: 3500,
-      });
-
-      // Wait for royalty vault deployment
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      // Transfer royalty tokens from IP Account to wallet
-      setTransferStatus("pending");
+      // Hanya transfer Royalty Tokens dari IP Account ke wallet.
+      // License & vault sudah di-setup di /register.
       const transferResult = await transferRoyaltyTokensFromIP(ipAsset.ipId, primaryWallet);
 
       if (transferResult.success) {
+        setMintStatus("success");
         setTransferStatus("success");
         toast.success("Royalty tokens transferred to your wallet", {
           duration: 3500,
         });
-
-        // Wait for tokens to appear
-        await new Promise((resolve) => setTimeout(resolve, 10000));
-
-        let balance = await getTokenBalance(walletAddress, ipAsset.royaltyVaultAddress);
-        if (balance && parseFloat(balance.balance) > 0.000001) {
-          setTokenBalances((prev) => ({ ...prev, [ipAsset.ipId]: balance }));
-          toast.success(`Royalty token balance updated: ${balance.balance} ${balance.symbol}`, {
-            duration: 3500,
-          });
-        }
       } else {
+        setMintStatus("error");
         setTransferStatus("error");
         toast.error("Royalty token transfer failed", {
           duration: 4000,
@@ -238,6 +202,7 @@ export default function CreatePage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to get royalty tokens";
       setError(message);
+      setMintStatus("error");
       toast.error(message, {
         duration: 4000,
       });
