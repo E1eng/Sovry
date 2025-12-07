@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { formatMarketCap } from "@/services/launchDataService";
-import { TrendingUp, TrendingDown } from "lucide-react";
 
 export interface AssetCardData {
   id: string;
@@ -52,10 +51,6 @@ export default function AssetCard({ launch }: AssetCardProps) {
   const formattedMarketCap = launch.marketCap ? formatMarketCap(launch.marketCap) : "$0";
   const creatorShort = truncateAddress(launch.creator);
   const timeAgoStr = launch.createdAt ? timeAgo(launch.createdAt) : "";
-  
-  // Random price change for demo (in real app, this would come from data)
-  const priceChange = launch.priceChange ?? (Math.random() * 30 - 15);
-  const isPositive = priceChange >= 0;
 
   return (
     <Link
@@ -107,24 +102,21 @@ export default function AssetCard({ launch }: AssetCardProps) {
           <span>{timeAgoStr}</span>
         </div>
 
-        {/* Bottom: MC + Progress + % Change */}
+        {/* Bottom: MC + Bonding Progress */}
         <div className="flex items-center gap-2 mt-2">
           <span className="text-[11px] sm:text-xs text-zinc-400 font-medium whitespace-nowrap">
             MC {formattedMarketCap}
           </span>
-          <div className="flex-1 h-1.5 rounded-full bg-zinc-800/80 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-sovry-green transition-all duration-300"
-              style={{ width: `${Math.max(0, Math.min(100, bondingProgress))}%` }}
-            />
-          </div>
-          <div className={`flex items-center gap-0.5 text-[11px] sm:text-xs font-semibold whitespace-nowrap ${isPositive ? 'text-sovry-green' : 'text-red-500'}`}>
-            {isPositive ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : (
-              <TrendingDown className="h-3 w-3" />
-            )}
-            <span>{Math.abs(priceChange).toFixed(2)}%</span>
+          <div className="flex-1 flex items-center gap-2 min-w-0">
+            <div className="flex-1 h-1.5 rounded-full bg-zinc-800/80 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-sovry-green transition-all duration-300"
+                style={{ width: `${Math.max(0, Math.min(100, bondingProgress))}%` }}
+              />
+            </div>
+            <span className="text-[11px] sm:text-xs font-semibold text-zinc-100 whitespace-nowrap">
+              {Math.max(0, Math.min(100, bondingProgress)).toFixed(1)}%
+            </span>
           </div>
         </div>
       </div>

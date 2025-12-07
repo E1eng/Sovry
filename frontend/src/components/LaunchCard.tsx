@@ -113,7 +113,7 @@ function LaunchCardComponent({
               <div className="flex items-center justify-between text-[11px] sm:text-xs text-zinc-400">
                 <span>Bonding</span>
                 <span className="font-semibold text-zinc-100">
-                  {bondingCurvePercent.toFixed(1)}%
+                  {Math.max(0, Math.min(100, bondingCurvePercent)).toFixed(1)}%
                 </span>
               </div>
               <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden">
