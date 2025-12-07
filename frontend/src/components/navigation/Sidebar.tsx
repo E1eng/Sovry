@@ -23,11 +23,14 @@ export function Sidebar() {
       <div className="flex h-full flex-col py-5 w-full">
         {/* Logo */}
         <div className="px-4 mb-7">
-          <Link href="/" className="flex items-center space-x-3.5">
+          <Link
+            href="/"
+            className="flex items-center rounded-2xl px-1 py-1.5 transition-all duration-200 justify-center gap-0 group-hover:justify-start group-hover:gap-3.5"
+          >
             <div className="w-11 h-11 rounded-2xl bg-black/40 backdrop-blur-sm border border-zinc-800/50 flex items-center justify-center shadow-inner flex-shrink-0">
               <SovrySymbol size={28} className="text-foreground" />
             </div>
-            <div className="flex flex-col overflow-hidden">
+            <div className="flex flex-col overflow-hidden ml-1.5 hidden group-hover:flex">
               <span className="text-foreground font-semibold leading-tight text-base whitespace-nowrap">
                 Sovry
               </span>
@@ -49,14 +52,22 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3.5 rounded-2xl px-3.5 py-2.5 text-[15px] font-semibold transition-colors",
+                  "flex items-center rounded-2xl px-3.5 py-2.5 text-[15px] font-semibold transition-all duration-200",
+                  // When sidebar is collapsed (no hover), center icons with no label.
+                  // When expanded (group-hover), left-align with gap and label.
+                  "justify-center gap-0 group-hover:justify-start group-hover:gap-3.5",
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-card/50 hover:text-foreground"
                 )}
               >
                 <Icon className="h-6 w-6 flex-shrink-0" />
-                <span className="whitespace-nowrap text-[15px] opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity duration-200">
+                <span
+                  className={cn(
+                    "whitespace-nowrap text-[15px] ml-2 hidden group-hover:inline-flex",
+                    "opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  )}
+                >
                   {item.label}
                 </span>
               </Link>
@@ -67,13 +78,13 @@ export function Sidebar() {
         {/* Wallet summary (aligned with nav items) */}
         <div className="mt-auto border-t border-border px-4 pt-4 pb-3 flex flex-col gap-3">
           {primaryWallet && (
-            <div className="flex items-center gap-3 mb-1">
+            <div className="flex items-center mb-1 justify-center gap-0 group-hover:justify-start group-hover:gap-3">
               {/* Icon bubble always visible, like nav icons */}
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-amber-400 to-primary/80 text-sm font-bold text-background flex-shrink-0">
                 {primaryWallet.address?.slice(2, 4).toUpperCase()}
               </div>
-              {/* Text fades in when sidebar expands (group-hover), same as nav labels */}
-              <div className="flex flex-col min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              {/* Text appears when sidebar expands (group-hover), same as nav labels */}
+              <div className="flex flex-col min-w-0 hidden group-hover:flex">
                 <span className="text-sm font-medium">Wallet</span>
                 <span className="truncate text-xs text-muted-foreground">
                   {primaryWallet.address?.slice(0, 6)}…{primaryWallet.address?.slice(-4)}
