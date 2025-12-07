@@ -43,7 +43,19 @@ function TradingChartComponent({
   reserveBalance,
   onDailyChangePct,
 }: TradingChartProps) {
-  const [timeframe, setTimeframe] = useState<Timeframe>("7D")
+  const timeframeStorageKey = tokenAddress
+    ? `sovry-chart-timeframe-${tokenAddress.toLowerCase()}`
+    : "sovry-chart-timeframe-global"
+
+  const [timeframe, setTimeframe] = useState<Timeframe>(() => {
+    if (typeof window !== "undefined") {
+      const raw = window.localStorage.getItem(timeframeStorageKey) as Timeframe | null
+      if (raw && (TIMEFRAMES as string[]).includes(raw)) {
+        return raw
+      }
+    }
+    return "7D"
+  })
   const { data, isLoading, error, refetch } = useTradeHistory(tokenAddress, timeframe)
   const { candles: liveCandles } = useLiveTrades(tokenAddress, timeframe)
 
@@ -56,6 +68,13 @@ function TradingChartComponent({
   const [dailyLow, setDailyLow] = useState<number | null>(null)
   const [dailyVolume, setDailyVolume] = useState<number | null>(null)
   const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
+
+  // Persist selected timeframe per token so it survives re-mounts (e.g. after trades)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(timeframeStorageKey, timeframe)
+    }
+  }, [timeframe, timeframeStorageKey])
 
   // Fetch 24h high/low from subgraph trades (independent of chart timeframe)
   useEffect(() => {

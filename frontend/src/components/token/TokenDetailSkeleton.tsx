@@ -35,7 +35,7 @@ export function TokenDetailSkeleton() {
             {/* Trading Chart - Third on mobile */}
             <ChartSkeleton height={300} delay={300} />
 
-            {/* Activity Feed - Last on mobile */}
+            {/* Activity Feed - Fourth on mobile */}
             <Card
               style={{
                 animation: "fadeIn 0.5s ease-out 400ms both",
@@ -50,28 +50,51 @@ export function TokenDetailSkeleton() {
                 ))}
               </CardContent>
             </Card>
+
+            {/* Comments - Fifth on mobile */}
+            <Card
+              style={{
+                animation: "fadeIn 0.5s ease-out 450ms both",
+              }}
+            >
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {[...Array(2)].map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Top Holders - Sixth on mobile */}
+            <Card
+              style={{
+                animation: "fadeIn 0.5s ease-out 500ms both",
+              }}
+            >
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <Skeleton key={i} className="h-8 w-full" />
+                ))}
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Desktop Layout: Two-Column Grid */}
-          <div className="hidden lg:grid grid-cols-[60%_40%] gap-6">
-            {/* Left Column */}
+          {/* Desktop Layout: Two-Column Grid (match live layout 62% / 38%) */}
+          <div className="hidden lg:grid grid-cols-[62%_38%] gap-6 items-start">
+            {/* Left Column: Header already above, then Chart, Activity, Comments */}
             <div className="space-y-6">
               {/* Chart Skeleton */}
               <ChartSkeleton height={500} delay={100} />
 
-              {/* Progress Bar Skeleton */}
-              <ProgressBarSkeleton delay={200} />
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-6">
-              {/* Swap Interface Skeleton */}
-              <SwapInterfaceSkeleton delay={150} />
-
               {/* Activity Feed Skeleton */}
               <Card
                 style={{
-                  animation: "fadeIn 0.5s ease-out 250ms both",
+                  animation: "fadeIn 0.5s ease-out 200ms both",
                 }}
               >
                 <CardHeader>
@@ -83,6 +106,47 @@ export function TokenDetailSkeleton() {
                   ))}
                 </CardContent>
               </Card>
+
+              {/* Comments Skeleton */}
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 260ms both",
+                }}
+              >
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {[...Array(2)].map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column: Swap, Progress, Top Holders */}
+            <div className="space-y-6 lg:space-y-5">
+              {/* Swap Interface Skeleton */}
+              <SwapInterfaceSkeleton delay={150} />
+
+              {/* Progress Bar Skeleton */}
+              <ProgressBarSkeleton delay={220} />
+
+              {/* Top Holders Skeleton */}
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 260ms both",
+                }}
+              >
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-8 w-full" />
+                  ))}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
@@ -90,5 +154,4 @@ export function TokenDetailSkeleton() {
     </>
   )
 }
-
 
