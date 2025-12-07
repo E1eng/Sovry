@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabaseClient";
+import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import type { Comment as DbComment, Profile } from "@/types/supabase";
 
 interface CommentWithProfile extends DbComment {
@@ -35,6 +36,8 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
   const { primaryWallet } = useDynamicContext();
   const walletAddress = primaryWallet?.address;
 
+  const normalizedTokenAddress = tokenAddress?.toLowerCase() || "";
+
   const [comments, setComments] = useState<CommentWithProfile[]>([]);
   const [value, setValue] = useState("");
   const [posting, setPosting] = useState(false);
@@ -44,7 +47,7 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    if (!supabase || !tokenAddress) {
+    if (!supabase || !normalizedTokenAddress) {
       setLoading(false);
       return;
     }
@@ -59,7 +62,7 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
         const { data, error } = await supabase
           .from("comments")
           .select("id, token_address, user_address, content, created_at")
-          .eq("token_address", tokenAddress)
+          .eq("token_address", normalizedTokenAddress)
           .order("created_at", { ascending: false })
           .limit(PAGE_SIZE + 1);
 
@@ -108,17 +111,17 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
     loadInitialComments();
 
     const channel = supabase
-      .channel(`comments:${tokenAddress}`)
+      .channel(`comments:${normalizedTokenAddress}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "comments",
-          filter: `token_address=eq.${tokenAddress}`,
+          filter: `token_address=eq.${normalizedTokenAddress}`,
         },
-        async (payload) => {
-          const newRow = payload.new as DbComment;
+        async (payload: RealtimePostgresInsertPayload<DbComment>) => {
+          const newRow = payload.new;
 
           let username: string | null = null;
           let avatarUrl: string | null = null;
@@ -132,14 +135,19 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
             avatarUrl = (profile as any)?.avatar_url ?? null;
           } catch {}
 
-          setComments((prev) => [
-            {
-              ...newRow,
-              username,
-              avatarUrl,
-            },
-            ...prev,
-          ]);
+          setComments((prev) => {
+            if (prev.some((c) => c.id === (newRow as any).id)) {
+              return prev;
+            }
+            return [
+              {
+                ...newRow,
+                username,
+                avatarUrl,
+              },
+              ...prev,
+            ];
+          });
         }
       )
       .subscribe();
@@ -148,10 +156,10 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [tokenAddress]);
+  }, [normalizedTokenAddress]);
 
   const handleLoadMore = async () => {
-    if (!supabase || !tokenAddress || loadingMore || comments.length === 0) return;
+    if (!supabase || !normalizedTokenAddress || loadingMore || comments.length === 0) return;
 
     setLoadingMore(true);
     setError(null);
@@ -162,7 +170,7 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
       const { data, error } = await supabase
         .from("comments")
         .select("id, token_address, user_address, content, created_at")
-        .eq("token_address", tokenAddress)
+        .eq("token_address", normalizedTokenAddress)
         .lt("created_at", oldest.created_at)
         .order("created_at", { ascending: false })
         .limit(PAGE_SIZE + 1);
@@ -232,15 +240,42 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
         return;
       }
 
-      const { error } = await supabase.from("comments").insert({
-        token_address: tokenAddress,
-        user_address: userAddress,
-        content: trimmed,
-      });
+      const { data: inserted, error } = await supabase
+        .from("comments")
+        .insert({
+          token_address: normalizedTokenAddress,
+          user_address: userAddress,
+          content: trimmed,
+        })
+        .select("id, token_address, user_address, content, created_at")
+        .single();
 
       if (error) throw error;
+
+      let username: string | null = null;
+      let avatarUrl: string | null = null;
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username, avatar_url")
+          .eq("wallet_address", userAddress)
+          .maybeSingle();
+        username = (profile as any)?.username ?? null;
+        avatarUrl = (profile as any)?.avatar_url ?? null;
+      } catch {}
+
+      if (inserted) {
+        setComments((prev) => [
+          {
+            ...(inserted as any),
+            username,
+            avatarUrl,
+          },
+          ...prev,
+        ]);
+      }
+
       setValue("");
-      // New comment will arrive via realtime subscription
     } catch (err: any) {
       console.error("Failed to post comment", err);
       setError(err.message || "Failed to post comment");
@@ -351,7 +386,7 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
           <div className="flex justify-center pt-2">
             <Button
               variant="outline"
-              size="xs"
+              size="sm"
               onClick={handleLoadMore}
               disabled={loadingMore}
               className="h-7 px-3 text-[11px]"

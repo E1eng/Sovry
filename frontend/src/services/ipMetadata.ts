@@ -4,9 +4,9 @@ import type { License } from "@/services/storyProtocolAPI";
 const DEFAULT_IPFS_GATEWAY =
   process.env.NEXT_PUBLIC_IPFS_GATEWAY?.replace(/\/$/, "") || "https://ipfs.io/ipfs";
 
-export interface ResolvedLicenseTerms extends License["terms"] {
+export type ResolvedLicenseTerms = License["terms"] & {
   name?: string;
-}
+};
 
 export interface StoryIPMetadata {
   ipId: string;

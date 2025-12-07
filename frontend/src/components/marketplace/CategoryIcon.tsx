@@ -1,6 +1,6 @@
 "use client";
 
-import { Trademark, Heart, User, Palette } from "lucide-react";
+import { Tag, Heart, User, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CategoryIconProps {
@@ -13,7 +13,7 @@ export function CategoryIcon({ category, className, size = 16 }: CategoryIconPro
   const categoryLower = category.toLowerCase();
 
   if (categoryLower.includes("brand") || categoryLower.includes("tm")) {
-    return <Trademark className={cn("text-white", className)} size={size} />;
+    return <Tag className={cn("text-white", className)} size={size} />;
   }
 
   if (categoryLower.includes("pet") || categoryLower.includes("animal")) {

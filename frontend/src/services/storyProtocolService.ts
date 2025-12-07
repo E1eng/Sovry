@@ -489,8 +489,7 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
 
     for (let i = 0; i < approaches.length; i++) {
       const approach = approaches[i];
-      console.log(`Trying approach ${i + 1}:`, approach.body);
-      
+
       try {
         const response = await fetch(approach.url, {
           method: 'POST',
@@ -507,7 +506,6 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         }
 
         const result = await response.json();
-        console.log(`Approach ${i + 1} response:`, result);
 
         if (!result.data || result.data.length === 0) {
           console.log(`Approach ${i + 1}: No data found`);
@@ -517,30 +515,13 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         // If we got all assets (approach 4), filter by owner
         let assets = result.data;
         if (i === 3) { // Approach 4 (no filter)
-          console.log('All assets sample:', result.data.slice(0, 3).map((asset: any) => ({
-            ipId: asset.ipId,
-            ownerAddress: asset.ownerAddress,
-            owner: asset.owner,
-            ownerAddress_lower: asset.ownerAddress?.toLowerCase(),
-            wallet_lower: walletAddress.toLowerCase()
-          })));
-          
-          // Debug: Show all unique owner addresses from the API
-          const ownerAddresses = result.data.map((asset: any) => asset.ownerAddress || asset.owner);
-          const uniqueOwners = Array.from(new Set(ownerAddresses));
-          console.log('All unique owners in API:', uniqueOwners);
-          console.log('Looking for wallet:', walletAddress);
-          console.log('Looking for wallet (lowercase):', walletAddress.toLowerCase());
-          
           assets = result.data.filter((asset: any) => 
             asset.ownerAddress?.toLowerCase() === walletAddress.toLowerCase() ||
             asset.owner?.toLowerCase() === walletAddress.toLowerCase()
           );
-          console.log(`Filtered ${assets.length} assets for owner ${walletAddress}`);
         }
 
         if (assets.length === 0) {
-          console.log(`Approach ${i + 1}: No assets found for owner`);
           continue;
         }
 
@@ -583,10 +564,10 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         const ipAssetsWithRoyalties = ipAssets.filter(asset => asset.hasRoyaltyTokens);
         
         if (ipAssetsWithRoyalties.length > 0) {
-          console.log(`SUCCESS: Approach ${i + 1} found ${ipAssetsWithRoyalties.length} IP assets with royalty tokens`);
+          console.log(
+            `SUCCESS: Approach ${i + 1} found ${ipAssetsWithRoyalties.length} IP assets with royalty tokens`,
+          );
           return ipAssetsWithRoyalties;
-        } else {
-          console.log(`Approach ${i + 1}: Found ${ipAssets.length} IP assets but none have royalty tokens`);
         }
       } catch (error) {
         console.error(`Approach ${i + 1} error:`, error);

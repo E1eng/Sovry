@@ -18,6 +18,7 @@
     "subgraph:codegen": "npm run codegen --workspace subgraph",
     "subgraph:build": "npm run build --workspace subgraph",
     "build": "npm run build --workspace frontend",
+    "start": "npm run start --workspace frontend",
     "install:all": "npm install"
   },
   "keywords": [],

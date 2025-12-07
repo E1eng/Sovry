@@ -3,7 +3,6 @@
 
 import { StoryClient } from '@story-protocol/core-sdk';
 import { createPublicClient, http, Address, custom, keccak256, stringToHex } from 'viem';
-import { primaryWallet } from '@dynamic-labs/sdk-react-core';
 import { pinJSONToIPFS, pinFileToIPFS } from './pinataService';
 
 // Environment variables
@@ -581,9 +580,10 @@ export function createSampleIPMetadata(
     title,
     description,
     image: imageUrl,
-    imageHash: calculateSHA256({ image: imageUrl }),
+    // Sample metadata helpers are used only for demos; hashes are not critical here.
+    imageHash: '',
     mediaUrl: imageUrl,
-    mediaHash: calculateSHA256({ media: imageUrl }),
+    mediaHash: '',
     mediaType: 'image/png',
     creators: [
       {

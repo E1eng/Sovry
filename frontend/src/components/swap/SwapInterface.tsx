@@ -412,10 +412,12 @@ function SwapInterfaceComponent({
       if (!userBalance || parseFloat(userBalance) < parseFloat(fromAmount)) {
         const errorMsg = `Insufficient IP balance. You have ${userBalance || "0"} IP, but need ${fromAmount} IP.`
         setBalanceError(errorMsg)
-        toast.error("Insufficient IP balance", {
-          description: `You have ${userBalance || "0"} IP`,
-          duration: 4000,
-        })
+        toast.error(
+          `Insufficient IP balance: You have ${userBalance || "0"} IP`,
+          {
+            duration: 4000,
+          },
+        )
         logError(new Error(errorMsg), "SwapInterface")
         return
       }
@@ -476,14 +478,12 @@ function SwapInterfaceComponent({
           setSimulationError(
             "Tenderly simulation is unavailable. Proceeding without preview."
           )
-          toast.error("Simulation unavailable", {
-            description: message,
+          toast.error(`Simulation unavailable: ${message}`, {
             duration: 5000,
           })
         } else {
           setSimulationError(message)
-          toast.error("Simulation failed", {
-            description: message,
+          toast.error(`Simulation failed: ${message}`, {
             duration: 5000,
           })
           setIsSimulatingTx(false)
@@ -552,15 +552,24 @@ function SwapInterfaceComponent({
 
           if (isSlippageError(result.error)) {
             setSlippageError(parsedError.userFriendlyMessage)
-            toast.error(parsedError.userFriendlyMessage, {
-              description: parsedError.suggestion,
-              duration: 5000,
-            })
+            toast.error(
+              parsedError.suggestion
+                ? `${parsedError.userFriendlyMessage}: ${parsedError.suggestion}`
+                : parsedError.userFriendlyMessage,
+              {
+                duration: 5000,
+              },
+            )
           } else {
-            toast.error(parsedError.userFriendlyMessage, {
-              description: parsedError.suggestion || parsedError.message,
-              duration: 5000,
-            })
+            const details = parsedError.suggestion || parsedError.message
+            toast.error(
+              details
+                ? `${parsedError.userFriendlyMessage}: ${details}`
+                : parsedError.userFriendlyMessage,
+              {
+                duration: 5000,
+              },
+            )
           }
         }
       } catch (error) {
@@ -570,15 +579,24 @@ function SwapInterfaceComponent({
 
         if (isSlippageError(error)) {
           setSlippageError(parsedError.userFriendlyMessage)
-          toast.error(parsedError.userFriendlyMessage, {
-            description: parsedError.suggestion,
-            duration: 5000,
-          })
+          toast.error(
+            parsedError.suggestion
+              ? `${parsedError.userFriendlyMessage}: ${parsedError.suggestion}`
+              : parsedError.userFriendlyMessage,
+            {
+              duration: 5000,
+            },
+          )
         } else {
-          toast.error(parsedError.userFriendlyMessage, {
-            description: parsedError.suggestion || parsedError.message,
-            duration: 5000,
-          })
+          const details = parsedError.suggestion || parsedError.message
+          toast.error(
+            details
+              ? `${parsedError.userFriendlyMessage}: ${details}`
+              : parsedError.userFriendlyMessage,
+            {
+              duration: 5000,
+            },
+          )
         }
       } finally {
         setIsTrading(false)
@@ -588,10 +606,12 @@ function SwapInterfaceComponent({
       if (!tokenBalance || parseFloat(tokenBalance) < parseFloat(fromAmount)) {
         const errorMsg = `Insufficient token balance. You have ${tokenBalance || "0"} ${tokenSymbol}, but need ${fromAmount} ${tokenSymbol}.`
         setBalanceError(errorMsg)
-        toast.error("Insufficient token balance", {
-          description: `You have ${tokenBalance || "0"} ${tokenSymbol}`,
-          duration: 4000,
-        })
+        toast.error(
+          `Insufficient token balance: You have ${tokenBalance || "0"} ${tokenSymbol}`,
+          {
+            duration: 4000,
+          },
+        )
         logError(new Error(errorMsg), "SwapInterface")
         return
       }
@@ -655,14 +675,12 @@ function SwapInterfaceComponent({
           setSimulationError(
             "Tenderly simulation is unavailable. Proceeding without preview."
           )
-          toast.error("Simulation unavailable", {
-            description: message,
+          toast.error(`Simulation unavailable: ${message}`, {
             duration: 5000,
           })
         } else {
           setSimulationError(message)
-          toast.error("Simulation failed", {
-            description: message,
+          toast.error(`Simulation failed: ${message}`, {
             duration: 5000,
           })
           setIsSimulatingTx(false)
@@ -696,11 +714,6 @@ function SwapInterfaceComponent({
 
     try {
       // Create a sell function that only does the sell (not approval)
-      const walletClient = await primaryWallet.getWalletClient()
-      if (!walletClient) {
-        throw new Error("No wallet client available")
-      }
-
       // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell
       const tokenWeiIn = parseEther(fromAmount)
       const wrapperAmount = tokenWeiIn / (10n ** 12n)
@@ -785,15 +798,24 @@ function SwapInterfaceComponent({
 
         if (isSlippageError(result.error)) {
           setSlippageError(parsedError.userFriendlyMessage)
-          toast.error(parsedError.userFriendlyMessage, {
-            description: parsedError.suggestion,
-            duration: 5000,
-          })
+          toast.error(
+            parsedError.suggestion
+              ? `${parsedError.userFriendlyMessage}: ${parsedError.suggestion}`
+              : parsedError.userFriendlyMessage,
+            {
+              duration: 5000,
+            },
+          )
         } else {
-          toast.error(parsedError.userFriendlyMessage, {
-            description: parsedError.suggestion || parsedError.message,
-            duration: 5000,
-          })
+          const details = parsedError.suggestion || parsedError.message
+          toast.error(
+            details
+              ? `${parsedError.userFriendlyMessage}: ${details}`
+              : parsedError.userFriendlyMessage,
+            {
+              duration: 5000,
+            },
+          )
         }
       }
     } catch (error) {
@@ -803,15 +825,24 @@ function SwapInterfaceComponent({
       
       if (isSlippageError(error)) {
         setSlippageError(parsedError.userFriendlyMessage)
-        toast.error(parsedError.userFriendlyMessage, {
-          description: parsedError.suggestion,
-          duration: 5000,
-        })
+        toast.error(
+          parsedError.suggestion
+            ? `${parsedError.userFriendlyMessage}: ${parsedError.suggestion}`
+            : parsedError.userFriendlyMessage,
+          {
+            duration: 5000,
+          },
+        )
       } else {
-        toast.error(parsedError.userFriendlyMessage, {
-          description: parsedError.suggestion || parsedError.message,
-          duration: 5000,
-        })
+        const details = parsedError.suggestion || parsedError.message
+        toast.error(
+          details
+            ? `${parsedError.userFriendlyMessage}: ${details}`
+            : parsedError.userFriendlyMessage,
+          {
+            duration: 5000,
+          },
+        )
       }
     } finally {
       setIsTrading(false)
@@ -1197,4 +1228,3 @@ export const SwapInterface = memo(SwapInterfaceComponent, (prevProps, nextProps)
 })
 
 SwapInterface.displayName = "SwapInterface"
-

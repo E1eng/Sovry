@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,7 +47,7 @@ export default function CreatePage() {
 
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
   const router = useRouter();
-  const searchParams = useSearchParams();
+
   const isConnected = !!primaryWallet;
   const walletAddress = primaryWallet?.address;
 
@@ -110,14 +111,20 @@ export default function CreatePage() {
 
   // Handle IP pre-selection from URL params (for Remix functionality)
   useEffect(() => {
-    const ipIdParam = searchParams.get("ipId");
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const ipIdParam = params.get("ipId");
+
     if (ipIdParam && ipAssets.length > 0) {
-      const matchingAsset = ipAssets.find((asset) => asset.ipId.toLowerCase() === ipIdParam.toLowerCase());
+      const matchingAsset = ipAssets.find(
+        (asset) => asset.ipId.toLowerCase() === ipIdParam.toLowerCase(),
+      );
       if (matchingAsset) {
         setSelectedIP(matchingAsset.ipId);
       }
     }
-  }, [searchParams, ipAssets]);
+  }, [ipAssets]);
 
   // Auto-populate fields from Story Protocol when IP is selected
   useEffect(() => {

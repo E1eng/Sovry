@@ -314,7 +314,7 @@ async function fetchCategory(ipId: string | null): Promise<string> {
  */
 async function fetchImageUrl(ipId: string | null, rtAddress: string | null): Promise<string | null> {
   try {
-    if (!supabase || !rtAddress) return null;
+    if (!supabase || typeof (supabase as any).from !== "function" || !rtAddress) return null;
 
     const candidates = new Set<string>();
     candidates.add(rtAddress);

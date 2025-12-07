@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { useSearchParams } from "next/navigation";
+
 import Image from "next/image";
 import Link from "next/link";
 
@@ -87,9 +87,8 @@ export default function ProfilePage() {
   const { primaryWallet } = useDynamicContext();
   const walletAddress = primaryWallet?.address;
 
-  const searchParams = useSearchParams();
-  const initialTab =
-    (searchParams.get("tab") as "tokens" | "holdings") || "tokens";
+  // Default to the "tokens" tab; we no longer read `tab` from URL query
+  const initialTab: "tokens" | "holdings" = "tokens";
 
   // Holdings state
   const [launchedAssets, setLaunchedAssets] = useState<PortfolioAsset[]>([]);

@@ -1,6 +1,12 @@
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
+import { useState, useEffect, useCallback, useRef } from "react"
+import toast from "react-hot-toast"
+import { isAddress } from "viem"
+import { AlertCircle, Home, ArrowLeft, RefreshCw } from "lucide-react"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Breadcrumb } from "@/components/ui/breadcrumb"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
@@ -9,20 +15,32 @@ import { TokenHeader } from "@/components/token/TokenHeader"
 import { GraduationModal } from "@/components/token/GraduationModal"
 import { ProgressToGraduation } from "@/components/token/ProgressBar"
 import { SwapInterface } from "@/components/swap/SwapInterface"
-import { TradingChart } from "@/components/trading/TradingChart"
 import { TokenDetailSkeleton } from "@/components/token/TokenDetailSkeleton"
-import { TransactionHistory } from "@/components/token/TransactionHistory"
-import { PoolComments } from "@/components/social/PoolComments"
-import HolderDistribution from "@/components/trading/holderDistribution"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, Home, ArrowLeft, RefreshCw } from "lucide-react"
-import { useState, useEffect, useCallback, useRef } from "react"
-import toast from "react-hot-toast"
-import { isAddress } from "viem"
 import { logError, isNetworkError, isRPCError } from "@/lib/errorUtils"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+
+const TradingChart = dynamic(
+  () => import("@/components/trading/TradingChart").then((m) => m.TradingChart),
+  { ssr: false },
+)
+
+const TransactionHistory = dynamic(
+  () => import("@/components/token/TransactionHistory").then((m) => m.TransactionHistory),
+  { ssr: false },
+)
+
+const PoolComments = dynamic(
+  () => import("@/components/social/PoolComments").then((m) => m.PoolComments),
+  { ssr: false },
+)
+
+const HolderDistribution = dynamic(
+  () => import("@/components/trading/holderDistribution"),
+  { ssr: false },
+)
 
 export default function TokenDetailPage() {
   const params = useParams()

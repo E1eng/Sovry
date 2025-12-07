@@ -1,7 +1,15 @@
-import { Redis } from '@upstash/redis'
+// Use dynamic require so Redis is truly optional for this frontend bundle.
+// This avoids hard dependency/type errors when @upstash/redis is not installed.
+let Redis: any
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  Redis = require('@upstash/redis').Redis
+} catch {
+  Redis = null
+}
 
 // Initialize Upstash Redis client with error handling and fallback
-let redis: Redis | null = null;
+let redis: any | null = null;
 let redisEnabled = true;
 
 // Try to initialize Redis, but don't fail if configuration is wrong
@@ -12,7 +20,7 @@ try {
       token: process.env.UPSTASH_REDIS_REST_TOKEN,
       retry: {
         retries: 2,
-        backoff: (retryCount) => 1000 * retryCount,
+        backoff: (retryCount: number) => 1000 * retryCount,
       },
     });
   } else {

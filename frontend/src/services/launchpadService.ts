@@ -221,40 +221,8 @@ export async function estimateIPForTokens(
   }
 }
 
-export async function launchToken(
-  tokenAddress: string,
-  primaryWallet: any
-): Promise<{ success: boolean; txHash?: string; error?: string }> {
-  try {
-    if (!primaryWallet) {
-      throw new Error("No wallet connected");
-    }
-
-    const walletClient = await primaryWallet.getWalletClient();
-    if (!walletClient) {
-      throw new Error("No wallet client available");
-    }
-
-    const data = encodeFunctionData({
-      abi: launchpadAbi,
-      functionName: "launchToken",
-      args: [tokenAddress as Address],
-    });
-
-    const txHash = await walletClient.sendTransaction({
-      to: SOVRY_LAUNCHPAD_ADDRESS as Address,
-      data,
-    });
-
-    return { success: true, txHash };
-  } catch (error) {
-    console.error("Error launching token via Launchpad:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error launching token",
-    };
-  }
-}
+// Note: legacy launchToken helper removed. All new launches go through
+// launchOnBondingCurveDynamic in storyProtocolService.ts.
 
 export async function buy(
   tokenAddress: string,
@@ -904,7 +872,6 @@ export const launchpadService = {
   getEstimatedTokensForIP,
   estimateIPForTokens,
   launchOnBondingCurve: launchOnBondingCurveDynamic,
-  launchToken,
   buy,
   sell,
   simulateBuy,
@@ -916,4 +883,5 @@ export const launchpadService = {
   getCurveParams,
 };
 
-export type { LaunchInfo, RoyaltyLockInfo };
+// LaunchInfo and RoyaltyLockInfo are already exported via their interface/type
+// declarations; no need to re-export them here.
