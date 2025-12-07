@@ -50,11 +50,11 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
     return (
       <Card className="bg-card/80 border-border/80">
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Holder Distribution</CardTitle>
+          <CardTitle className="text-base sm:text-lg font-semibold">Holder Distribution</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <Loader2 className="h-7 w-7 sm:h-8 sm:w-8 animate-spin text-muted-foreground" />
           </div>
         </CardContent>
       </Card>
@@ -65,10 +65,10 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
     return (
       <Card className="bg-card/80 border-border/80">
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Holder Distribution</CardTitle>
+          <CardTitle className="text-base sm:text-lg font-semibold">Holder Distribution</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-red-400">
+          <p className="text-sm sm:text-base text-red-400">
             {error || "Failed to load holder distribution"}
           </p>
         </CardContent>
@@ -80,10 +80,10 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
     return (
       <Card className="bg-card/80 border-border/80">
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Holder Distribution</CardTitle>
+          <CardTitle className="text-base sm:text-lg font-semibold">Holder Distribution</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-8">
+          <p className="text-sm sm:text-base text-muted-foreground text-center py-8">
             No holder data available
           </p>
         </CardContent>
@@ -94,27 +94,27 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
   return (
     <Card className="bg-card/80 border-border/80">
       <CardHeader>
-        <CardTitle className="text-sm sm:text-base font-semibold">Holder Distribution</CardTitle>
+        <CardTitle className="text-base sm:text-lg font-semibold">Holder Distribution</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5 text-xs sm:text-sm">
+      <CardContent className="space-y-5 text-sm sm:text-base">
         {/* Summary Stats */}
         <div className="grid grid-cols-2 gap-4">
           <div className="p-3 sm:p-4 bg-muted/40 rounded-lg border border-border/60">
-            <div className="text-muted-foreground mb-1">Total Holders</div>
-            <div className="text-lg font-semibold text-foreground">{distribution.totalHolders}</div>
+            <div className="text-muted-foreground mb-1 text-xs sm:text-sm">Total Holders</div>
+            <div className="text-lg sm:text-xl font-semibold text-foreground">{distribution.totalHolders}</div>
           </div>
           <div className="p-3 sm:p-4 bg-muted/40 rounded-lg border border-border/60">
-            <div className="text-muted-foreground mb-1">Top 10 Concentration</div>
-            <div className="text-lg font-semibold text-foreground">
+            <div className="text-muted-foreground mb-1 text-xs sm:text-sm">Top 10 Concentration</div>
+            <div className="text-lg sm:text-xl font-semibold text-foreground">
               {distribution.top10Percentage.toFixed(1)}%
             </div>
           </div>
         </div>
 
         {/* Top Holders List */}
-        <div className="space-y-2">
-          <h4 className="text-[11px] sm:text-sm font-semibold text-foreground">Top Holders</h4>
-          <div className="space-y-1 max-h-96 overflow-y-auto">
+        <div className="space-y-2.5">
+          <h4 className="text-sm sm:text-base font-semibold text-foreground">Top Holders</h4>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
             {distribution.holders.map((holder, index) => {
               const isLiquidity =
                 holder.address &&
@@ -126,10 +126,10 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
               return (
                 <div
                   key={holder.address}
-                  className="flex items-center justify-between p-2.5 bg-muted/40 rounded border border-border/60"
+                  className="flex items-center justify-between p-3 sm:p-3.5 bg-muted/40 rounded border border-border/60"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-[12px] font-semibold text-primary">
+                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-xs sm:text-sm font-semibold text-primary">
                       {index + 1}
                     </div>
                     <div className="flex flex-col">
@@ -137,27 +137,27 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
                         href={`${ADDRESS_EXPLORER_URL}${holder.address}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-mono text-foreground flex items-center gap-1 hover:text-sky-300 transition-colors"
+                        className="text-xs sm:text-sm font-mono text-foreground flex items-center gap-1 hover:text-sky-300 transition-colors"
                       >
                         {isLiquidity ? "Sovry Vault" : shortenAddress(holder.address)}
                         {isLiquidity && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-[10px] font-semibold text-emerald-400 border border-emerald-500/30">
+                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-[11px] font-semibold text-emerald-400 border border-emerald-500/30">
                             Liquidity
                           </span>
                         )}
                         {isCreator && !isLiquidity && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-[10px] font-semibold text-blue-400 border border-blue-500/30">
+                          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-[11px] font-semibold text-blue-400 border border-blue-500/30">
                             Creator
                           </span>
                         )}
                       </a>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-xs sm:text-sm text-muted-foreground">
                         {parseFloat(holder.balanceFormatted).toFixed(4)} {unitLabel}
                       </span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[11px] sm:text-sm font-semibold text-foreground">
+                    <div className="text-xs sm:text-sm font-semibold text-foreground">
                       {holder.percentage.toFixed(2)}%
                     </div>
                     <div
@@ -173,7 +173,7 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
 
         {/* Concentration Metrics */}
         <div className="pt-4 border-t border-border/60 space-y-2">
-          <div className="flex justify-between text-[11px] sm:text-sm">
+          <div className="flex justify-between text-xs sm:text-sm">
             <span className="text-muted-foreground">Top 10 Holders</span>
             <span className="font-semibold text-foreground">
               {distribution.top10Percentage.toFixed(1)}%

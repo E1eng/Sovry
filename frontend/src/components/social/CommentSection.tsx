@@ -293,16 +293,16 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
 
   return (
     <Card className="bg-background/80 border-border/80">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold flex items-center justify-between">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-base sm:text-lg font-semibold flex items-center justify-between">
           <span className="flex items-center gap-2">
             <span>Comments</span>
-            <span className="inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <span className="inline-flex items-center justify-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
               {commentCountLabel}
             </span>
           </span>
           {tokenAddress && (
-            <span className="text-[11px] font-normal text-muted-foreground">
+            <span className="text-xs sm:text-sm font-normal text-muted-foreground">
               Thread for {tokenAddress.slice(0, 6)}…{tokenAddress.slice(-4)}
             </span>
           )}
@@ -325,31 +325,31 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
             <Button
               onClick={handlePost}
               disabled={posting || !value.trim()}
-              className="shrink-0"
+              className="shrink-0 text-sm px-4"
             >
               Reply
             </Button>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Connect your wallet to join the discussion.
           </p>
         )}
 
         {error && (
-          <p className="text-xs text-red-400">{error}</p>
+          <p className="text-sm text-red-400">{error}</p>
         )}
 
-        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+        <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
           {loading ? (
-            <p className="text-xs text-muted-foreground">Loading comments...</p>
+            <p className="text-sm text-muted-foreground">Loading comments...</p>
           ) : comments.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No comments yet. Be the first to reply.</p>
+            <p className="text-sm text-muted-foreground">No comments yet. Be the first to reply.</p>
           ) : (
             comments.map((comment) => (
               <div
                 key={comment.id}
-                className="rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-xs space-y-1"
+                className="rounded-lg border border-border/60 bg-card/60 px-4 py-3 text-sm space-y-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -357,24 +357,24 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
                       <img
                         src={comment.avatarUrl}
                         alt="Profile avatar"
-                        className="h-6 w-6 rounded-full object-cover border border-border/60"
+                        className="h-8 w-8 rounded-full object-cover border border-border/60"
                       />
                     ) : (
-                      <div className="h-6 w-6 rounded-full bg-muted text-[10px] flex items-center justify-center text-muted-foreground">
+                      <div className="h-8 w-8 rounded-full bg-muted text-[11px] flex items-center justify-center text-muted-foreground">
                         {(comment.username || shortenAddress(comment.user_address))
                           .charAt(0)
                           .toUpperCase()}
                       </div>
                     )}
-                    <span className="font-medium text-primary">
+                    <span className="font-medium text-primary text-sm sm:text-base">
                       {comment.username || shortenAddress(comment.user_address)}
                     </span>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {formatTime(comment.created_at)}
                   </span>
                 </div>
-                <p className="text-[12px] text-muted-foreground leading-relaxed">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   {comment.content}
                 </p>
               </div>
@@ -389,7 +389,7 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
               size="sm"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="h-7 px-3 text-[11px]"
+              className="h-8 px-4 text-xs sm:text-sm"
             >
               {loadingMore ? "Loading more..." : "Load older comments"}
             </Button>
