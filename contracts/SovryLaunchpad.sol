@@ -54,6 +54,10 @@ interface IPiperXFactory {
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 }
 
+interface IWrappedNative {
+    function withdraw(uint256 amount) external;
+}
+
 // Custom Errors (saves ~2KB vs require strings)
 error InvalidAddress();
 error InvalidAmount();
@@ -61,14 +65,9 @@ error InvalidPrice();
 error InvalidThreshold();
 error CurveInactive();
 error TokenAlreadyLaunched();
-error RTNotWhitelisted();
-error RTAlreadyApproved();
-error RTNotApproved();
 error InsufficientBalance();
 error InsufficientSupply();
-error InsufficientDeposit();
 error InsufficientReserves();
-error InsufficientLiquidity();
 error TokenGraduated();
 error NotAuthorized();
 error TransferFailed();
@@ -77,12 +76,10 @@ error ExpiredDeadline();
 error RoyaltyTooSmall();
 error NoRoyalties();
 error InvalidStep();
-error SupplyExceeded();
 error ParamsTooLarge();
 error UnknownToken();
 error MinListingRequired();
-error CooldownActive();
-error IpIdAlreadySet();
+error PremineLocked();
 
 /**
  * @title SovryLaunchpad
@@ -108,12 +105,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
     /// @notice Creator premine allocation in basis points of total locked supply (500 = 5%)
     uint256 public constant CREATOR_PREMINE_BPS = 500;
-
-    /// @notice Minimum listing percentage (10%)
-    uint256 public constant MIN_LISTING_PERCENT = 10;
-
-    /// @notice Maximum listing percentage (100%)
-    uint256 public constant MAX_LISTING_PERCENT = 100;
 
     /// @notice Basis points denominator (10000 = 100%)
     uint256 public constant BPS_DENOMINATOR = 10000;
@@ -145,14 +136,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /// @dev Reduced to 1e18 wei per unit to prevent overflow
     /// @dev Formula: priceIncrement * soldUnits * amountUnits must stay < 1e77 (uint256 max)
     uint256 public constant MAX_PRICE_INCREMENT = 1e18;
-
-    /// @notice Maximum supply units allowed in bonding curve to prevent overflow
-    /// @dev Prevents soldUnits from exceeding safe bounds for multiplication
-    /// @dev 1e12 units = 1 trillion wrapper tokens (extremely large)
-    uint256 public constant MAX_SUPPLY_UNITS = 1e12;
-
-    /// @notice Maximum percentage of the initial curve supply that can be purchased in a single transaction (in basis points)
-    uint256 public constant MAX_BUY_PER_TX_BPS = 500; // 5%
 
     /// @notice Default graduation threshold in wei (e.g., $69,000 worth of native token)
     uint256 public graduationThreshold;
@@ -232,69 +215,32 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /// @notice Mapping from wrapper token to RT address
     mapping(address => address) public wrapperToRt;
 
-    /// @notice Mapping from wrapper token address to Story IP Asset ID (ipId)
-    mapping(address => address) public wrapperIpId;
-
-    /// @notice Mapping from user address to wrapper token to locked amount
-    mapping(address => mapping(address => uint256)) public userLockedAmounts;
-
     /// @notice Mapping from user address to wrapper token to pending buyback amount
     mapping(address => uint256) public pendingBuybacks;
 
     /// @notice Optional designated harvester per wrapper token
     mapping(address => address) public tokenHarvesters;
 
-    /// @notice Array of all launched wrapper token addresses
-    address[] public allLaunchedTokens;
-
-    /// @notice Timestamp when a given wrapper token first met the graduation threshold; used to enforce GRADUATION_DELAY
-    mapping(address => uint256) public graduationTimestamp;
-
     /// @notice Total native reserves held by all bonding curves
     uint256 public totalCurveReserves;
-
-    /// @notice Mapping of approved RT tokens for security
-    mapping(address => bool) public approvedRTs;
-
-    /// @notice Array of approved RT token addresses
-    address[] public approvedRTsList;
 
     /// @notice Last harvest timestamp for each wrapper token (for griefing protection)
     mapping(address => uint256) public lastHarvestTime;
 
-    /// @notice Deposit tracking for prefunded RT tokens: user => (rtToken => amount)
-    mapping(address => mapping(address => uint256)) public userDeposits;
+    /// @notice Locked creator premine amount per wrapper token (wrapper smallest units)
+    mapping(address => uint256) public creatorPremineLocked;
 
-    /// @notice Purchase cooldown: user => (wrapperToken => lastPurchaseTime)
-    mapping(address => mapping(address => uint256)) public lastPurchaseTime;
+    /// @notice Unlock timestamp for creator premine per wrapper token
+    mapping(address => uint256) public creatorPremineUnlockTime;
 
-    /// @notice Daily purchase tracking: user => (wrapperToken => amount purchased today)
-    mapping(address => mapping(address => uint256)) public dailyPurchased;
-
-    /// @notice Last reset day for daily purchase tracking: user => (wrapperToken => day)
-    mapping(address => mapping(address => uint256)) public lastResetDay;
-
-    /// @notice Purchase cooldown period to prevent rapid dust attacks (in seconds)
-    uint256 public constant PURCHASE_COOLDOWN = 5 seconds;
-
-    /// @notice Event emitted when RT tokens are deposited for prefunding
-    /// @param user Address that deposited tokens
-    /// @param rtToken Address of the RT token
-    /// @param amount Amount deposited
-    event RTDeposited(address indexed user, address indexed rtToken, uint256 amount);
-
-    /// @notice Event emitted when deposited RT tokens are withdrawn
-    /// @param user Address that withdrew tokens
-    /// @param rtToken Address of the RT token
-    /// @param amount Amount withdrawn
-    event RTWithdrawn(address indexed user, address indexed rtToken, uint256 amount);
-
-    /// @notice Event emitted when a token is launched
-    /// @param rt Address of the royalty token
-    /// @param wrapper Address of the wrapper token
-    /// @param creator Address that launched the token
-    /// @param amount Amount of RT locked
-    /// @param launchTime Timestamp of launch
+    /**
+     * @notice Event emitted when a token is launched
+     * @param rt Address of the royalty token
+     * @param wrapper Address of the wrapper token
+     * @param creator Address that launched the token
+     * @param amount Amount of RT locked
+     * @param launchTime Timestamp of launch
+     */
     event TokenLaunched(
         address indexed rt,
         address indexed wrapper,
@@ -386,50 +332,15 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         uint256 amount
     );
 
-    /// @notice Event emitted when additional RT is locked
-    /// @param wrapperToken Address of the wrapper token
-    /// @param user Address that locked additional RT
-    /// @param amount Additional amount locked
-    event AdditionalRTLocked(
-        address indexed wrapperToken,
-        address indexed user,
-        uint256 amount
-    );
-
-    /// @notice Event emitted when the global graduation threshold is updated
-    /// @param newThreshold New graduation threshold value in wei
-    event GraduationThresholdUpdated(uint256 newThreshold);
-
-    /// @notice Event emitted when the PiperX router address is updated
-    /// @param newRouter New PiperX router address
-    event PiperXRouterUpdated(address newRouter);
-
-    /// @notice Event emitted when the treasury address is updated
-    /// @param newTreasury New treasury address
-    event TreasuryUpdated(address newTreasury);
-
-    /// @notice Event emitted when a harvester is set or updated for a wrapper token
-    /// @param wrapperToken Address of the wrapper token
-    /// @param harvester Address authorized to harvest for this token (can be zero address to clear)
-    event HarvesterUpdated(address indexed wrapperToken, address harvester);
-
-    /// @notice Event emitted when an RT token is approved for launching
-    /// @param rtToken Address of the approved RT token
-    event RTApproved(address indexed rtToken);
-
-    /// @notice Event emitted when an RT token is removed from the approved list
-    /// @param rtToken Address of the removed RT token
-    event RTRemoved(address indexed rtToken);
-
     /// @notice Event emitted when wrapper token ownership is renounced upon graduation
     /// @param wrapperToken Address of the wrapper token
     /// @dev Indicates the token is now fully decentralized and trustless
     event OwnershipRenounced(address indexed wrapperToken);
 
-    /// @notice Event emitted when wrapper token ipId is set
+    /// @notice Event emitted when a harvester is set or updated for a wrapper token
     /// @param wrapperToken Address of the wrapper token
-    /// @param ipId Address of the ipId
-    event WrapperIpIdSet(address indexed wrapperToken, address indexed ipId);
+    /// @param harvester Address authorized to harvest for this token (can be zero address to clear)
+    event HarvesterUpdated(address indexed wrapperToken, address harvester);
 
     /**
      * @notice Constructor initializes the launchpad
@@ -462,6 +373,25 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     }
 
     /**
+     * @notice Sets or clears the designated harvester for a given wrapper token
+     * @param wrapperToken Address of the wrapper token
+     * @param harvester Address authorized to call harvest for this token (zero address to clear)
+     * @dev Can be called by the global owner or the specific token creator
+     */
+    function setTokenHarvester(address wrapperToken, address harvester) external {
+        LaunchedToken storage token = launchedTokens[wrapperToken];
+        if (token.wrapperAddress == address(0)) revert UnknownToken();
+
+        // Allow contract owner or token creator to manage harvester
+        if (msg.sender != owner() && msg.sender != token.creator) {
+            revert NotAuthorized();
+        }
+
+        tokenHarvesters[wrapperToken] = harvester;
+        emit HarvesterUpdated(wrapperToken, harvester);
+    }
+
+    /**
      * @notice Internal helper to consolidate launch logic
      * @dev Reduces bytecode by extracting common logic from launchToken & launchTokenPrefunded
      */
@@ -482,8 +412,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         // Update mappings
         rtToWrapper[rtAddress] = wrapperAddress;
         wrapperToRt[wrapperAddress] = rtAddress;
-        userLockedAmounts[creator][wrapperAddress] = amount;
-        allLaunchedTokens.push(wrapperAddress);
 
         // Calculate distributions
         uint256 premineRt = (amount * CREATOR_PREMINE_BPS) / BPS_DENOMINATOR;
@@ -565,107 +493,22 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
         
         SovryToken(wrapperAddress).mint(address(this), totalWrapped);
         if (premineWrapped > 0) {
-            IERC20(wrapperAddress).safeTransfer(msg.sender, premineWrapped);
+            creatorPremineLocked[wrapperAddress] = premineWrapped;
+            creatorPremineUnlockTime[wrapperAddress] = block.timestamp + 7 days;
         }
     }
 
-    /**
-     * @notice Launches a new token using RT that has been deposited via depositRT()
-     * @param rtAddress Address of the Royalty Token to lock
-     * @param amount Amount of RT to lock
-     * @param name Name for the wrapper token
-     * @param symbol Symbol for the wrapper token
-     * @param basePrice Base price for the bonding curve (in wei)
-     * @param priceIncrement Price increment per token unit (in wei)
-     * @dev This variant uses the deposit tracking system to prevent fund theft
-     * @dev Users must first call depositRT() to track their prefunded tokens
-     * @dev Only the user who deposited can launch with those tokens
-     * @dev Preserves the 10 RT minimum listing requirement
-     * @dev Security properties (RT locked in vault, 75/20/5 split, anti-rug emergencyWithdraw)
-     *      remain the same as in launchToken.
-     */
-    function launchTokenPrefunded(
-        address rtAddress,
-        uint256 amount,
-        string calldata name,
-        string calldata symbol,
-        uint256 basePrice,
-        uint256 priceIncrement
-    ) external nonReentrant whenNotPaused {
-        if (rtAddress == address(0)) revert InvalidAddress();
+    function claimCreatorPremine(address wrapperToken) external nonReentrant whenNotPaused {
+        LaunchedToken storage token = launchedTokens[wrapperToken];
+        if (token.wrapperAddress == address(0)) revert UnknownToken();
+        if (msg.sender != token.creator) revert NotAuthorized();
+
+        uint256 amount = creatorPremineLocked[wrapperToken];
         if (amount == 0) revert InvalidAmount();
-        if (basePrice == 0 || basePrice > MAX_BASE_PRICE) revert InvalidPrice();
-        if (priceIncrement == 0 || priceIncrement > MAX_PRICE_INCREMENT) revert InvalidPrice();
-        if (rtToWrapper[rtAddress] != address(0)) revert TokenAlreadyLaunched();
-        if (userDeposits[msg.sender][rtAddress] < amount) revert InsufficientDeposit();
+        if (block.timestamp < creatorPremineUnlockTime[wrapperToken]) revert PremineLocked();
 
-        // Deduct from user's deposit balance
-        userDeposits[msg.sender][rtAddress] -= amount;
-
-        // Enforce the same fixed minimum listing amount as launchToken
-        if (amount < MIN_LISTING_AMOUNT) revert MinListingRequired();
-
-        // Use core helper for common logic
-        address wrapperAddress = _launchCore(rtAddress, amount, name, symbol, basePrice, priceIncrement, msg.sender);
-
-        // Mint total supply and transfer premine
-        uint256 totalWrapped = amount * WRAP_PER_RT;
-        uint256 premineWrapped = (amount * CREATOR_PREMINE_BPS * WRAP_PER_RT) / BPS_DENOMINATOR;
-        
-        SovryToken(wrapperAddress).mint(address(this), totalWrapped);
-        if (premineWrapped > 0) {
-            IERC20(wrapperAddress).safeTransfer(msg.sender, premineWrapped);
-        }
-    }
-
-    /**
-     * @notice Deposits RT tokens for prefunding a token launch
-     * @param rtToken Address of the RT token to deposit
-     * @param amount Amount of RT tokens to deposit
-     * @dev User must approve this contract to transfer tokens first
-     * @dev Tracks deposit in userDeposits mapping for later use in launchTokenPrefunded
-     */
-    function depositRT(address rtToken, uint256 amount) external nonReentrant whenNotPaused {
-        if (rtToken == address(0)) revert InvalidAddress();
-        if (amount == 0) revert InvalidAmount();
-
-        // Transfer RT from user to contract
-        IERC20(rtToken).safeTransferFrom(msg.sender, address(this), amount);
-
-        // Track deposit for this user
-        userDeposits[msg.sender][rtToken] += amount;
-
-        emit RTDeposited(msg.sender, rtToken, amount);
-    }
-
-    /**
-     * @notice Withdraws deposited RT tokens that haven't been used for launching
-     * @param rtToken Address of the RT token to withdraw
-     * @param amount Amount of RT tokens to withdraw
-     * @dev Only withdraws from userDeposits, not from launched token reserves
-     */
-    function withdrawDeposit(address rtToken, uint256 amount) external nonReentrant {
-        if (rtToken == address(0)) revert InvalidAddress();
-        if (amount == 0) revert InvalidAmount();
-        if (userDeposits[msg.sender][rtToken] < amount) revert InsufficientDeposit();
-
-        // Update deposit balance
-        userDeposits[msg.sender][rtToken] -= amount;
-
-        // Transfer RT back to user
-        IERC20(rtToken).safeTransfer(msg.sender, amount);
-
-        emit RTWithdrawn(msg.sender, rtToken, amount);
-    }
-
-    /**
-     * @notice Gets the deposit balance for a user and RT token
-     * @param user Address of the user
-     * @param rtToken Address of the RT token
-     * @return Deposit balance in smallest units
-     */
-    function getDepositBalance(address user, address rtToken) external view returns (uint256) {
-        return userDeposits[user][rtToken];
+        creatorPremineLocked[wrapperToken] = 0;
+        IERC20(wrapperToken).safeTransfer(msg.sender, amount);
     }
 
     /**
@@ -866,8 +709,10 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
         BondingCurve storage curve = bondingCurves[wrapperToken];
 
-        // Get balance before claiming
-        uint256 balanceBefore = address(this).balance;
+        uint256 nativeBefore = address(this).balance;
+        uint256 wipBefore = wipToken != address(0)
+            ? IERC20(wipToken).balanceOf(address(this))
+            : 0;
 
         // Claim royalties from Story Protocol
         // Royalties are earned by RT token holders and distributed through this pool
@@ -879,10 +724,30 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
             currencyTokens
         );
 
-        uint256 balanceAfter = address(this).balance;
-        if (balanceAfter <= balanceBefore) revert NoRoyalties();
+        uint256 nativeMid = address(this).balance;
+        uint256 wipAfter = wipToken != address(0)
+            ? IERC20(wipToken).balanceOf(address(this))
+            : 0;
 
-        uint256 claimedAmount = balanceAfter - balanceBefore;
+        uint256 nativeFromClaim = nativeMid > nativeBefore
+            ? nativeMid - nativeBefore
+            : 0;
+        uint256 wipDelta = wipAfter > wipBefore ? wipAfter - wipBefore : 0;
+
+        uint256 nativeFromUnwrap;
+
+        if (wipDelta > 0 && wipToken != address(0)) {
+            uint256 unwrapBefore = address(this).balance;
+            IWrappedNative(wipToken).withdraw(wipDelta);
+            uint256 unwrapAfter = address(this).balance;
+            nativeFromUnwrap = unwrapAfter > unwrapBefore
+                ? unwrapAfter - unwrapBefore
+                : 0;
+        }
+
+        uint256 claimedAmount = nativeFromClaim + nativeFromUnwrap;
+        
+        if (claimedAmount == 0) revert NoRoyalties();
         
         // GRIEFING FIX: Require minimum royalty amount to prevent dust attacks
         // Ensures only meaningful harvests update the timestamp
@@ -1432,11 +1297,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
                 revert("Cannot withdraw wrapper tokens");
             }
 
-            // Disallow withdrawing underlying RT vault tokens
-            if (rtToWrapper[token] != address(0)) {
-                revert("Cannot withdraw RT vault tokens");
-            }
-
             uint256 withdrawAmount = amount == 0 ? erc20.balanceOf(address(this)) : amount;
             erc20.safeTransfer(to, withdrawAmount);
         }
@@ -1456,22 +1316,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
      */
     function unpause() external onlyOwner {
         _unpause();
-    }
-
-    /**
-     * @notice Gets total number of launched tokens
-     * @return Count of launched tokens
-     */
-    function getLaunchedTokenCount() external view returns (uint256) {
-        return allLaunchedTokens.length;
-    }
-
-    /**
-     * @notice Gets all launched token addresses
-     * @return Array of wrapper token addresses
-     */
-    function getAllLaunchedTokens() external view returns (address[] memory) {
-        return allLaunchedTokens;
     }
 
     /**
