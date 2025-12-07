@@ -51,6 +51,7 @@ export interface IPAsset {
   owner: string;
   royaltyVaultAddress: string;
   hasRoyaltyTokens: boolean;
+  metadataUri?: string;
   createdAt: string;
 }
 
@@ -572,6 +573,7 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
                 royaltyVaultAddress ||
                 "0x0000000000000000000000000000000000000000",
               hasRoyaltyTokens,
+              metadataUri: asset.ipaMetadataUri || asset.uri || undefined,
               createdAt: asset.createdAt || new Date().toISOString(),
             };
           })

@@ -367,7 +367,8 @@ export default function CreatePage() {
             symbol: symbolForLaunch,
             description: launchDescription || null,
             image_url: imageUrl || null,
-            metadata_uri: metadataUri,
+            // Store original IP metadata URI from Story, not wrapper metadata
+            metadata_uri: ipAsset.metadataUri || null,
             twitter_url: twitterUrl.trim() || null,
             telegram_url: telegramUrl.trim() || null,
             website_url: websiteUrl.trim() || null,
