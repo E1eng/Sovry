@@ -130,7 +130,7 @@ function NowTrendingSection() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"explore" | "watchlist">("explore");
+  const [activeTab, setActiveTab] = useState<"explore" | "graduated">("explore");
   const [selectedFilter, setSelectedFilter] = useState<FilterOption>("live");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { launches, loading } = useLaunches(24);
@@ -150,6 +150,10 @@ export default function Home() {
   }, [launches.length]);
 
   const heroSample = launches[heroIndex];
+
+  const liveLaunches = launches.filter((launch) => !launch.graduated);
+  const graduatedLaunches = launches.filter((launch) => launch.graduated);
+  const visibleLaunches = activeTab === "explore" ? liveLaunches : graduatedLaunches;
 
   return (
     <>
@@ -189,15 +193,15 @@ export default function Home() {
               Explore
             </button>
             <button
-              onClick={() => setActiveTab("watchlist")}
+              onClick={() => setActiveTab("graduated")}
               className={cn(
                 "text-base font-medium transition-colors",
-                activeTab === "watchlist"
+                activeTab === "graduated"
                   ? "text-zinc-50"
                   : "text-zinc-500 hover:text-zinc-300"
               )}
             >
-              Watchlist
+              Graduated
             </button>
           </div>
         </div>
@@ -271,18 +275,20 @@ export default function Home() {
               <span className="text-sm text-zinc-400">Loading tokens...</span>
             </div>
           </div>
-        ) : launches.length === 0 ? (
+        ) : visibleLaunches.length === 0 ? (
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 text-center">
-            <p className="text-sm text-zinc-400">No tokens found yet.</p>
+            <p className="text-sm text-zinc-400">
+              {activeTab === "explore" ? "No tokens found yet." : "No graduated tokens yet."}
+            </p>
           </div>
         ) : (
-          <div className={cn(
-            "grid gap-3",
-            viewMode === "grid"
-              ? "sm:grid-cols-2 lg:grid-cols-3"
-              : "grid-cols-1"
-          )}>
-            {launches.map((launch) => (
+          <div
+            className={cn(
+              "grid gap-3",
+              viewMode === "grid" ? "sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
+            )}
+          >
+            {visibleLaunches.map((launch) => (
               <AssetCard key={launch.token || launch.id} launch={launch} />
             ))}
           </div>

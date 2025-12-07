@@ -19,16 +19,16 @@ export function Sidebar() {
   const { primaryWallet } = useDynamicContext();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-16 hover:w-64 flex-col bg-black/50 backdrop-blur-md border-r border-border transition-[width] duration-200 group md:flex">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-16 hover:w-64 flex-col bg-black/50 backdrop-blur-md border-r border-zinc-900/70 transition-[width] duration-200 group md:flex">
       <div className="flex h-full flex-col py-5 w-full">
         {/* Logo */}
-        <div className="px-4 mb-7">
+        <div className="px-0 mb-7">
           <Link
             href="/"
-            className="flex items-center rounded-2xl px-1 py-1.5 transition-all duration-200 justify-center gap-0 group-hover:justify-start group-hover:gap-3.5"
+            className="flex items-center rounded-2xl px-3.5 py-1.5 transition-all duration-200 justify-start gap-3.5"
           >
-            <div className="w-11 h-11 rounded-2xl bg-black/40 backdrop-blur-sm border border-zinc-800/50 flex items-center justify-center shadow-inner flex-shrink-0">
-              <SovrySymbol size={28} className="text-foreground" />
+            <div className="w-10 h-10 rounded-2xl bg-black/40 backdrop-blur-sm border border-zinc-800/50 flex items-center justify-center shadow-inner flex-shrink-0">
+              <SovrySymbol size={24} className="text-foreground" />
             </div>
             <div className="flex flex-col overflow-hidden ml-1.5 hidden group-hover:flex">
               <span className="text-foreground font-semibold leading-tight text-base whitespace-nowrap">
@@ -42,7 +42,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 space-y-1.5 px-3">
+        <nav className="flex-1 space-y-1.5 px-0">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -52,16 +52,20 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center rounded-2xl px-3.5 py-2.5 text-[15px] font-semibold transition-all duration-200",
-                  // When sidebar is collapsed (no hover), center icons with no label.
-                  // When expanded (group-hover), left-align with gap and label.
-                  "justify-center gap-0 group-hover:justify-start group-hover:gap-3.5",
+                  "flex items-center rounded-2xl px-3.5 py-2.5 text-[15px] font-semibold transition-all duration-200 justify-start gap-3.5",
                   isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-card/50 hover:text-foreground"
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card/50"
                 )}
               >
-                <Icon className="h-6 w-6 flex-shrink-0" />
+                <div
+                  className={cn(
+                    "h-10 w-10 flex items-center justify-center flex-shrink-0 rounded-2xl",
+                    isActive ? "bg-primary/10 ring-1 ring-primary/60" : ""
+                  )}
+                >
+                  <Icon className="h-6 w-6" />
+                </div>
                 <span
                   className={cn(
                     "whitespace-nowrap text-[15px] ml-2 hidden group-hover:inline-flex",
@@ -76,9 +80,9 @@ export function Sidebar() {
         </nav>
 
         {/* Wallet summary (aligned with nav items) */}
-        <div className="mt-auto border-t border-border px-4 pt-4 pb-3 flex flex-col gap-3">
+        <div className="mt-auto border-t border-border px-0 pt-4 pb-3 flex flex-col gap-3">
           {primaryWallet && (
-            <div className="flex items-center mb-1 justify-center gap-0 group-hover:justify-start group-hover:gap-3">
+            <div className="flex items-center mb-1 justify-start gap-3.5 px-3.5">
               {/* Icon bubble always visible, like nav icons */}
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-amber-400 to-primary/80 text-sm font-bold text-background flex-shrink-0">
                 {primaryWallet.address?.slice(2, 4).toUpperCase()}
