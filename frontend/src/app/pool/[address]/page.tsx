@@ -399,7 +399,7 @@ export default function TokenDetailPage() {
                 animation: "fadeIn 0.5s ease-out 450ms both",
               }}
             >
-              <PoolComments tokenAddress={address} />
+              <PoolComments tokenAddress={address} tokenName={tokenName} />
             </div>
 
             {/* Top Holders - Last on mobile */}
@@ -489,7 +489,7 @@ export default function TokenDetailPage() {
                   animation: "fadeIn 0.5s ease-out 260ms both",
                 }}
               >
-                <PoolComments tokenAddress={address} />
+                <PoolComments tokenAddress={address} tokenName={tokenName} />
               </div>
             </div>
 

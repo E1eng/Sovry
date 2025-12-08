@@ -328,7 +328,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                     <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
                       <div className="text-[10px] uppercase tracking-wide text-zinc-500">Supply Locked</div>
                       <div className="text-[11px] text-zinc-300">
-                        {formatAmount(wrapperMeta.totalLocked, 6)} RT
+                        {formatAmount(wrapperMeta.totalLocked, 6, 0)} RT
                       </div>
                     </div>
                     <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">

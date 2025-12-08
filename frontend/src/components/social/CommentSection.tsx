@@ -18,6 +18,7 @@ const PAGE_SIZE = 20;
 
 interface CommentSectionProps {
   tokenAddress: string;
+  tokenName?: string;
 }
 
 const shortenAddress = (addr: string) =>
@@ -32,7 +33,7 @@ const formatTime = (iso: string) => {
   }
 };
 
-export default function CommentSection({ tokenAddress }: CommentSectionProps) {
+export default function CommentSection({ tokenAddress, tokenName }: CommentSectionProps) {
   const { primaryWallet } = useDynamicContext();
   const walletAddress = primaryWallet?.address;
 
@@ -76,10 +77,14 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
 
         let profilesByAddress: Record<string, Profile> = {};
         if (uniqueUsers.length > 0) {
-          const { data: profilesData } = await supabase
+          const { data: profilesData, error: profilesError } = await supabase
             .from("profiles")
-            .select("wallet_address, username, bio, avatar_url, created_at")
+            .select("wallet_address, username, bio, avatar_url")
             .in("wallet_address", uniqueUsers);
+
+          if (profilesError) {
+            console.error("Error loading profiles for comments", profilesError);
+          }
 
           (profilesData || []).forEach((p: any) => {
             profilesByAddress[(p.wallet_address as string).toLowerCase()] = p as Profile;
@@ -186,10 +191,14 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
 
       let profilesByAddress: Record<string, Profile> = {};
       if (uniqueUsers.length > 0) {
-        const { data: profilesData } = await supabase
+        const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
-          .select("wallet_address, username, bio, avatar_url, created_at")
+          .select("wallet_address, username, bio, avatar_url")
           .in("wallet_address", uniqueUsers);
+
+        if (profilesError) {
+          console.error("Error loading more profiles for comments", profilesError);
+        }
 
         (profilesData || []).forEach((p: any) => {
           profilesByAddress[(p.wallet_address as string).toLowerCase()] = p as Profile;
@@ -303,7 +312,7 @@ export default function CommentSection({ tokenAddress }: CommentSectionProps) {
           </span>
           {tokenAddress && (
             <span className="text-xs sm:text-sm font-normal text-muted-foreground">
-              Thread for {tokenAddress.slice(0, 6)}…{tokenAddress.slice(-4)}
+              Thread for {tokenName || `${tokenAddress.slice(0, 6)}…${tokenAddress.slice(-4)}`}
             </span>
           )}
         </CardTitle>

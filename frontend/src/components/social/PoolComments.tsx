@@ -3,12 +3,13 @@
 import CommentSection from "@/components/social/CommentSection";
 
 interface PoolCommentsProps {
+  // Wrapper token address used as the thread key in Supabase
   tokenAddress: string;
+  // Optional human-readable token name/ticker for UI labels
+  tokenName?: string;
 }
 
-// Simple local-only comment card for a pool. This is intentionally
-// isolated so it can be wired to a real database later without
-// touching the Recent Activity UI.
-export function PoolComments({ tokenAddress }: PoolCommentsProps) {
-  return <CommentSection tokenAddress={tokenAddress} />;
+// Simple comment card for a pool, wired to Supabase-based threads.
+export function PoolComments({ tokenAddress, tokenName }: PoolCommentsProps) {
+  return <CommentSection tokenAddress={tokenAddress} tokenName={tokenName} />;
 }

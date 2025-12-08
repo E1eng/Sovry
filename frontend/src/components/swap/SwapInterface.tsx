@@ -200,7 +200,9 @@ function SwapInterfaceComponent({
             return
           }
 
-          const paramsForSell = curveParams || (await launchpadService.getCurveParams(tokenAddress))
+          // Always fetch fresh curve params for sell quotes so we reflect
+          // the latest on-chain state (tokens sold, currentSupply, etc.)
+          const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
           if (!paramsForSell) {
             setToAmount("")
             setPriceImpact(null)
@@ -251,7 +253,7 @@ function SwapInterfaceComponent({
       clearTimeout(debounceTimerRef.current)
     }
 
-    // Set new timer (1s debounce for estimation)
+    // Set timer (0.5s debounce for estimation)
     debounceTimerRef.current = setTimeout(() => {
       if (fromAmount) {
         calculateOutput(fromAmount, activeTab === "buy")
@@ -260,7 +262,7 @@ function SwapInterfaceComponent({
         setPriceImpact(null)
         setExchangeRate("")
       }
-    }, 1000)
+    }, 500)
 
     // Cleanup
     return () => {

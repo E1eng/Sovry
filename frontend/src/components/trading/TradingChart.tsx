@@ -111,13 +111,15 @@ function TradingChartComponent({
           volume += v
         }
 
-        const ohlc = tradesToOHLCData(trades, 60)
+        // Compute 24h change directly from raw trade prices so we don't
+        // accidentally collapse all trades into a single OHLC bucket and
+        // show 0.00% when there was real movement.
         let changePct: number | null = null
-        if (ohlc.length > 0) {
-          const firstCandle = ohlc[0]
-          const lastCandle = ohlc[ohlc.length - 1]
-          if (firstCandle.close && firstCandle.close > 0) {
-            changePct = ((lastCandle.close - firstCandle.close) / firstCandle.close) * 100
+        if (trades.length > 0) {
+          const firstPrice = trades[0].price
+          const lastPrice = trades[trades.length - 1].price
+          if (firstPrice && firstPrice > 0) {
+            changePct = ((lastPrice - firstPrice) / firstPrice) * 100
           }
         }
 
