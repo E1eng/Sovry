@@ -192,6 +192,19 @@ export default function CreatePage() {
         toast.success("Royalty tokens transferred to your wallet", {
           duration: 3500,
         });
+
+        // Refresh on-chain royalty token balance for this IP and update local state
+        try {
+          const updatedBalance = await getTokenBalance(walletAddress, ipAsset.royaltyVaultAddress);
+          if (updatedBalance) {
+            setTokenBalances((prev) => ({
+              ...prev,
+              [ipAsset.ipId]: updatedBalance,
+            }));
+          }
+        } catch (balanceError) {
+          console.error("Failed to refresh royalty token balance after transfer", balanceError);
+        }
       } else {
         setMintStatus("error");
         setTransferStatus("error");
@@ -1050,7 +1063,7 @@ export default function CreatePage() {
       {/* Register IP Link */}
       <div className="mt-8 text-center">
         <Link
-          href="https://story.foundation/"
+          href="https://portal.story.foundation/"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 text-sovry-green hover:text-sovry-green/80 hover:underline transition-colors"

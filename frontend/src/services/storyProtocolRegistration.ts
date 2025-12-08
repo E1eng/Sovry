@@ -2,12 +2,23 @@
 // For creating new IP assets and getting royalty tokens
 
 import { StoryClient, PILFlavor, WIP_TOKEN_ADDRESS } from '@story-protocol/core-sdk';
-import { createPublicClient, http, Address, custom } from 'viem';
+import { createPublicClient, http, Address, custom, encodeFunctionData } from 'viem';
+import { erc20Abi } from 'viem';
 import { pinJSONToIPFS, pinFileToIPFS } from './pinataService';
 
 // Environment variables
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
 const SPG_NFT_CONTRACT = '0xc32A8a0FF3beDDDa58393d022aF433e78739FAbc'; // Aeneid Testnet
+
+// Story RoyaltyModule configuration (Aeneid)
+const STORY_ROYALTY_MODULE_ADDRESS =
+  process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS ||
+  '0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086';
+
+// Demo royalty amount (in WIP wei) for quick harvest demos
+const DEMO_ROYALTY_AMOUNT_WEI = BigInt(
+  process.env.NEXT_PUBLIC_DEMO_ROYALTY_AMOUNT_WEI || '100000000000000000',
+);
 
 // Create public client for Story Protocol
 function createPublicClientForStory() {
@@ -269,6 +280,146 @@ export async function registerIPAssetWithPolling(
       success: false,
       error: errorMessage,
       status: 'error',
+    };
+  }
+}
+
+// Inject a small amount of WIP royalty directly into a Story IP's royalty vault
+// using the RoyaltyModule. This is intended for demoing harvest flows on fresh IPs.
+export async function injectDemoRoyaltyWIP(
+  ipId: string,
+  primaryWallet: any,
+): Promise<{
+  success: boolean;
+  approveTxHash?: string;
+  txHash?: string;
+  error?: string;
+  wrapTxHash?: string;
+}> {
+  try {
+    console.log('💸 Injecting demo WIP royalty for IP:', ipId);
+
+    if (!primaryWallet || !primaryWallet.address) {
+      throw new Error('Wallet not connected');
+    }
+
+    if (!ipId || ipId === '0x0000000000000000000000000000000000000000') {
+      throw new Error('Invalid IP ID provided');
+    }
+
+    const walletClient = await primaryWallet.getWalletClient();
+    if (!walletClient) {
+      throw new Error('No wallet client available');
+    }
+
+    const userAddress = primaryWallet.address as Address;
+    const publicClient = createPublicClientForStory();
+
+    const targetAmount = DEMO_ROYALTY_AMOUNT_WEI;
+
+    const wipBalance = await publicClient.readContract({
+      address: WIP_TOKEN_ADDRESS as Address,
+      abi: erc20Abi,
+      functionName: 'balanceOf',
+      args: [userAddress],
+    }) as bigint;
+
+    let amount = targetAmount;
+
+    if (wipBalance < targetAmount) {
+      const missing = targetAmount - wipBalance;
+
+      const iwipAbi = [
+        {
+          inputs: [],
+          name: 'deposit',
+          outputs: [],
+          stateMutability: 'payable',
+          type: 'function',
+        },
+      ] as const;
+
+      const depositData = encodeFunctionData({
+        abi: iwipAbi,
+        functionName: 'deposit',
+        args: [],
+      });
+
+      const depositTxHash = await walletClient.sendTransaction({
+        to: WIP_TOKEN_ADDRESS as Address,
+        data: depositData,
+        value: missing,
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash: depositTxHash as `0x${string}` });
+
+      const newBalance = await publicClient.readContract({
+        address: WIP_TOKEN_ADDRESS as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [userAddress],
+      }) as bigint;
+
+      if (newBalance < targetAmount) {
+        throw new Error('Insufficient WIP balance after wrapping IP');
+      }
+    }
+
+    // 1) Approve the RoyaltyModule to pull WIP from the user wallet
+    const approveData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'approve',
+      args: [STORY_ROYALTY_MODULE_ADDRESS as Address, amount],
+    });
+
+    const approveTxHash = await walletClient.sendTransaction({
+      to: WIP_TOKEN_ADDRESS as Address,
+      data: approveData,
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: approveTxHash as `0x${string}` });
+
+    // 2) Call RoyaltyModule.payRoyaltyOnBehalf(childIpId, payer, currencyToken, amount)
+    const royaltyModuleAbi = [
+      {
+        inputs: [
+          { internalType: 'address', name: 'childIpId', type: 'address' },
+          { internalType: 'address', name: 'payer', type: 'address' },
+          { internalType: 'address', name: 'currencyToken', type: 'address' },
+          { internalType: 'uint256', name: 'amount', type: 'uint256' },
+        ],
+        name: 'payRoyaltyOnBehalf',
+        outputs: [],
+        stateMutability: 'nonpayable',
+        type: 'function',
+      },
+    ] as const;
+
+    const payData = encodeFunctionData({
+      abi: royaltyModuleAbi,
+      functionName: 'payRoyaltyOnBehalf',
+      args: [ipId as Address, userAddress, WIP_TOKEN_ADDRESS as Address, amount],
+    });
+
+    const txHash = await walletClient.sendTransaction({
+      to: STORY_ROYALTY_MODULE_ADDRESS as Address,
+      data: payData,
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+
+    console.log('✅ Demo royalty injected! Tx:', txHash);
+
+    return {
+      success: true,
+      approveTxHash,
+      txHash,
+    };
+  } catch (error) {
+    console.error('❌ Error injecting demo WIP royalty:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to inject royalties',
     };
   }
 }

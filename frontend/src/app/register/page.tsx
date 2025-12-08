@@ -14,6 +14,7 @@ import {
   transformFormDataToMetadata,
   registerIPAssetWithPolling,
   mintLicenseToken,
+  injectDemoRoyaltyWIP,
 } from "@/services/storyProtocolRegistration";
 
 export default function StoryIPPage() {
@@ -29,6 +30,7 @@ export default function StoryIPPage() {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [licenseTxHash, setLicenseTxHash] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [injectingRoyalty, setInjectingRoyalty] = useState(false);
 
   const handleCreateIP = async () => {
     try {
@@ -93,7 +95,7 @@ export default function StoryIPPage() {
 
       // Give Story some time to index / recognize the newly registered IP
       setStatus("Waiting for Story to recognize the new IP (indexing)...");
-      await new Promise((resolve) => setTimeout(resolve, 15000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Use the license terms created during registration (PILFlavor.commercialRemix)
       const termsId = registration.licenseTermsId || "1";
@@ -112,6 +114,37 @@ export default function StoryIPPage() {
       setStatus(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInjectRoyalty = async () => {
+    try {
+      setError(null);
+
+      if (!primaryWallet) {
+        setShowAuthFlow(true);
+        throw new Error("Please connect your wallet first");
+      }
+
+      if (!ipId) {
+        throw new Error("No IP ID found. Create an IP first.");
+      }
+
+      setInjectingRoyalty(true);
+      setStatus("Injecting demo WIP royalty into this IP's royalty vault...");
+
+      const res = await injectDemoRoyaltyWIP(ipId, primaryWallet);
+      if (!res.success) {
+        throw new Error(res.error || "Failed to inject royalties");
+      }
+
+      setStatus("Demo WIP royalty injected. You can now harvest via SovryLaunchpad.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to inject royalties");
+      setStatus(null);
+    } finally {
+      setInjectingRoyalty(false);
     }
   };
 
@@ -177,9 +210,20 @@ export default function StoryIPPage() {
             </div>
           )}
 
-          <Button onClick={handleCreateIP} disabled={loading}>
-            {loading ? "Creating..." : "Create IP + License"}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button onClick={handleCreateIP} disabled={loading}>
+              {loading ? "Creating..." : "Create IP + License"}
+            </Button>
+            {ipId && (
+              <Button
+                variant="outline"
+                onClick={handleInjectRoyalty}
+                disabled={injectingRoyalty}
+              >
+                {injectingRoyalty ? "Injecting WIP..." : "Inject Demo WIP Royalty"}
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
