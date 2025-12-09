@@ -442,9 +442,33 @@ export async function enrichLaunchData(
       fetchBondingProgress(wrapperToken),
     ]);
 
-    // Resolve IP ID. For now we default to using the wrapper token address
-    // so the backend can map it to the actual IP asset if needed.
-    let ipId: string | null = wrapperToken;
+    // Resolve backing IP ID from Supabase using the royalty token (RT) address
+    // stored at launch time. This gives us the actual IP Account backing the
+    // wrapper token instead of incorrectly treating the wrapper as the IP.
+    let ipId: string | null = null;
+    if (supabase && rtAddress) {
+      try {
+        const candidates = new Set<string>();
+        candidates.add(rtAddress);
+        candidates.add(rtAddress.toLowerCase());
+
+        const { data, error } = await supabase
+          .from("launches")
+          .select("ip_id, royalty_token_address")
+          .in("royalty_token_address", Array.from(candidates))
+          .limit(1);
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const row = data[0] as any;
+          const ip = (row.ip_id as string | null | undefined) || null;
+          if (ip && ip.startsWith("0x") && ip.length === 42) {
+            ipId = ip;
+          }
+        }
+      } catch (e) {
+        console.error("Error resolving ipId from Supabase for", wrapperToken, e);
+      }
+    }
 
     // Fetch category and image (socials now come exclusively from Supabase)
     const [category, imageUrl] = await Promise.all([

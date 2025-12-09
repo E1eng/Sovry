@@ -1,7 +1,7 @@
 // Story Protocol service integration
 // ARCHITECTURE: Separate READ (Backend API) and WRITE (Dynamic Wallet)
 
-import { StoryClient } from '@story-protocol/core-sdk';
+import { StoryClient, WIP_TOKEN_ADDRESS, PILFlavor } from '@story-protocol/core-sdk';
 import { StoryClient as StoryClientType } from '@story-protocol/core-sdk';
 import { createPublicClient, http, Address, encodeFunctionData, custom } from 'viem';
 import { erc20Abi } from 'viem';
@@ -146,6 +146,119 @@ async function createStoryProtocolClient(primaryWallet?: any) {
   }
 }
 
+// High-level helper: claim royalties for a backing IP via Story SDK, move claimed WIP to
+// the SovryLaunchpad, and then trigger on-chain harvest (buyback/pump) for a given
+// wrapper token.
+export async function claimRevenueToWalletAndPump(
+  ipId: string,
+  wrapperToken: string,
+  primaryWallet: any,
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    if (!primaryWallet) {
+      throw new Error("Wallet not connected");
+    }
+    // Basic ipId sanity check; this must be the backing IP Account for the vault
+    const hasValidIpId =
+      typeof ipId === "string" && ipId.startsWith("0x") && ipId.length === 42;
+    if (!hasValidIpId) {
+      throw new Error("Invalid IP ID for royalty claim");
+    }
+
+    // 1) Claim revenue for this IP using the official Story SDK helper.
+    //    This follows the Claim Revenue Scenario #1 from the docs where
+    //    ancestorIpId and claimer are both the same IP Account, and
+    //    royalties are claimed in WIP.
+    const client = await createStoryProtocolClient(primaryWallet);
+    const publicClient = createPublicClientForStory();
+    const walletClient = await primaryWallet.getWalletClient();
+    if (!walletClient) {
+      throw new Error("No wallet client available");
+    }
+
+    const launchpadAddress = SOVRY_LAUNCHPAD_ADDRESS as Address;
+    const walletAddress = (await primaryWallet.address) as Address;
+
+    console.log("🔄 Claiming royalties via Story SDK for IP", ipId);
+
+    await client.royalty.claimAllRevenue({
+      ancestorIpId: ipId as Address,
+      claimer: ipId as Address,
+      currencyTokens: [WIP_TOKEN_ADDRESS as Address],
+      childIpIds: [],
+      royaltyPolicies: [],
+      claimOptions: {
+        autoTransferAllClaimedTokensFromIp: true,
+        autoUnwrapIpTokens: false,
+      },
+    });
+
+    // 2) After claimAllRevenue, WIP should be held by the wallet (via
+    //    autoTransferAllClaimedTokensFromIp). Move all available WIP
+    //    from the wallet into the SovryLaunchpad so harvest() can
+    //    consume it.
+    const wipBalance = (await publicClient.readContract({
+      address: WIP_TOKEN_ADDRESS as Address,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [walletAddress],
+    })) as bigint;
+
+    if (wipBalance === 0n) {
+      throw new Error("No WIP balance in wallet after claim; nothing to harvest");
+    }
+
+    console.log("🔄 Transferring claimed WIP from wallet to SovryLaunchpad", {
+      from: walletAddress,
+      to: launchpadAddress,
+      amount: wipBalance.toString(),
+    });
+
+    const transferData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: "transfer",
+      args: [launchpadAddress, wipBalance],
+    });
+
+    const transferTxHash = await walletClient.sendTransaction({
+      to: WIP_TOKEN_ADDRESS as Address,
+      data: transferData,
+    });
+
+    const transferReceipt = await publicClient.waitForTransactionReceipt({ hash: transferTxHash });
+    if (transferReceipt.status !== "success") {
+      throw new Error("WIP transfer from wallet to launchpad reverted on-chain");
+    }
+
+    // 3) With WIP now held directly by SovryLaunchpad, call harvest(wrapperToken) from
+    //    the connected wallet to execute the buyback/pump on the bonding curve.
+    console.log("🚀 Calling SovryLaunchpad.harvest for wrapper", wrapperToken);
+
+    const { newLaunchpadAbi } = await import("./launchpadService");
+
+    const harvestData = encodeFunctionData({
+      abi: newLaunchpadAbi as any,
+      functionName: "harvest",
+      args: [wrapperToken as Address],
+    });
+
+    const harvestTxHash = await walletClient.sendTransaction({
+      to: launchpadAddress,
+      data: harvestData,
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: harvestTxHash });
+
+    return { success: true, txHash: harvestTxHash };
+  } catch (error) {
+    console.error("Error in claimRevenueToWalletAndPump:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to claim and pump royalties",
+    };
+  }
+}
+
 // Create public client for Story Protocol
 function createPublicClientForStory() {
   return createPublicClient({
@@ -196,6 +309,36 @@ const ERC20_ABI = [
     name: 'symbol',
     outputs: [{ internalType: 'string', name: '', type: 'string' }],
     stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'spender', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'value', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;
@@ -264,6 +407,7 @@ export async function checkRoyaltyTokens(ipId: string, primaryWallet?: any): Pro
   }
 }
 
+
 // Get token balance for user wallet
 export async function getTokenBalance(userAddress: string, tokenAddress: string): Promise<TokenBalance | null> {
   try {
@@ -330,59 +474,6 @@ export async function needsTokenUnlock(userAddress: string, tokenAddress: string
   } catch (error) {
     console.error('Error checking token unlock need:', error);
     return true; // Assume needs unlock on error
-  }
-}
-
-// Unlock royalty tokens from IP Account to user wallet
-export async function unlockRoyaltyTokens(
-  userAddress: string, 
-  ipId: string, 
-  primaryWallet?: any,
-  amount?: string
-): Promise<{
-  success: boolean;
-  transactionHash?: string;
-  error?: string;
-}> {
-  try {
-    console.log('Unlocking royalty tokens for IP:', ipId, 'to user:', userAddress);
-    
-    // Get royalty vault address (this is the token address)
-    const royaltyVaultAddress = await getRoyaltyVaultAddress(ipId, primaryWallet);
-    
-    if (!royaltyVaultAddress) {
-      return {
-        success: false,
-        error: 'This IP asset does not have a royalty vault. It may not be registered on Story Protocol or has no royalty tokens.'
-      };
-    }
-    
-    // In a real implementation, this would:
-    // 1. Connect to user's wallet via Dynamic SDK
-    // 2. Call transferFrom or zap function on IP Account
-    // 3. Wait for transaction confirmation
-    
-    // For now, simulate the unlock process
-    console.log('Simulating token transfer from IP Account to user wallet...');
-    
-    // Simulate transaction delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Generate mock transaction hash
-    const transactionHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-    
-    console.log('Tokens unlocked successfully:', transactionHash);
-    
-    return {
-      success: true,
-      transactionHash,
-    };
-  } catch (error) {
-    console.error('Error unlocking royalty tokens:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to unlock tokens',
-    };
   }
 }
 

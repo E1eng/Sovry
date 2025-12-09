@@ -137,6 +137,7 @@ export async function getIPAssetById(ipId: string): Promise<IPAsset | null> {
   try {
     const response = await listIPAssets({
       where: { ipIds: [ipId] },
+      includeLicenses: true,
       pagination: { limit: 1, offset: 0 },
     });
 

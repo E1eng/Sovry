@@ -21,6 +21,7 @@ import UserProfile from "@/components/social/UserProfile";
 import { supabase } from "@/lib/supabaseClient";
 import { getTokenBalance, type TokenBalance } from "@/services/storyProtocolService";
 import { enrichLaunchesData } from "@/services/launchDataService";
+import { launchpadService } from "@/services/launchpadService";
 
 import { Coins, Copy } from "lucide-react";
 
@@ -34,6 +35,7 @@ interface PortfolioAsset {
   valueUSD: number;
   claimableRevenue: number;
   category: string;
+  ipId?: string;
 }
 
 interface WrapperToken {
@@ -99,6 +101,8 @@ export default function ProfilePage() {
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [profileBio, setProfileBio] = useState<string | null>(null);
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
+  const [harvestingId, setHarvestingId] = useState<string | null>(null);
+  const [harvestError, setHarvestError] = useState<string | null>(null);
 
   const handleProfileUpdated = (update: {
     username?: string | null;
@@ -193,6 +197,7 @@ export default function ProfilePage() {
               valueUSD: 0,
               claimableRevenue: 0,
               category: (enriched.category as string) || "Launched Token",
+              ipId: enriched.ipId as string | undefined,
             };
           },
         );
@@ -223,6 +228,7 @@ export default function ProfilePage() {
               valueUSD: 0,
               claimableRevenue: 0,
               category: (enriched.category as string) || "Launched Token",
+              ipId: enriched.ipId as string | undefined,
             };
           });
 
@@ -302,12 +308,45 @@ export default function ProfilePage() {
     };
   }, [walletAddress]);
 
-  const handleHarvestAsset = (assetId: string) => {
-    setLaunchedAssets((prev) =>
-      prev.map((asset) =>
-        asset.id === assetId ? { ...asset, claimableRevenue: 0 } : asset,
-      ),
-    );
+  const handleHarvestAsset = async (assetId: string) => {
+    if (!primaryWallet) return;
+
+    const asset = launchedAssets.find((a) => a.id === assetId);
+    if (!asset) {
+      setHarvestError("Unknown asset for harvest");
+      return;
+    }
+
+    // Require a valid backing IP ID (IP Account) for this wrapper token. This
+    // is the IP that royalties are paid to and must be used when claiming via
+    // Story Protocol.
+    if (!asset.ipId || !asset.ipId.startsWith("0x") || asset.ipId.length !== 42) {
+      setHarvestError("No valid IP ID configured for this token; cannot harvest royalties.");
+      return;
+    }
+
+    setHarvestError(null);
+    setHarvestingId(assetId);
+
+    try {
+      const result = await launchpadService.harvestAndPump(asset.ipId, asset.id, primaryWallet);
+
+      if (!result.success) {
+        setHarvestError(result.error || "Failed to harvest royalties");
+        return;
+      }
+
+      setLaunchedAssets((prev) =>
+        prev.map((a) =>
+          a.id === assetId ? { ...a, claimableRevenue: 0 } : a,
+        ),
+      );
+    } catch (err: any) {
+      console.error("Error harvesting royalties from profile page:", err);
+      setHarvestError(err?.message || "Failed to harvest royalties");
+    } finally {
+      setHarvestingId(null);
+    }
   };
 
   const displayAddress =
@@ -413,6 +452,9 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <>
+                  {harvestError && (
+                    <p className="text-sm text-red-400 px-2">{harvestError}</p>
+                  )}
                   <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                     <CardHeader>
                       <CardTitle className="text-lg font-semibold text-zinc-50">
@@ -489,9 +531,9 @@ export default function ProfilePage() {
                                     variant="outline"
                                     className="h-9 px-4 text-xs font-medium"
                                     onClick={() => handleHarvestAsset(asset.id)}
-                                    disabled={asset.claimableRevenue <= 0}
+                                    disabled={!primaryWallet || harvestingId === asset.id}
                                   >
-                                    Harvest
+                                    {harvestingId === asset.id ? "Harvesting..." : "Harvest"}
                                   </Button>
                                 </td>
                               </tr>

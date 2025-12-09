@@ -72,6 +72,7 @@ export default function CreatePage() {
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchedTokenAddress, setLaunchedTokenAddress] = useState<string | null>(null);
   const [launchedTokenSymbol, setLaunchedTokenSymbol] = useState<string | null>(null);
+
   const [assetsPage, setAssetsPage] = useState(1);
   const [pageSize, setPageSize] = useState(9);
 
@@ -326,6 +327,7 @@ export default function CreatePage() {
           await supabase.from("launches").insert({
             royalty_token_address: ipAsset.royaltyVaultAddress.toLowerCase(),
             creator_address: walletAddress?.toLowerCase() || null,
+            ip_id: ipAsset.ipId, // backing IP Account on Story
             name: nameForLaunch,
             symbol: symbolForLaunch,
             description: launchDescription || null,

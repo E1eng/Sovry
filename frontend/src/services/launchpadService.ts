@@ -7,6 +7,7 @@ import {
   launchOnBondingCurveDynamic,
   getRoyaltyLockInfo,
   type RoyaltyLockInfo,
+  claimRevenueToWalletAndPump,
 } from "./storyProtocolService";
 
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
@@ -40,6 +41,13 @@ const launchpadAbi = [
       { internalType: "uint256", name: "deadline", type: "uint256" },
     ],
     name: "sell",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
+    name: "harvest",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -486,119 +494,23 @@ export async function getRoyaltyVaultBalance(
   }
 }
 
-// Get royalty harvest parameters from environment variables
-function getRoyaltyHarvestParams() {
-  const ancestorIpId = process.env.NEXT_PUBLIC_ANCESTOR_IP_ID || "";
-  const childIpIds = process.env.NEXT_PUBLIC_CHILD_IP_IDS
-    ? process.env.NEXT_PUBLIC_CHILD_IP_IDS.split(",").map((a) => a.trim()).filter(Boolean)
-    : [];
-  const royaltyPolicies = process.env.NEXT_PUBLIC_ROYALTY_POLICIES
-    ? process.env.NEXT_PUBLIC_ROYALTY_POLICIES.split(",").map((a) => a.trim()).filter(Boolean)
-    : [];
-  const currencyTokens = process.env.NEXT_PUBLIC_CURRENCY_TOKENS
-    ? process.env.NEXT_PUBLIC_CURRENCY_TOKENS.split(",").map((a) => a.trim()).filter(Boolean)
-    : [];
-
-  return {
-    ancestorIpId,
-    childIpIds,
-    royaltyPolicies,
-    currencyTokens,
-  };
-}
-
 export async function harvestAndPump(
+  ipId: string,
   tokenAddress: string,
   primaryWallet: any
-): Promise<{ success: boolean; txHash?: string; harvestedAmount?: string; error?: string }> {
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     if (!primaryWallet) {
       throw new Error("No wallet connected");
     }
 
-    const walletClient = await primaryWallet.getWalletClient();
-    if (!walletClient) {
-      throw new Error("No wallet client available");
+    if (!ipId || !ipId.startsWith("0x") || ipId.length !== 42) {
+      throw new Error("Invalid IP ID for harvest");
     }
 
-    // Get harvest parameters from environment variables
-    const { ancestorIpId, childIpIds, royaltyPolicies, currencyTokens } = getRoyaltyHarvestParams();
-
-    if (!ancestorIpId || childIpIds.length === 0 || royaltyPolicies.length === 0 || currencyTokens.length === 0) {
-      throw new Error("Royalty harvest parameters not configured. Please set environment variables.");
-    }
-
-    // Encode function data with all required parameters
-    // Note: The contract function is called "harvest" but we'll keep the service function name as "harvestAndPump"
-    const data = encodeFunctionData({
-      abi: newLaunchpadAbi,
-      functionName: "harvest",
-      args: [
-        tokenAddress as Address,
-        ancestorIpId as Address,
-        childIpIds as Address[],
-        royaltyPolicies as Address[],
-        currencyTokens as Address[],
-      ],
-    });
-
-    const txHash = await walletClient.sendTransaction({
-      to: SOVRY_LAUNCHPAD_ADDRESS as Address,
-      data,
-    });
-
-    // Wait for transaction to be mined to get the harvested amount from events
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-    
-    // Try to extract harvested amount from RoyaltiesHarvested event
-    let harvestedAmount = 0n;
-    try {
-      // Event ABI for RoyaltiesHarvested
-      const royaltiesHarvestedEventAbi = {
-        anonymous: false,
-        inputs: [
-          { indexed: true, name: "wrapperToken", type: "address" },
-          { indexed: false, name: "claimedAmount", type: "uint256" },
-        ],
-        name: "RoyaltiesHarvested",
-        type: "event",
-      } as const;
-
-      // Look for the event in logs
-      for (const log of receipt.logs) {
-        if (log.address.toLowerCase() === SOVRY_LAUNCHPAD_ADDRESS.toLowerCase()) {
-          try {
-            const decoded = decodeEventLog({
-              abi: [royaltiesHarvestedEventAbi],
-              data: log.data,
-              topics: log.topics,
-            });
-            
-            if (decoded.eventName === "RoyaltiesHarvested") {
-              // Check if it's for our token
-              const eventWrapperToken = decoded.args.wrapperToken as string;
-              if (eventWrapperToken.toLowerCase() === tokenAddress.toLowerCase()) {
-                harvestedAmount = decoded.args.claimedAmount as bigint;
-                break;
-              }
-            }
-          } catch {
-            // Not the event we're looking for, continue
-            continue;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Could not extract harvested amount from events:", err);
-    }
-
-    return { 
-      success: true, 
-      txHash,
-      harvestedAmount: harvestedAmount.toString(),
-    };
+    return await claimRevenueToWalletAndPump(ipId, tokenAddress, primaryWallet);
   } catch (error) {
-    console.error("Error calling harvestAndPump on Launchpad:", error);
+    console.error("Error in harvestAndPump flow:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error harvesting royalties",
@@ -606,8 +518,8 @@ export async function harvestAndPump(
   }
 }
 
-// New contract ABI for market cap, bonding curve, and token info
-const newLaunchpadAbi = [
+// New contract ABI for market cap, bonding curve, token info, and harvest
+export const newLaunchpadAbi = [
   {
     inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
     name: "getMarketCap",
@@ -710,13 +622,7 @@ const newLaunchpadAbi = [
     type: "function",
   },
   {
-    inputs: [
-      { internalType: "address", name: "wrapperToken", type: "address" },
-      { internalType: "address", name: "ancestorIpId", type: "address" },
-      { internalType: "address[]", name: "childIpIds", type: "address[]" },
-      { internalType: "address[]", name: "royaltyPolicies", type: "address[]" },
-      { internalType: "address[]", name: "currencyTokens", type: "address[]" },
-    ],
+    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
     name: "harvest",
     outputs: [],
     stateMutability: "nonpayable",

@@ -143,9 +143,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     /// @notice Minimum time that market cap must stay above the graduation threshold before a token can graduate
     uint256 public constant GRADUATION_DELAY = 15 minutes;
 
-    /// @notice Timeout period for royalty harvesting before emergency access is granted
-    uint256 public constant HARVEST_TIMEOUT = 7 days;
-
     /// @notice PiperX V2 Router address for liquidity migration
     address public piperXRouter;
 
@@ -233,9 +230,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
 
     /// @notice Total native reserves held by all bonding curves
     uint256 public totalCurveReserves;
-
-    /// @notice Last harvest timestamp for each wrapper token (for griefing protection)
-    mapping(address => uint256) public lastHarvestTime;
 
     /// @notice Locked creator premine amount per wrapper token (wrapper smallest units)
     mapping(address => uint256) public creatorPremineLocked;
@@ -683,95 +677,54 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
     }
 
     /**
-     * @notice Harvests royalties from Story Protocol and distributes to bonding curve pool
-     * @param wrapperToken Address of the wrapper token
-     * @param ancestorIpId Ancestor IP ID for royalty claiming
-     * @param childIpIds Array of child IP IDs
-     * @param royaltyPolicies Array of royalty policy addresses
-     * @param currencyTokens Array of currency token addresses to claim
-     * @dev Claims royalties from Story Protocol and automatically injects into bonding curve reserve
-     * @dev Royalties are distributed to the pool, raising the floor price without increasing supply
-     * @dev RT token holders receive royalties through this mechanism
+     * @notice Applies already-claimed royalties (held as WIP by this contract) to the bonding curve pool
+     * @param wrapperToken Address of the wrapper token whose pool should be pumped
+     * @dev Consumes all WIP currently held by the launchpad, unwraps it to native IP,
+     *      and injects the resulting amount into the bonding curve or buyback flow.
+     *      Story Protocol royalty claiming happens off-chain via the SDK and IP Account,
+     *      then WIP is transferred to this contract before calling harvest.
      */
-    function harvest(
-        address wrapperToken,
-        address ancestorIpId,
-        address[] calldata childIpIds,
-        address[] calldata royaltyPolicies,
-        address[] calldata currencyTokens
-    ) external nonReentrant whenNotPaused {
+    function harvest(address wrapperToken) external nonReentrant whenNotPaused {
         if (wrapperToken == address(0)) revert InvalidAddress();
         LaunchedToken storage token = launchedTokens[wrapperToken];
         if (token.wrapperAddress == address(0)) revert UnknownToken();
 
-        // GRIEFING FIX: Validate that royalty parameters are provided
-        // Prevents attacker from calling with empty arrays to block legitimate harvests
-        if (childIpIds.length == 0) revert ParamsTooLarge();
-        if (royaltyPolicies.length == 0) revert ParamsTooLarge();
-        if (currencyTokens.length == 0) revert ParamsTooLarge();
-
-        // Check authorization with emergency timeout protection against griefing
+        // Check authorization
         address harvester = tokenHarvesters[wrapperToken];
-        
+
         bool isAuthorized = (
             msg.sender == token.creator ||
             msg.sender == harvester ||
             msg.sender == owner()
         );
-        
-        // Allow anyone to harvest if timeout exceeded (emergency access for griefing protection)
-        bool isEmergency = (
-            block.timestamp >= lastHarvestTime[wrapperToken] + HARVEST_TIMEOUT
-        );
-        
-        if (!isAuthorized && !isEmergency) revert NotAuthorized();
+
+        if (!isAuthorized) revert NotAuthorized();
 
         BondingCurve storage curve = bondingCurves[wrapperToken];
 
+        // Use all WIP that has already been sent to the launchpad contract
+        uint256 wipBalance = wipToken != address(0)
+            ? IERC20(wipToken).balanceOf(address(this))
+            : 0;
+
+        if (wipBalance == 0) revert NoRoyalties();
+
         uint256 nativeBefore = address(this).balance;
-        uint256 wipBefore = wipToken != address(0)
-            ? IERC20(wipToken).balanceOf(address(this))
+
+        // Unwrap WIP into native IP
+        IWrappedNative(wipToken).withdraw(wipBalance);
+
+        uint256 nativeAfter = address(this).balance;
+        uint256 claimedAmount = nativeAfter > nativeBefore
+            ? nativeAfter - nativeBefore
             : 0;
 
-        // Claim royalties from Story Protocol
-        // Royalties are earned by RT token holders and distributed through this pool
-        IRoyaltyWorkflows(royaltyWorkflows).claimAllRevenue(
-            ancestorIpId,
-            address(this),
-            childIpIds,
-            royaltyPolicies,
-            currencyTokens
-        );
-
-        uint256 nativeMid = address(this).balance;
-        uint256 wipAfter = wipToken != address(0)
-            ? IERC20(wipToken).balanceOf(address(this))
-            : 0;
-
-        uint256 nativeFromClaim = nativeMid > nativeBefore
-            ? nativeMid - nativeBefore
-            : 0;
-        uint256 wipDelta = wipAfter > wipBefore ? wipAfter - wipBefore : 0;
-
-        uint256 nativeFromUnwrap;
-
-        if (wipDelta > 0 && wipToken != address(0)) {
-            uint256 unwrapBefore = address(this).balance;
-            IWrappedNative(wipToken).withdraw(wipDelta);
-            uint256 unwrapAfter = address(this).balance;
-            nativeFromUnwrap = unwrapAfter > unwrapBefore
-                ? unwrapAfter - unwrapBefore
-                : 0;
-        }
-
-        uint256 claimedAmount = nativeFromClaim + nativeFromUnwrap;
-        
         if (claimedAmount == 0) revert NoRoyalties();
-        
+
         // GRIEFING FIX: Require minimum royalty amount to prevent dust attacks
         // Ensures only meaningful harvests update the timestamp
         if (claimedAmount < 0.001 ether) revert RoyaltyTooSmall();
-        
+
         token.totalRoyaltiesHarvested += claimedAmount;
 
         emit RoyaltiesHarvested(wrapperToken, claimedAmount);
@@ -784,10 +737,6 @@ contract SovryLaunchpad is ReentrancyGuard, Ownable, Pausable {
             // This benefits all token holders by reducing supply
             _buybackAndBurn(wrapperToken, claimedAmount);
         }
-        
-        // GRIEFING FIX: Only update timestamp when meaningful royalties were claimed
-        // This prevents attackers from blocking harvests with empty parameter arrays
-        lastHarvestTime[wrapperToken] = block.timestamp;
     }
 
     /**

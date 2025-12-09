@@ -7,7 +7,7 @@ dataSources:
     name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0x5d07144D1F5C6041b19d430ead5d91ac6665B91c" # Aeneid launchpad (update for mainnet)
+      address: "0xe28E59088cd78614c8Ea52eC52fd96F13366b4D1" # Aeneid launchpad (update for mainnet)
       abi: SovryLaunchpad
       startBlock: 11964481
     mapping:
