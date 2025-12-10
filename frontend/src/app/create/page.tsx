@@ -342,6 +342,7 @@ export default function CreatePage() {
             twitter_url: twitterUrl.trim() || null,
             telegram_url: telegramUrl.trim() || null,
             website_url: websiteUrl.trim() || null,
+            metadata_uri: ipAsset.metadataUri || null,
           });
         }
       } catch (metaError) {
