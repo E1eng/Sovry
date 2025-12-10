@@ -146,9 +146,11 @@ async function createStoryProtocolClient(primaryWallet?: any) {
   }
 }
 
-// High-level helper: claim royalties for a backing IP via Story SDK, move claimed WIP to
-// the SovryLaunchpad, and then trigger on-chain harvest (buyback/pump) for a given
-// wrapper token.
+// High-level helper: claim royalties for a backing IP using Story's royalty.claimAllRevenue
+// so that WIP is credited to the IP Account (ipId), then move that WIP from the IP
+// Account to the SovryLaunchpad contract via ipAccount.transferErc20 (no wallet hop),
+// and finally call harvest(wrapperToken) to apply those royalties to the bonding
+// curve / buyback.
 export async function claimRevenueToWalletAndPump(
   ipId: string,
   wrapperToken: string,
@@ -158,6 +160,7 @@ export async function claimRevenueToWalletAndPump(
     if (!primaryWallet) {
       throw new Error("Wallet not connected");
     }
+
     // Basic ipId sanity check; this must be the backing IP Account for the vault
     const hasValidIpId =
       typeof ipId === "string" && ipId.startsWith("0x") && ipId.length === 42;
@@ -165,21 +168,17 @@ export async function claimRevenueToWalletAndPump(
       throw new Error("Invalid IP ID for royalty claim");
     }
 
-    // 1) Claim revenue for this IP using the official Story SDK helper.
-    //    This follows the Claim Revenue Scenario #1 from the docs where
-    //    ancestorIpId and claimer are both the same IP Account, and
-    //    royalties are claimed in WIP.
     const client = await createStoryProtocolClient(primaryWallet);
-    const publicClient = createPublicClientForStory();
     const walletClient = await primaryWallet.getWalletClient();
     if (!walletClient) {
       throw new Error("No wallet client available");
     }
 
+    const publicClient = createPublicClientForStory();
     const launchpadAddress = SOVRY_LAUNCHPAD_ADDRESS as Address;
-    const walletAddress = (await primaryWallet.address) as Address;
 
-    console.log("🔄 Claiming royalties via Story SDK for IP", ipId);
+    // 1) Claim revenue so that WIP is credited to the IP Account (ipId), not the wallet.
+    console.log("🔄 Claiming royalties via Story SDK for IP", ipId, "to IP Account", ipId);
 
     await client.royalty.claimAllRevenue({
       ancestorIpId: ipId as Address,
@@ -188,50 +187,48 @@ export async function claimRevenueToWalletAndPump(
       childIpIds: [],
       royaltyPolicies: [],
       claimOptions: {
-        autoTransferAllClaimedTokensFromIp: true,
+        autoTransferAllClaimedTokensFromIp: false,
         autoUnwrapIpTokens: false,
       },
     });
 
-    // 2) After claimAllRevenue, WIP should be held by the wallet (via
-    //    autoTransferAllClaimedTokensFromIp). Move all available WIP
-    //    from the wallet into the SovryLaunchpad so harvest() can
-    //    consume it.
-    const wipBalance = (await publicClient.readContract({
+    // 2) Check how much WIP is now held by the IP Account.
+    const wipOnIp = (await publicClient.readContract({
       address: WIP_TOKEN_ADDRESS as Address,
       abi: ERC20_ABI,
       functionName: "balanceOf",
-      args: [walletAddress],
+      args: [ipId as Address],
     })) as bigint;
 
-    if (wipBalance === 0n) {
-      throw new Error("No WIP balance in wallet after claim; nothing to harvest");
+    if (wipOnIp === 0n) {
+      throw new Error("No WIP balance on IP Account after claim; nothing to harvest");
     }
 
-    console.log("🔄 Transferring claimed WIP from wallet to SovryLaunchpad", {
-      from: walletAddress,
+    console.log("🔄 Transferring claimed WIP from IP Account to SovryLaunchpad", {
+      ipId,
       to: launchpadAddress,
-      amount: wipBalance.toString(),
+      amount: wipOnIp.toString(),
     });
 
-    const transferData = encodeFunctionData({
-      abi: ERC20_ABI,
-      functionName: "transfer",
-      args: [launchpadAddress, wipBalance],
+    const transferResponse = await client.ipAccount.transferErc20({
+      ipId: ipId as Address,
+      tokens: [
+        {
+          address: WIP_TOKEN_ADDRESS as Address,
+          amount: wipOnIp,
+          target: launchpadAddress,
+        },
+      ],
     });
 
-    const transferTxHash = await walletClient.sendTransaction({
-      to: WIP_TOKEN_ADDRESS as Address,
-      data: transferData,
-    });
-
-    const transferReceipt = await publicClient.waitForTransactionReceipt({ hash: transferTxHash });
-    if (transferReceipt.status !== "success") {
-      throw new Error("WIP transfer from wallet to launchpad reverted on-chain");
+    if (!transferResponse || !transferResponse.txHash) {
+      throw new Error("Failed to transfer WIP from IP Account to launchpad");
     }
 
-    // 3) With WIP now held directly by SovryLaunchpad, call harvest(wrapperToken) from
-    //    the connected wallet to execute the buyback/pump on the bonding curve.
+    await publicClient.waitForTransactionReceipt({ hash: transferResponse.txHash as `0x${string}` });
+
+    // 3) With WIP now held directly by SovryLaunchpad, call harvest(wrapperToken)
+    //    from the connected wallet to execute the buyback/pump on the bonding curve.
     console.log("🚀 Calling SovryLaunchpad.harvest for wrapper", wrapperToken);
 
     const { newLaunchpadAbi } = await import("./launchpadService");
@@ -284,6 +281,21 @@ const ROYALTY_MODULE_ABI = [
     name: 'getRoyaltyVaultAddress',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+// Minimal ABI for IpRoyaltyVault claim helper used to pull WIP directly to the
+// SovryLaunchpad contract without routing through the user wallet.
+const IP_ROYALTY_VAULT_ABI = [
+  {
+    inputs: [
+      { internalType: 'address', name: 'claimer', type: 'address' },
+      { internalType: 'address[]', name: 'tokenList', type: 'address[]' },
+    ],
+    name: 'claimRevenueOnBehalfByTokenBatch',
+    outputs: [{ internalType: 'uint256[]', name: '', type: 'uint256[]' }],
+    stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;

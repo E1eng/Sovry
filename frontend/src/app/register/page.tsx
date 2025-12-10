@@ -93,9 +93,9 @@ export default function StoryIPPage() {
       setIpId(registration.ipId);
       setTxHash(registration.txHash || null);
 
-      // Give Story some time to index / recognize the newly registered IP
+      // Give Story a brief moment to index / recognize the newly registered IP
       setStatus("Waiting for Story to recognize the new IP (indexing)...");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Use the license terms created during registration (PILFlavor.commercialRemix)
       const termsId = registration.licenseTermsId || "1";
