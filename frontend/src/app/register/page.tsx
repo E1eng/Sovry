@@ -131,14 +131,14 @@ export default function StoryIPPage() {
       }
 
       setInjectingRoyalty(true);
-      setStatus("Injecting demo WIP royalty into this IP's royalty vault...");
+      setStatus("Injecting WIP royalty into this IP's royalty vault...");
 
       const res = await injectDemoRoyaltyWIP(ipId, primaryWallet);
       if (!res.success) {
         throw new Error(res.error || "Failed to inject royalties");
       }
 
-      setStatus("Demo WIP royalty injected. You can now harvest via SovryLaunchpad.");
+      setStatus("WIP royalty injected. You can now harvest via SovryLaunchpad.");
     } catch (err: any) {
       console.error(err);
       setError(err?.message || "Failed to inject royalties");
@@ -152,7 +152,7 @@ export default function StoryIPPage() {
     <div className="max-w-3xl mx-auto py-10 px-4">
       <Card>
         <CardHeader>
-          <CardTitle>Create Story IP + License</CardTitle>
+          <CardTitle>Register IP and License on Story Protocol</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
@@ -220,7 +220,7 @@ export default function StoryIPPage() {
                 onClick={handleInjectRoyalty}
                 disabled={injectingRoyalty}
               >
-                {injectingRoyalty ? "Injecting WIP..." : "Inject Demo WIP Royalty"}
+                {injectingRoyalty ? "Injecting WIP..." : "Inject WIP Royalty"}
               </Button>
             )}
           </div>

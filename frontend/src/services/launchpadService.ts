@@ -14,12 +14,10 @@ const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.s
 const TENDERLY_RPC_URL = process.env.NEXT_PUBLIC_TENDERLY_RPC_URL || STORY_RPC_URL;
 
 // Large approval amount so that subsequent sells can skip additional approve
-// transactions as long as the required amount is below the remaining allowance.
+// transactions while allowance remains sufficient.
 const MAX_UINT256 = (1n << 256n) - 1n;
 
-// Legacy ABI placeholder kept only for backwards compatibility with any old deployments.
-// The current SovryLaunchpad contract on Aeneid does NOT expose these shapes (no `launches` mapping,
-// no `getEstimatedTokensForIP`, etc). All new read paths use `newLaunchpadAbi` instead.
+// ABI for earlier launchpad deployments; new read paths use `newLaunchpadAbi`.
 const launchpadAbi = [
   {
     inputs: [
@@ -174,13 +172,8 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
       }
     }
 
-    // Legacy/old contract path: we no longer support the historical `launches` mapping
-    // here. Instead of calling a non-existent function on the current ABI (which
-    // causes AbiFunctionNotFoundError), just return null so callers can handle the
-    // absence of launch info gracefully.
-    console.warn(
-      "getLaunchInfo: detected legacy SovryLaunchpad contract without supported read methods; returning null.",
-    );
+    // Fallback when the launchpad has no supported read methods; treat as no launch info.
+    console.warn("getLaunchInfo: detected legacy SovryLaunchpad contract without supported read methods; returning null.");
     return null;
   } catch (error) {
     console.error("Error fetching launch info:", error);
@@ -219,7 +212,7 @@ export async function getMarketCap(
         return null;
       }
     } else {
-      // Legacy path: approximate from totalRaised if available
+      // Approximate from totalRaised if available
       const launchInfo = await getLaunchInfo(tokenAddress);
       if (!launchInfo) return null;
       return formatBigIntToFloat(launchInfo.totalRaised, 18).toString();
@@ -267,8 +260,7 @@ export async function estimateIPForTokens(
   }
 }
 
-// Note: legacy launchToken helper removed. All new launches go through
-// launchOnBondingCurveDynamic in storyProtocolService.ts.
+// All new launches go through launchOnBondingCurveDynamic in storyProtocolService.ts.
 
 export async function buy(
   tokenAddress: string,

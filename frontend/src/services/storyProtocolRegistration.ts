@@ -117,7 +117,7 @@ export interface RegistrationResult {
   status?: 'uploading' | 'registering' | 'confirming' | 'success' | 'error';
 }
 
-// Upload metadata to IPFS (mock implementation - in production use Pinata)
+// Upload metadata to IPFS using Pinata
 async function uploadToIPFS(metadata: any): Promise<string> {
   const name = (metadata && (metadata.title || metadata.name)) || 'ip-metadata';
   const result = await pinJSONToIPFS(metadata, name);
@@ -157,11 +157,8 @@ export async function registerIPAssetWithPolling(
   onStatusUpdate?: (status: RegistrationResult['status']) => void
 ): Promise<RegistrationResult> {
   try {
-    console.log('🚀 Registering IP Asset on Story Protocol...');
-    
     // Step 1: Upload metadata to IPFS
     onStatusUpdate?.('uploading');
-    console.log('📤 Uploading metadata to IPFS...');
     
     const [ipIpfsHash, nftIpfsHash, ipHash, nftHash] = await Promise.all([
       uploadToIPFS(ipMetadata),
@@ -173,9 +170,8 @@ export async function registerIPAssetWithPolling(
     // Step 2: Create Story SDK client
     const client = await createStoryProtocolClient(primaryWallet);
     
-    // Step 3: Register IP Asset
+    // Step 3: Register IP asset
     onStatusUpdate?.('registering');
-    console.log('📝 Registering IP Asset...');
     const response = await client.ipAsset.registerIpAsset({
       nft: {
         type: 'mint',
@@ -199,12 +195,8 @@ export async function registerIPAssetWithPolling(
       },
     });
     
-    console.log('✅ Registration transaction submitted!');
-    console.log(`Transaction Hash: ${response.txHash}`);
-    
     // Step 4: Poll for transaction confirmation
     onStatusUpdate?.('confirming');
-    console.log('⏳ Waiting for transaction confirmation...');
     
     const publicClient = createPublicClientForStory();
     try {
@@ -212,14 +204,10 @@ export async function registerIPAssetWithPolling(
         hash: response.txHash as `0x${string}`,
         timeout: 120_000, // 2 minutes timeout
       });
-      
-      console.log('✅ Transaction receipt received! Status:', receipt.status);
 
       if (receipt.status !== 'success') {
         throw new Error(`IP registration transaction reverted or failed (status=${receipt.status})`);
       }
-      
-      console.log('✅ Transaction confirmed on-chain!');
     } catch (pollError) {
       console.error('❌ Error waiting for transaction receipt:', pollError);
       // We will still trust the SDK response.ipId below, but surface the error message.
@@ -238,14 +226,11 @@ export async function registerIPAssetWithPolling(
     let royaltyVaultAddress: string | undefined;
     try {
       royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(finalIpId as Address);
-      console.log(`💰 Royalty vault address: ${royaltyVaultAddress}`);
     } catch (vaultError) {
-      console.warn('⚠️ Could not get royalty vault address:', vaultError);
+      console.warn('Could not get royalty vault address:', vaultError);
     }
     
     onStatusUpdate?.('success');
-    console.log('✅ IP Asset registered successfully!');
-    console.log(`IP ID: ${finalIpId}`);
     
     return {
       success: true,
@@ -257,7 +242,7 @@ export async function registerIPAssetWithPolling(
     };
     
   } catch (error) {
-    console.error('❌ Error registering IP Asset:', error);
+    console.error('Error registering IP asset:', error);
     onStatusUpdate?.('error');
     
     // Provide user-friendly error messages
@@ -284,8 +269,8 @@ export async function registerIPAssetWithPolling(
   }
 }
 
-// Inject a small amount of WIP royalty directly into a Story IP's royalty vault
-// using the RoyaltyModule. This is intended for demoing harvest flows on fresh IPs.
+// Inject a small amount of WIP royalty into a Story IP's royalty vault
+// using the RoyaltyModule, for testing harvest flows on fresh IPs.
 export async function injectDemoRoyaltyWIP(
   ipId: string,
   primaryWallet: any,
@@ -297,8 +282,6 @@ export async function injectDemoRoyaltyWIP(
   wrapTxHash?: string;
 }> {
   try {
-    console.log('💸 Injecting demo WIP royalty for IP:', ipId);
-
     if (!primaryWallet || !primaryWallet.address) {
       throw new Error('Wallet not connected');
     }
@@ -580,88 +563,6 @@ export async function transferRoyaltyTokensFromIP(
     return {
       success: true,
       txHash: transferResponse.txHash,
-    };
-    
-  } catch (error) {
-    console.error('❌ Error transferring royalty tokens:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to transfer royalty tokens',
-    };
-  }
-}
-
-// Transfer royalty tokens from IP Account to owner wallet
-export async function transferRoyaltyTokens(
-  ipId: string,
-  primaryWallet: any
-): Promise<{
-  success: boolean;
-  txHash?: string;
-  error?: string;
-}> {
-  try {
-    console.log('🔄 Transferring royalty tokens from IP Account to wallet...');
-    
-    // Validate inputs and get wallet address
-    if (!primaryWallet) {
-      throw new Error('Wallet not connected');
-    }
-    
-    // Get wallet address using Dynamic SDK method
-    let walletAddress: string;
-    try {
-      // Try different ways to get the address
-      walletAddress = primaryWallet.address || 
-                     (await primaryWallet.getAddress?.()) ||
-                     (await primaryWallet.getWalletClient?.())?.account?.address;
-      
-      if (!walletAddress) {
-        throw new Error('Could not get wallet address');
-      }
-    } catch (addressError) {
-      throw new Error(`Failed to get wallet address: ${addressError instanceof Error ? addressError.message : 'Unknown error'}`);
-    }
-    
-    if (!ipId || ipId === '0x0000000000000000000000000000000000000000') {
-      throw new Error('Invalid IP ID provided');
-    }
-    
-    // Create Story SDK client
-    const client = await createStoryProtocolClient(primaryWallet);
-    
-    console.log('📡 Story SDK client created for transfer');
-    console.log('📍 IP ID:', ipId);
-    console.log('👛 Wallet Address:', walletAddress);
-    
-    // Get royalty vault address (this is the royalty token address)
-    console.log('🔍 Getting royalty vault address...');
-    const royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(ipId as Address);
-    
-    if (!royaltyVaultAddress) {
-      throw new Error('No royalty vault found for this IP. License may not have been created yet.');
-    }
-    
-    console.log('✅ Royalty vault address found:', royaltyVaultAddress);
-    
-    // For now, simulate the transfer since the actual transfer from IP Account is complex
-    // In a real implementation, you would need to:
-    // 1. Get the IP Account's private key or use a proxy contract
-    // 2. Execute transfer from IP Account to user wallet
-    // 3. Handle the ERC-20 token transfer properly
-    
-    console.log('💰 Simulating royalty token transfer...');
-    console.log('📝 Note: In production, this would transfer tokens from IP Account to your wallet');
-    
-    // Simulate successful transfer
-    const mockTxHash = '0x' + Math.random().toString(16).substr(2, 64);
-    
-    console.log('✅ Royalty tokens transferred successfully!');
-    console.log(`Transaction Hash: ${mockTxHash}`);
-    
-    return {
-      success: true,
-      txHash: mockTxHash,
     };
     
   } catch (error) {

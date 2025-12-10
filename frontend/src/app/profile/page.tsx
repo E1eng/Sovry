@@ -360,7 +360,7 @@ export default function ProfilePage() {
 
   const headerBio = profileBio && profileBio.trim().length > 0
     ? profileBio.trim()
-    : "no bio yet.";
+    : "This user has not added a bio yet.";
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -399,7 +399,7 @@ export default function ProfilePage() {
                     className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs text-sovry-crimson hover:text-sovry-crimson/80"
                   >
                     <Copy className="h-3 w-3" />
-                    <span>Copy</span>
+                    <span>Copy address</span>
                   </button>
                 </div>
               )}
@@ -415,7 +415,7 @@ export default function ProfilePage() {
               className="text-xs sm:text-sm"
               onClick={() => setIsProfileDialogOpen(true)}
             >
-              Edit Profile
+              Edit profile
             </Button>
           </div>
         </div>
@@ -424,9 +424,9 @@ export default function ProfilePage() {
       <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Profile Settings</DialogTitle>
+            <DialogTitle>Edit your profile</DialogTitle>
             <DialogDescription>
-              Edit and customize your user profile
+              Update your profile information
             </DialogDescription>
           </DialogHeader>
 
@@ -439,8 +439,8 @@ export default function ProfilePage() {
 
       <Tabs defaultValue={initialTab} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="tokens">Launched Tokens</TabsTrigger>
-          <TabsTrigger value="holdings">Holding</TabsTrigger>
+          <TabsTrigger value="tokens">Tokens you've launched</TabsTrigger>
+          <TabsTrigger value="holdings">Your holdings</TabsTrigger>
         </TabsList>
 
             {/* My Tokens Tab */}

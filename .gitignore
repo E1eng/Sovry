@@ -29,6 +29,7 @@ contracts/artifacts/
 contracts/cache/
 contracts/broadcast/
 contracts/typechain-types/
+contracts/node_modules/
 contracts/.env.testnet
 
 # Build outputs
@@ -60,8 +61,8 @@ lerna-debug.log*
 # Subgraph
 subgraph/build/
 subgraph/generated/
+subgraph/node_modules/
 subgraph/.graph/
-
 
 # Optional npm cache directory
 .npm

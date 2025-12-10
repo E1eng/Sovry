@@ -178,8 +178,6 @@ export async function claimRevenueToWalletAndPump(
     const launchpadAddress = SOVRY_LAUNCHPAD_ADDRESS as Address;
 
     // 1) Claim revenue so that WIP is credited to the IP Account (ipId), not the wallet.
-    console.log("🔄 Claiming royalties via Story SDK for IP", ipId, "to IP Account", ipId);
-
     await client.royalty.claimAllRevenue({
       ancestorIpId: ipId as Address,
       claimer: ipId as Address,
@@ -204,12 +202,6 @@ export async function claimRevenueToWalletAndPump(
       throw new Error("No WIP balance on IP Account after claim; nothing to harvest");
     }
 
-    console.log("🔄 Transferring claimed WIP from IP Account to SovryLaunchpad", {
-      ipId,
-      to: launchpadAddress,
-      amount: wipOnIp.toString(),
-    });
-
     const transferResponse = await client.ipAccount.transferErc20({
       ipId: ipId as Address,
       tokens: [
@@ -229,8 +221,6 @@ export async function claimRevenueToWalletAndPump(
 
     // 3) With WIP now held directly by SovryLaunchpad, call harvest(wrapperToken)
     //    from the connected wallet to execute the buyback/pump on the bonding curve.
-    console.log("🚀 Calling SovryLaunchpad.harvest for wrapper", wrapperToken);
-
     const { newLaunchpadAbi } = await import("./launchpadService");
 
     const harvestData = encodeFunctionData({
@@ -358,28 +348,23 @@ const ERC20_ABI = [
 // Get royalty vault address for IP asset using Story Protocol SDK
 export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any): Promise<string | null> {
   try {
-    console.log('Getting royalty vault address for IP:', ipId);
-    
     // Validate IP ID format (should be a valid address)
     if (!ipId || ipId === '0x0000000000000000000000000000000000000000' || 
         !ipId.startsWith('0x') || ipId.length !== 42) {
       console.warn('Invalid IP ID format:', ipId);
       return null;
     }
-    
+
     // Use Story Protocol SDK with connected Dynamic wallet
     const client = await createStoryProtocolClient(primaryWallet);
     const royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(ipId as Address);
     
-    console.log('Royalty vault address from Story SDK:', royaltyVaultAddress);
     return royaltyVaultAddress;
   } catch (error) {
     console.error('Error getting royalty vault address from SDK:', error);
     
     // Fallback to direct contract call
     try {
-      console.log('Trying direct contract call fallback...');
-      
       const client = createPublicClientForStory();
       const royaltyModuleAddress = '0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086'; // RoyaltyModule from docs
       
@@ -390,7 +375,6 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any):
         args: [ipId as Address],
       });
       
-      console.log('Royalty vault address from contract:', royaltyVaultAddress);
       return royaltyVaultAddress;
     } catch (contractError) {
       console.error('Contract call also failed:', contractError);
@@ -405,8 +389,6 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any):
 // Check if IP asset has royalty tokens
 export async function checkRoyaltyTokens(ipId: string, primaryWallet?: any): Promise<boolean> {
   try {
-    console.log('Checking royalty tokens for IP:', ipId);
-    
     const royaltyVaultAddress = await getRoyaltyVaultAddress(ipId, primaryWallet);
     
     // If vault address exists and is not zero address, IP has royalty tokens
@@ -423,8 +405,6 @@ export async function checkRoyaltyTokens(ipId: string, primaryWallet?: any): Pro
 // Get token balance for user wallet
 export async function getTokenBalance(userAddress: string, tokenAddress: string): Promise<TokenBalance | null> {
   try {
-    console.log('Getting token balance for:', userAddress, 'token:', tokenAddress);
-    
     // If token address is zero address, there's no ERC20 to query
     if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
       console.warn('getTokenBalance called with zero token address, returning null');
@@ -457,8 +437,6 @@ export async function getTokenBalance(userAddress: string, tokenAddress: string)
     
     const formattedBalance = (Number(balance) / Math.pow(10, decimals)).toString();
     
-    console.log(`Token balance: ${formattedBalance} ${symbol}`);
-    
     return {
       address: tokenAddress,
       balance: formattedBalance,
@@ -470,30 +448,38 @@ export async function getTokenBalance(userAddress: string, tokenAddress: string)
     return null;
   }
 }
-
-// Check if user needs to unlock tokens (balance is 0)
 export async function needsTokenUnlock(userAddress: string, tokenAddress: string): Promise<boolean> {
   try {
     const tokenBalance = await getTokenBalance(userAddress, tokenAddress);
-    
+
     if (!tokenBalance) {
-      return true; // Assume needs unlock if we can't get balance
+      // Assume needs unlock if we can't get balance
+      return true;
     }
-    
+
     // Check if balance is 0 (or very close to 0 due to precision)
     const balance = Number(tokenBalance.balance);
-    return balance <= 0.000001; // Small threshold for precision
+    return balance <= 0.000001;
   } catch (error) {
     console.error('Error checking token unlock need:', error);
-    return true; // Assume needs unlock on error
+    // On error, assume the user needs to unlock
+    return true;
   }
 }
+
+// Simple in-memory cache for wallet IP assets within a session
+const WALLET_IP_ASSETS_CACHE_TTL_MS = 60_000; // 60 seconds
+const walletIpAssetsCache = new Map<string, { assets: IPAsset[]; timestamp: number }>();
 
 // Fetch IP assets for a wallet address using Story Protocol API
 export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?: any): Promise<IPAsset[]> {
   try {
-    console.log('Fetching IP assets for wallet:', walletAddress);
-    
+    const cacheKey = walletAddress.toLowerCase();
+    const cached = walletIpAssetsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < WALLET_IP_ASSETS_CACHE_TTL_MS) {
+      return cached.assets;
+    }
+
     // Try multiple approaches to fetch IP assets
     const approaches = [
       // Approach 1: Correct API structure from example
@@ -545,61 +531,6 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
       }
     ];
 
-    const POOL_DAY_DATA_QUERY = `
-      query GetPoolDayData($poolId: ID!, $days: Int = 7) {
-        poolDayDatas(first: $days, orderBy: date, orderDirection: desc, where: { pool: $poolId }) {
-          id
-          date
-          pool {
-            id
-          }
-          volumeUSD
-          volumeToken0
-          volumeToken1
-          tvlUSD
-          reserve0
-          reserve1
-          reserveUSD
-          txCount
-          feesUSD
-        }
-      }
-    `;
-
-    const TOKEN_DAY_DATA_QUERY = `
-      query GetTokenDayData($tokenId: ID!, $days: Int = 7) {
-        tokenDayDatas(first: $days, orderBy: date, orderDirection: desc, where: { token: $tokenId }) {
-          id
-          date
-          token {
-            id
-            symbol
-            name
-          }
-          volumeUSD
-          volume
-          tvlUSD
-          priceUSD
-          txCount
-          totalLiquidityUSD
-        }
-      }
-    `;
-
-    const FACTORY_DAY_DATA_QUERY = `
-      query GetFactoryDayData($days: Int = 7) {
-        factoryDayDatas(first: $days, orderBy: date, orderDirection: desc) {
-          id
-          date
-          totalVolumeUSD
-          totalVolumeETH
-          totalLiquidityUSD
-          totalLiquidityETH
-          txCount
-        }
-      }
-    `;
-
     for (let i = 0; i < approaches.length; i++) {
       const approach = approaches[i];
 
@@ -621,7 +552,6 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         const result = await response.json();
 
         if (!result.data || result.data.length === 0) {
-          console.log(`Approach ${i + 1}: No data found`);
           continue;
         }
 
@@ -674,9 +604,10 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         );
 
         if (ipAssets.length > 0) {
-          console.log(
-            `SUCCESS: Approach ${i + 1} found ${ipAssets.length} IP assets (with/without royalty tokens)`,
-          );
+          walletIpAssetsCache.set(cacheKey, {
+            assets: ipAssets,
+            timestamp: Date.now(),
+          });
           return ipAssets;
         }
       } catch (error) {
@@ -1037,36 +968,6 @@ export async function getRoyaltyLockInfo(
     };
   } catch (error) {
     console.error('Error loading royalty lock info:', error);
-    return null;
-  }
-}
-
-// Get IP asset details
-export async function getIPAssetDetails(ipId: string, primaryWallet?: any): Promise<IPAsset | null> {
-  try {
-    console.log('Getting IP asset details for:', ipId);
-    
-    // Get royalty vault address
-    const royaltyVaultAddress = await getRoyaltyVaultAddress(ipId, primaryWallet);
-    
-    // Check if has royalty tokens
-    const hasRoyaltyTokens = await checkRoyaltyTokens(ipId, primaryWallet);
-    
-    // Mock IP asset details - in production, you'd get this from the Story Protocol SDK
-    const ipAsset: IPAsset = {
-      ipId,
-      name: `IP Asset ${ipId.slice(0, 8)}`,
-      description: `Description for IP asset ${ipId}`,
-      imageUrl: `https://example.com/ip/${ipId}.jpg`,
-      owner: '0x0000000000000000000000000000000000000000', // Would get from SDK
-      royaltyVaultAddress: royaltyVaultAddress || '0x0000000000000000000000000000000000000000',
-      hasRoyaltyTokens,
-      createdAt: new Date().toISOString(),
-    };
-    
-    return ipAsset;
-  } catch (error) {
-    console.error('Error getting IP asset details:', error);
     return null;
   }
 }

@@ -232,7 +232,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
     try {
       const userAddress = walletAddress.toLowerCase();
 
-      // Pastikan user sudah punya profile supaya tidak melanggar FK
+      // Ensure the user has a profile so we do not violate the foreign key constraint
       const { data: existingProfile, error: profileError } = await supabase
         .from("profiles")
         .select("wallet_address")

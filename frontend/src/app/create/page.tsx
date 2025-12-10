@@ -153,13 +153,24 @@ export default function CreatePage() {
         const assets = await fetchWalletIPAssets(walletAddress, primaryWallet);
         setIpAssets(assets);
 
-        const balances: Record<string, TokenBalance> = {};
-        for (const asset of assets) {
-          if (asset.royaltyVaultAddress) {
-            const balance = await getTokenBalance(walletAddress, asset.royaltyVaultAddress);
-            if (balance) {
-              balances[asset.ipId] = balance;
+        const balanceResults = await Promise.all(
+          assets.map(async (asset) => {
+            if (!asset.royaltyVaultAddress) {
+              return { ipId: asset.ipId, balance: null as TokenBalance | null };
             }
+            try {
+              const balance = await getTokenBalance(walletAddress, asset.royaltyVaultAddress);
+              return { ipId: asset.ipId, balance };
+            } catch {
+              return { ipId: asset.ipId, balance: null };
+            }
+          })
+        );
+
+        const balances: Record<string, TokenBalance> = {};
+        for (const { ipId, balance } of balanceResults) {
+          if (balance) {
+            balances[ipId] = balance;
           }
         }
         setTokenBalances(balances);
@@ -183,8 +194,8 @@ export default function CreatePage() {
     setTransferStatus("pending");
 
     try {
-      // Hanya transfer Royalty Tokens dari IP Account ke wallet.
-      // License & vault sudah di-setup di /register.
+      // Only transfer Royalty Tokens from the IP Account to the wallet.
+      // License and royalty vault are already configured in /register.
       const transferResult = await transferRoyaltyTokensFromIP(ipAsset.ipId, primaryWallet);
 
       if (transferResult.success) {
@@ -473,7 +484,7 @@ export default function CreatePage() {
                 Turn Your IP Into a Liquid Asset
               </h1>
               <p className="text-zinc-400 text-base leading-relaxed">
-                Select an IP asset, configure basic token details, and launch directly onto the Sovry.
+                Select an IP asset, configure basic token details, and launch directly on the Sovry Launchpad.
               </p>
             </div>
           </div>
@@ -602,7 +613,7 @@ export default function CreatePage() {
               <TrendingUp className="h-5 w-5 text-sovry-green" />
             </div>
             <div className="flex items-center gap-2">
-              <h2 className="text-x1 font-semibold text-zinc-50">Launch Existing IP</h2>
+              <h2 className="text-xl md:text-2xl font-semibold text-zinc-50">Launch Existing IP</h2>
               {(loading || !!creatingPool || !!unlockingTokens) && (
                 <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
               )}
