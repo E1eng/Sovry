@@ -1,4 +1,5 @@
-import { createPublicClient, http, Address, encodeFunctionData, parseEther, decodeEventLog } from "viem";
+import { createPublicClient, http, Address, encodeFunctionData, parseEther } from "viem";
+
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
 
@@ -6,7 +7,6 @@ import {
   SOVRY_LAUNCHPAD_ADDRESS,
   launchOnBondingCurveDynamic,
   getRoyaltyLockInfo,
-  type RoyaltyLockInfo,
   claimRevenueToWalletAndPump,
 } from "./storyProtocolService";
 
@@ -96,16 +96,6 @@ export interface LaunchInfo {
 }
 
 const TARGET_RAISE_IP = parseEther("10000");
-const VIRTUAL_IP_RESERVE = parseEther("0.2");
-
-function getAmountOut(amountIn: bigint, reserveIn: bigint, reserveOut: bigint): bigint {
-  if (amountIn === 0n || reserveIn === 0n || reserveOut === 0n) return 0n;
-  const amountInWithFee = (amountIn * 995n) / 1000n; // 0.5% fee like contract
-  const numerator = amountInWithFee * reserveOut;
-  const denominator = reserveIn * 1000n + amountInWithFee;
-  if (denominator === 0n) return 0n;
-  return numerator / denominator;
-}
 
 function formatBigIntToFloat(amount: bigint, decimals: number = 18): number {
   const base = 10n ** BigInt(decimals);

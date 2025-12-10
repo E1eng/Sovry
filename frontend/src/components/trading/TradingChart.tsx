@@ -9,7 +9,7 @@ import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTradeHistory, type Timeframe } from "@/hooks/useTradeHistory"
 import { useLiveTrades } from "@/hooks/useLiveTrades"
-import { fetchTrades, tradesToOHLCData } from "@/services/chartDataService"
+import { fetchTrades } from "@/services/chartDataService"
 import { memo } from "react"
 
 export interface TradingChartProps {
@@ -64,10 +64,10 @@ function TradingChartComponent({
   const candlestickSeriesRef = useRef<any | null>(null)
   const lastPriceLineRef = useRef<any | null>(null)
   const [chartInitialized, setChartInitialized] = useState(false)
-  const [dailyHigh, setDailyHigh] = useState<number | null>(null)
-  const [dailyLow, setDailyLow] = useState<number | null>(null)
+  const [, setDailyHigh] = useState<number | null>(null)
+  const [, setDailyLow] = useState<number | null>(null)
   const [dailyVolume, setDailyVolume] = useState<number | null>(null)
-  const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
+  const [, setDailyChangePct] = useState<number | null>(null)
 
   // Persist selected timeframe per token so it survives re-mounts (e.g. after trades)
   useEffect(() => {
@@ -128,7 +128,7 @@ function TradingChartComponent({
         setDailyVolume(volume)
         setDailyChangePct(changePct)
         if (onDailyChangePct) onDailyChangePct(changePct)
-      } catch (e) {
+      } catch {
         if (!cancelled) {
           setDailyHigh(null)
           setDailyLow(null)
@@ -182,18 +182,6 @@ function TradingChartComponent({
     parsedCurrentPrice !== null && isFinite(parsedCurrentPrice)
       ? parsedCurrentPrice
       : lastCandlePrice ?? null
-
-  const priceChangeColor =
-    dailyChangePct === null || !isFinite(dailyChangePct)
-      ? "text-zinc-400"
-      : dailyChangePct > 0
-        ? "text-emerald-400"
-        : dailyChangePct < 0
-          ? "text-red-400"
-          : "text-zinc-400"
-
-  const priceChangePrefix =
-    dailyChangePct !== null && isFinite(dailyChangePct) && dailyChangePct > 0 ? "+" : ""
 
   // Initialize chart
   useEffect(() => {
@@ -344,7 +332,7 @@ function TradingChartComponent({
       if (lastPriceLineRef.current) {
         try {
           candlestickSeriesRef.current.removePriceLine(lastPriceLineRef.current)
-        } catch (e) {
+        } catch {
           // Price line might not exist, ignore error
         }
         lastPriceLineRef.current = null

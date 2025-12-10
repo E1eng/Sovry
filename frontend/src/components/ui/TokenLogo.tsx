@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState, useEffect } from "react"
 import { Loader2 } from "lucide-react"
 
@@ -16,6 +17,13 @@ const sizeClasses = {
   md: "w-12 h-12",
   lg: "w-16 h-16",
   xl: "w-24 h-24",
+} as const
+
+const sizePixels: Record<NonNullable<TokenLogoProps["size"]>, number> = {
+  sm: 32,
+  md: 48,
+  lg: 64,
+  xl: 96,
 }
 
 export default function TokenLogo({
@@ -82,6 +90,7 @@ export default function TokenLogo({
   }, [ipId, tokenAddress])
 
   const sizeClass = sizeClasses[size]
+  const sizePx = sizePixels[size]
 
   // Loading state
   if (isLoading) {
@@ -115,9 +124,11 @@ export default function TokenLogo({
   // Success state - show actual image
   return (
     <div className={`${sizeClass} ${className} relative`}>
-      <img
+      <Image
         src={imageUrl}
         alt={fallbackName}
+        width={sizePx}
+        height={sizePx}
         className="w-full h-full rounded-full object-cover border border-border/30"
         onError={() => {
           setHasError(true)

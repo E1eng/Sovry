@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { TrendingUp, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,11 @@ export function TrendingFloat({
           <div className="flex items-center gap-3 mb-3">
             {assetImage ? (
               <div className="w-12 h-12 rounded-lg overflow-hidden border border-zinc-800 flex-shrink-0">
-                <img
+                <Image
                   src={assetImage}
                   alt={assetName}
+                  width={48}
+                  height={48}
                   className="w-full h-full object-cover"
                 />
               </div>

@@ -17,7 +17,6 @@ export function trackEvent(eventName: string, props?: AnalyticsEventProps): void
   // TODO: Integrate with real analytics SDK here if desired
   if (process.env.NODE_ENV !== "production") {
     // Dev logging only to avoid noisy production console
-    // eslint-disable-next-line no-console
     console.debug("[analytics]", eventName, props || {});
   }
 }

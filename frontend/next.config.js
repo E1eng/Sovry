@@ -10,6 +10,16 @@ const nextConfig = {
         hostname: 'cupllnxfdbxfigzrmqjy.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'ipfs.io',
+        pathname: '/ipfs/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'nft-cdn.alchemy.com',
+        pathname: '/story-aeneid/**',
+      },
     ],
   },
   // Empty turbopack config to silence Next.js 16 warning (we use webpack)

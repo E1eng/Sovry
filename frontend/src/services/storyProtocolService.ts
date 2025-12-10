@@ -1,14 +1,12 @@
 // Story Protocol service integration
 // ARCHITECTURE: Separate READ (Backend API) and WRITE (Dynamic Wallet)
 
-import { StoryClient, WIP_TOKEN_ADDRESS, PILFlavor } from '@story-protocol/core-sdk';
-import { StoryClient as StoryClientType } from '@story-protocol/core-sdk';
+import { StoryClient, WIP_TOKEN_ADDRESS } from '@story-protocol/core-sdk';
 import { createPublicClient, http, Address, encodeFunctionData, custom } from 'viem';
 import { erc20Abi } from 'viem';
 
 // Environment variables
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
-const GOLDSKY_GRAPHQL_URL = 'https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn';
 const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || 'KOTbaGUSWQ6cUJWhiJYiOjPgB0kTRu1eCFFvQL0IWls';
 
 // Sovry Launchpad Contract Address (bonding curve launch)
@@ -271,21 +269,6 @@ const ROYALTY_MODULE_ABI = [
     name: 'getRoyaltyVaultAddress',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
-    type: 'function',
-  },
-] as const;
-
-// Minimal ABI for IpRoyaltyVault claim helper used to pull WIP directly to the
-// SovryLaunchpad contract without routing through the user wallet.
-const IP_ROYALTY_VAULT_ABI = [
-  {
-    inputs: [
-      { internalType: 'address', name: 'claimer', type: 'address' },
-      { internalType: 'address[]', name: 'tokenList', type: 'address[]' },
-    ],
-    name: 'claimRevenueOnBehalfByTokenBatch',
-    outputs: [{ internalType: 'uint256[]', name: '', type: 'uint256[]' }],
-    stateMutability: 'nonpayable',
     type: 'function',
   },
 ] as const;

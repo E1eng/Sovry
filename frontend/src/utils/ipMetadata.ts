@@ -44,7 +44,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * @param ipId The IP asset ID
  * @returns Promise<IPAssetMetadata | null>
  */
-export async function getIPAssetMetadata(ipId: string): Promise<IPAssetMetadata | null> {
+export async function getIPAssetMetadata(_ipId: string): Promise<IPAssetMetadata | null> {
   // Backend metadata API is currently disabled/not available. Return null so
   // callers can fall back to other data sources (Supabase, subgraph, etc.)
   // without attempting to hit a missing /api route.

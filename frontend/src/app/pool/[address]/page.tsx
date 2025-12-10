@@ -20,7 +20,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { logError, isNetworkError, isRPCError } from "@/lib/errorUtils"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
-import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 
 const TradingChart = dynamic(
   () => import("@/components/trading/TradingChart").then((m) => m.TradingChart),
@@ -47,7 +46,6 @@ export default function TokenDetailPage() {
   const router = useRouter()
   const address = params.address as string
   const { details, loading, error, retry: refreshDetails } = useLaunchDetails(address)
-  const { primaryWallet } = useDynamicContext()
   
   const [showGraduationModal, setShowGraduationModal] = useState(false)
   const [graduationData, setGraduationData] = useState<{
@@ -168,7 +166,7 @@ export default function TokenDetailPage() {
                 <AlertDescription>Invalid token address</AlertDescription>
               </Alert>
               <p className="text-sm text-zinc-400">
-                The address "{address}" is not a valid Ethereum address.
+                The address {address} is not a valid Ethereum address.
               </p>
               <div className="flex gap-3 justify-center">
                 <Button onClick={() => router.back()} variant="outline">
@@ -208,7 +206,7 @@ export default function TokenDetailPage() {
                     <AlertDescription>Token not found</AlertDescription>
                   </Alert>
                   <p className="text-sm text-zinc-400">
-                    The token address you're looking for doesn't exist or couldn't be loaded.
+                    The token address you are looking for does not exist or could not be loaded.
                   </p>
                   <p className="text-xs text-zinc-500 mt-2">
                     If you just created this token, it may take a few moments to appear. Please try again shortly.
@@ -273,7 +271,6 @@ export default function TokenDetailPage() {
     )
   }
 
-  const bondingProgress = details.bondingProgress || 0
   const launchInfo = details.launchInfo
   const ticker = details.symbol || "TOKEN"
   const tokenName = details.name || ticker

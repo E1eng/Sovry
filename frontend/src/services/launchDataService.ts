@@ -1,7 +1,7 @@
-import { createPublicClient, http, Address, formatEther, parseEther } from "viem";
+import { createPublicClient, http, Address, formatEther } from "viem";
 import { erc20Abi } from "viem";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
-import { getLaunchInfo, getBondingProgress, type LaunchInfo } from "./launchpadService";
+import { getLaunchInfo, getBondingProgress } from "./launchpadService";
 import { getIPAssetMetadata } from "@/utils/ipMetadata";
 import { extractCategory } from "@/utils/ipMetadata";
 import { supabase } from "@/lib/supabaseClient";
@@ -193,6 +193,23 @@ async function fetchTokenSymbol(tokenAddress: string): Promise<string | null> {
   }
 }
 
+/**
+ * Fetch bonding progress for a wrapper token.
+ *
+ * This reuses the bonding curve target logic from launchpadService
+ * (getBondingProgress + LaunchInfo.totalRaised).
+ */
+async function fetchBondingProgress(wrapperToken: string): Promise<number | null> {
+  try {
+    const info = await getLaunchInfo(wrapperToken);
+    if (!info) return null;
+    return getBondingProgress(info);
+  } catch (error) {
+    console.error(`Error fetching bonding progress for ${wrapperToken}:`, error);
+    return null;
+  }
+}
+
 async function fetchTokenState(
   wrapperToken: string,
   launchpadAddress: string
@@ -265,103 +282,6 @@ async function getRtAddressFromWrapper(
     }
   } catch (error) {
     console.error(`Error getting RT address for ${wrapperToken}:`, error);
-    return null;
-  }
-}
-
-/**
- * Resolve IP ID from RT address (this is complex - RT is the royalty vault)
- * For now, we'll try to fetch IP metadata by querying Story Protocol API
- * with the RT address, or we can try to reverse lookup
- */
-async function resolveIpIdFromRt(rtAddress: string): Promise<string | null> {
-  // Note: This is a simplified approach. In production, you might need
-  // to query Story Protocol's subgraph or use a reverse mapping service
-  // For now, we'll return null and let the UI handle it
-  // The IP ID can be fetched from metadata API if available
-  return null;
-}
-
-/**
- * Fetch market cap for a token
- */
-async function fetchMarketCap(
-  wrapperToken: string,
-  launchpadAddress: string
-): Promise<string | null> {
-  try {
-    const version = await detectContractVersion(launchpadAddress);
-    
-    if (version === "new") {
-      try {
-        const marketCap = await publicClient.readContract({
-          address: launchpadAddress as Address,
-          abi: newLaunchpadAbi,
-          functionName: "getMarketCap",
-          args: [wrapperToken as Address],
-        });
-        return formatEther(marketCap as bigint);
-      } catch (error) {
-        console.error(`Error fetching market cap (new contract) for ${wrapperToken}:`, error);
-        return null;
-      }
-    } else {
-      // Old contract - calculate from totalRaised
-      const launchInfo = await getLaunchInfo(wrapperToken);
-      if (!launchInfo) return null;
-      
-      // Approximate market cap = totalRaised (in IP)
-      return formatEther(launchInfo.totalRaised);
-    }
-  } catch (error) {
-    console.error(`Error fetching market cap for ${wrapperToken}:`, error);
-    return null;
-  }
-}
-
-/**
- * Fetch bonding curve progress
- */
-async function fetchBondingProgress(wrapperToken: string): Promise<number> {
-  try {
-    const launchInfo = await getLaunchInfo(wrapperToken);
-    return getBondingProgress(launchInfo);
-  } catch (error) {
-    console.error(`Error fetching bonding progress for ${wrapperToken}:`, error);
-    return 0;
-  }
-}
-
-/**
- * Fetch current price
- */
-async function fetchCurrentPrice(
-  wrapperToken: string,
-  launchpadAddress: string
-): Promise<string | null> {
-  try {
-    const version = await detectContractVersion(launchpadAddress);
-    
-    if (version === "new") {
-      try {
-        const price = await publicClient.readContract({
-          address: launchpadAddress as Address,
-          abi: newLaunchpadAbi,
-          functionName: "getCurrentPrice",
-          args: [wrapperToken as Address],
-        });
-        return formatEther(price as bigint);
-      } catch (error) {
-        console.error(`Error fetching current price (new contract) for ${wrapperToken}:`, error);
-        return null;
-      }
-    } else {
-      // Old contract - calculate from bonding curve formula
-      // This would require curve parameters which aren't easily accessible
-      return null;
-    }
-  } catch (error) {
-    console.error(`Error fetching current price for ${wrapperToken}:`, error);
     return null;
   }
 }

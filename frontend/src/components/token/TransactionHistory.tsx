@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,6 @@ import { ExternalLink, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
 import { useRawTradeHistory } from "@/hooks/useRawTradeHistory"
 import { getAddressInitials, getAddressGradient } from "@/lib/avatarUtils"
 import { cn } from "@/lib/utils"
-import Link from "next/link"
 
 export interface TransactionHistoryProps {
   tokenAddress: string

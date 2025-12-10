@@ -20,9 +20,11 @@ export async function clear() {
   store.clear();
 }
 
-export default {
+const asyncStorageMock = {
   getItem,
   setItem,
   removeItem,
   clear,
 };
+
+export default asyncStorageMock;

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -149,9 +150,11 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-lg bg-zinc-800/80 flex items-center justify-center overflow-hidden">
                     {sampleImageUrl ? (
-                      <img
+                      <Image
                         src={sampleImageUrl}
                         alt={sampleName}
+                        width={40}
+                        height={40}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -175,9 +178,11 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-zinc-400">
                     <div className="h-6 w-6 flex-shrink-0">
-                      <img
+                      <Image
                         src="/ip-badge-2.svg"
                         alt="IP badge"
+                        width={24}
+                        height={24}
                         className="h-full w-full object-contain"
                       />
                     </div>

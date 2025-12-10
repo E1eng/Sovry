@@ -317,7 +317,7 @@ export function transformToOHLC(
   }
 
   // Strip internal count field before returning
-  return filledBuckets.map(({ count, ...rest }) => rest)
+  return filledBuckets.map(({ count: _count, ...rest }) => rest)
 }
 
 /**

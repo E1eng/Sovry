@@ -2,7 +2,7 @@
   "name": "sovry",
   "version": "1.0.0",
   "private": true,
-  "description": "Sovry DEX - Decentralized Exchange for IP Assets",
+  "description": "Sovry - Decentralized Exchange for IP Assets",
   "workspaces": [
     "contracts",
     "frontend",

@@ -21,7 +21,6 @@ import {
 } from "@/lib/bondingCurve"
 import { SlippageSettings } from "@/components/swap/SlippageSettings"
 import { launchpadService } from "@/services/launchpadService"
-import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
 import { erc20Abi } from "viem"
 import { parseTransactionError, logError, isSlippageError } from "@/lib/errorUtils"
 import { trackTrade, trackEvent } from "@/lib/analytics"
@@ -40,7 +39,7 @@ function SwapInterfaceComponent({
   tokenAddress,
   tokenSymbol = "TOKEN",
   className,
-  onSwap,
+  onSwap: _onSwap,
   isGraduated = false,
   piperXPoolAddress,
 }: SwapInterfaceProps) {
@@ -72,11 +71,8 @@ function SwapInterfaceComponent({
   const [tradeSuccess, setTradeSuccess] = useState(false)
   const [userBalance, setUserBalance] = useState<string | null>(null)
   const [tokenBalance, setTokenBalance] = useState<string | null>(null)
-  const [isApproved, setIsApproved] = useState(false)
-  const [isApproving, setIsApproving] = useState(false)
   const [balanceError, setBalanceError] = useState<string | null>(null)
   const [slippageError, setSlippageError] = useState<string | null>(null)
-  const [curveParams, setCurveParams] = useState<any | null>(null)
   const [isSimulatingTx, setIsSimulatingTx] = useState(false)
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
   const [simulationError, setSimulationError] = useState<string | null>(null)
@@ -101,29 +97,9 @@ function SwapInterfaceComponent({
   }, [isConnected, primaryWallet?.address])
 
   // Fetch launch details (for loading state and auxiliary info)
-  const { details, loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
+  const { loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
 
-  // Load real bonding curve parameters from the launchpad
-  useEffect(() => {
-    let cancelled = false
-    const loadCurve = async () => {
-      if (!tokenAddress) {
-        if (!cancelled) setCurveParams(null)
-        return
-      }
-      try {
-        const params = await launchpadService.getCurveParams(tokenAddress)
-        if (!cancelled) setCurveParams(params)
-      } catch (error) {
-        console.error("Error loading bonding curve params:", error)
-        if (!cancelled) setCurveParams(null)
-      }
-    }
-    loadCurve()
-    return () => {
-      cancelled = true
-    }
-  }, [tokenAddress])
+  // Load real  // Loaders and state are handled per-quote and per-tx using fresh curve params
 
   // Debounce timer ref
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -243,7 +219,7 @@ function SwapInterfaceComponent({
         setIsCalculating(false)
       }
     },
-    [tokenAddress, slippage, fromToken, toToken, curveParams]
+    [tokenAddress, slippage, fromToken, toToken, FEE_BPS, BPS_DENOMINATOR]
   )
 
   // Debounced calculation effect
@@ -353,12 +329,11 @@ function SwapInterfaceComponent({
     fetchBalance()
   }, [primaryWallet?.address, publicClient])
 
-  // Fetch user's token balance and check approval (debounced on amount)
+  // Fetch user's token balance (debounced on amount)
   useEffect(() => {
-    const fetchTokenBalanceAndApproval = async () => {
+    const fetchTokenBalance = async () => {
       if (!primaryWallet?.address || !tokenAddress) {
         setTokenBalance(null)
-        setIsApproved(false)
         return
       }
 
@@ -374,28 +349,14 @@ function SwapInterfaceComponent({
 
         const tokenWei = balance * (10n ** 12n)
         setTokenBalance(formatEther(tokenWei))
-
-        // Check approval. Allowance is also in 6-decimal units, so normalise
-        // to 18-decimal before comparing with the 18-decimal sell amount.
-        const allowanceRaw = await publicClient.readContract({
-          address: tokenAddress as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [primaryWallet.address as `0x${string}`, SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`],
-        }) as bigint
-
-        const allowanceWei = allowanceRaw * (10n ** 12n)
-        const sellAmountWei = debouncedFromAmount && fromToken === "TOKEN" ? parseEther(debouncedFromAmount) : 0n
-        setIsApproved(allowanceWei >= sellAmountWei && sellAmountWei > 0n)
       } catch (error) {
         console.error("Error fetching token balance/approval:", error)
         setTokenBalance(null)
-        setIsApproved(false)
       }
     }
 
-    fetchTokenBalanceAndApproval()
-  }, [primaryWallet?.address, tokenAddress, debouncedFromAmount, fromToken, publicClient])
+    fetchTokenBalance()
+  }, [primaryWallet?.address, tokenAddress, publicClient])
 
   // Handle place trade
   const handlePlaceTrade = async () => {
@@ -460,7 +421,7 @@ function SwapInterfaceComponent({
       setSimulationError(null)
       setIsSimulatingTx(true)
       try {
-        const simResult = await launchpadService.simulateBuy(
+        await launchpadService.simulateBuy(
           tokenAddress,
           fromAmount,
           primaryWallet.address as string,
@@ -632,7 +593,6 @@ function SwapInterfaceComponent({
       setSimulationError(null)
       setIsSimulatingTx(true)
       try {
-        const slippagePercent = parseFloat(slippage) || 1
         const tokenWeiIn = parseEther(fromAmount)
         const wrapperAmount = tokenWeiIn / (10n ** 12n)
         if (wrapperAmount <= 0n) {
@@ -656,7 +616,7 @@ function SwapInterfaceComponent({
         const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
         const minIpOutStr = formatEther(minProceeds)
 
-        const simResult = await launchpadService.simulateSell(
+        await launchpadService.simulateSell(
           tokenAddress,
           fromAmount,
           minIpOutStr,
@@ -791,7 +751,6 @@ function SwapInterfaceComponent({
           setPriceImpact(null)
           setExchangeRate("")
           setTradeSuccess(false)
-          setIsApproved(false) // Reset approval status
         }, 2000)
       } else {
         trackTrade("sell", tokenAddress, fromAmount, false, result.error)
@@ -983,7 +942,7 @@ function SwapInterfaceComponent({
                 }
               }}
               placeholder={detailsLoading ? "Loading..." : "0.0"}
-              disabled={detailsLoading || !tokenAddress || isTrading || isApproving}
+              disabled={detailsLoading || !tokenAddress || isTrading}
               className="flex-1 text-base sm:text-lg font-semibold"
               aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
               aria-describedby={balanceError ? "balance-error" : undefined}
@@ -1036,7 +995,7 @@ function SwapInterfaceComponent({
             className="h-10 w-10 rounded-full border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-700 touch-manipulation"
             onClick={handleSwapTokens}
             aria-label="Swap tokens"
-            disabled={isTrading || isApproving}
+            disabled={isTrading}
           >
             <ArrowDownUp className="h-5 w-5 text-zinc-400" />
           </Button>
@@ -1052,7 +1011,7 @@ function SwapInterfaceComponent({
                 value={toAmount || (isCalculating ? "..." : "")}
                 readOnly
                 placeholder={detailsLoading ? "Loading..." : "0.0"}
-              disabled={detailsLoading || isTrading || isApproving}
+              disabled={detailsLoading || isTrading}
               className="flex-1 text-base sm:text-lg font-semibold pr-10 bg-zinc-800/50"
               aria-label={`Amount to ${activeTab === "buy" ? "receive" : "receive"}`}
               aria-live="polite"

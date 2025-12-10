@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useRouter } from "next/navigation";
@@ -40,7 +41,6 @@ import { pinFileToIPFS, pinJSONToIPFS } from "@/services/pinataService";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function CreatePage() {
-
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
   const router = useRouter();
 
@@ -50,8 +50,8 @@ export default function CreatePage() {
   const [ipAssets, setIpAssets] = useState<IPAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [creatingPool, setCreatingPool] = useState<string | null>(null);
-  const [launchStep, setLaunchStep] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedIP, setSelectedIP] = useState<string>("");
   const [tokenBalances, setTokenBalances] = useState<Record<string, TokenBalance>>({});
@@ -67,7 +67,6 @@ export default function CreatePage() {
   const [twitterUrl, setTwitterUrl] = useState("");
   const [telegramUrl, setTelegramUrl] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
-  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchedTokenAddress, setLaunchedTokenAddress] = useState<string | null>(null);
@@ -241,7 +240,6 @@ export default function CreatePage() {
   const handleCreatePool = async (ipAsset: IPAsset) => {
     try {
       setCreatingPool(ipAsset.ipId);
-      setLaunchStep(3);
       setError(null);
       setSuccess(null);
 
@@ -269,7 +267,6 @@ export default function CreatePage() {
         throw new Error(result.error || "Failed to launch on bonding curve");
       }
 
-      let metadataUri: string | null = null;
       try {
         // Always upload image to Pinata: prefer manual upload, otherwise fetch from Story/IP asset URL and re-upload
         let imageUrl = "";
@@ -328,11 +325,10 @@ export default function CreatePage() {
           },
         };
 
-        const metaRes = await pinJSONToIPFS(
+        await pinJSONToIPFS(
           metadata,
           `${symbolForLaunch || nameForLaunch}-wrapper`
         );
-        metadataUri = metaRes.uri;
 
         if (supabase) {
           await supabase.from("launches").insert({
@@ -343,8 +339,6 @@ export default function CreatePage() {
             symbol: symbolForLaunch,
             description: launchDescription || null,
             image_url: imageUrl || null,
-            // Store original IP metadata URI from Story, not wrapper metadata
-            metadata_uri: ipAsset.metadataUri || null,
             twitter_url: twitterUrl.trim() || null,
             telegram_url: telegramUrl.trim() || null,
             website_url: websiteUrl.trim() || null,
@@ -354,33 +348,11 @@ export default function CreatePage() {
         console.error("Failed to persist wrapper metadata", metaError);
       }
 
-      setLaunchStep(4);
-      let lockMessage = "";
-      if (walletAddress) {
-        try {
-          const lockInfo = await launchpadService.getRoyaltyLockInfo(
-            ipAsset.royaltyVaultAddress,
-            walletAddress
-          );
-          if (lockInfo) {
-            const scale = Math.pow(10, lockInfo.decimals || 18);
-            const locked = Number(lockInfo.locked) / scale;
-            const remaining = Number(lockInfo.creatorBalance) / scale;
-            lockMessage =
-              `\nLocked: ${locked.toFixed(4)} ${lockInfo.symbol}, ` +
-              `Remaining: ${remaining.toFixed(4)} ${lockInfo.symbol}`;
-          }
-        } catch (e) {
-          console.error("Failed to load royalty lock info", e);
-        }
-      }
-
       setSuccess(
         `Launch Successful` +
           `\n• Approve Tx: ${result.approveTxHash}` +
           `\n• Launch Tx: ${result.launchTxHash}` +
-          `\n• Launchpad: ${SOVRY_LAUNCHPAD_ADDRESS.slice(0, 10)}...` +
-          (lockMessage || "")
+          `\n• Launchpad: ${SOVRY_LAUNCHPAD_ADDRESS.slice(0, 10)}...`
       );
 
       setTwitterUrl("");
@@ -397,7 +369,6 @@ export default function CreatePage() {
       setError(err instanceof Error ? err.message : "Failed to launch on bonding curve");
     } finally {
       setCreatingPool(null);
-      setLaunchStep(null);
     }
   };
 
@@ -476,7 +447,7 @@ export default function CreatePage() {
             <div className="inline-flex items-center px-4 py-2 bg-sovry-green/10 rounded-full border border-sovry-green/30">
               <Sparkles className="w-4 h-4 text-sovry-green mr-2" />
               <span className="text-xs font-medium text-sovry-green uppercase tracking-wide">
-                Create & Launch IP Tokens
+                Create &amp; Launch IP Tokens
               </span>
             </div>
             <div className="space-y-3">
@@ -534,7 +505,7 @@ export default function CreatePage() {
                   </span>
                 </div>
                 <p className="text-xs md:text-sm text-zinc-500 ml-6">
-                  Mint license & transfer Royalty Tokens to your wallet.
+                  Mint license &amp; transfer Royalty Tokens to your wallet.
                 </p>
               </div>
 
@@ -557,7 +528,7 @@ export default function CreatePage() {
                   </span>
                 </div>
                 <p className="text-xs md:text-sm text-zinc-500 ml-6">
-                  Set name, symbol & percentage, then confirm launch.
+                  Set name, symbol &amp; percentage, then confirm launch.
                 </p>
               </div>
             </CardContent>
@@ -755,7 +726,7 @@ export default function CreatePage() {
                 <div className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-sovry-green/80" />
                   <p className="text-xs md:text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                    Selected IP & Launch
+                    Selected IP &amp; Launch
                   </p>
                 </div>
                 <span className="text-xs md:text-sm text-zinc-500">Detail Panel</span>
@@ -847,10 +818,6 @@ export default function CreatePage() {
                           src={launchImageUrl || selectedIPAsset.imageUrl}
                           alt="Token logo preview"
                           className="absolute inset-0 w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = "none";
-                          }}
                         />
                         {launchLogoFile && (
                           <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-sovry-green/90 rounded text-[10px] text-black font-medium">
@@ -1082,7 +1049,7 @@ export default function CreatePage() {
           className="inline-flex items-center gap-2 text-sovry-green hover:text-sovry-green/80 hover:underline transition-colors"
         >
           <PlusCircle className="h-4 w-4" />
-          <span>Don't see your IP? Register an IP now.</span>
+          <span>Do not see your IP? Register an IP now.</span>
         </Link>
       </div>
 

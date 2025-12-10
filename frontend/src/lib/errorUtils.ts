@@ -83,6 +83,5 @@ export function logError(error: unknown, context?: string): void {
   if (typeof window === "undefined") return;
   if (process.env.NODE_ENV === "production") return;
 
-  // eslint-disable-next-line no-console
   console.error("[error]", context || "", error);
 }

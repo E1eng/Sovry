@@ -121,7 +121,7 @@ export function GraduationModal({
         oscillator.stop(audioContext.currentTime + 0.6)
 
         soundPlayedRef.current = true
-      } catch (error) {
+      } catch {
         // Silently fail if audio is not supported or user hasn't interacted
         // This is expected behavior - browsers require user interaction for audio
       }

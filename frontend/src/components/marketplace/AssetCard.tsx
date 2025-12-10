@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { formatMarketCap } from "@/services/launchDataService";
 
@@ -60,12 +61,14 @@ export default function AssetCard({ launch }: AssetCardProps) {
       {/* Left - Image Section (square) */}
       <div className="relative w-28 sm:w-32 lg:w-36 aspect-square bg-zinc-900/80 overflow-hidden flex-shrink-0">
         {launch.imageUrl ? (
-          <img
+          <Image
             src={launch.imageUrl}
             alt={displayName}
+            width={144}
+            height={144}
             className="w-full h-full object-cover"
             onError={(e) => {
-              const target = e.target as HTMLImageElement;
+              const target = e.currentTarget;
               target.style.display = "none";
             }}
           />

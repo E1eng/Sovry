@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RemixCountProps {

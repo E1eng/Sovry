@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -136,9 +137,11 @@ export function Sidebar() {
               {/* Icon bubble always visible, like nav icons */}
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-primary via-amber-400 to-primary/80 text-sm font-bold text-background flex-shrink-0 overflow-hidden">
                 {avatarUrl ? (
-                  <img
+                  <Image
                     src={avatarUrl}
                     alt="Profile avatar"
+                    width={40}
+                    height={40}
                     className="h-full w-full object-cover"
                   />
                 ) : (

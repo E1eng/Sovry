@@ -47,7 +47,7 @@ export async function generateMetadata({
         description: `${description}. ${status}.`,
       },
     }
-  } catch (error) {
+  } catch {
     return {
       title: "Token Details | Sovry",
       description: "View token details on Sovry Launchpad",

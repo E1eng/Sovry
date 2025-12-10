@@ -439,7 +439,7 @@ export default function ProfilePage() {
 
       <Tabs defaultValue={initialTab} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="tokens">Tokens you've launched</TabsTrigger>
+          <TabsTrigger value="tokens">Tokens you have launched</TabsTrigger>
           <TabsTrigger value="holdings">Your holdings</TabsTrigger>
         </TabsList>
 
@@ -492,9 +492,11 @@ export default function ProfilePage() {
                                 <td className="py-4 px-4">
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                                      <img
+                                      <Image
                                         src={asset.image}
                                         alt={asset.name}
+                                        width={40}
+                                        height={40}
                                         className="w-full h-full object-cover"
                                       />
                                     </div>
@@ -583,9 +585,11 @@ export default function ProfilePage() {
                             <td className="py-4 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                                  <img
+                                  <Image
                                     src={asset.image}
                                     alt={asset.name}
+                                    width={40}
+                                    height={40}
                                     className="w-full h-full object-cover"
                                   />
                                 </div>

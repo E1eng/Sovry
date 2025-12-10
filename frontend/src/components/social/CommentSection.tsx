@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -363,9 +364,11 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {comment.avatarUrl ? (
-                      <img
+                      <Image
                         src={comment.avatarUrl}
                         alt="Profile avatar"
+                        width={32}
+                        height={32}
                         className="h-8 w-8 rounded-full object-cover border border-border/60"
                       />
                     ) : (
