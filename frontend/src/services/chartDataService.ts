@@ -1,8 +1,6 @@
 import { formatEther } from "viem";
 
-const SUBGRAPH_URL =
-  process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.1.1/gn";
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL!;
 
 // Raw shape aligned with current Trade entity in the subgraph
 interface RawTrade {

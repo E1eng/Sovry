@@ -3,7 +3,7 @@
 // Staging API: https://staging-api.storyprotocol.net/api/v4
 
 const STORY_API_BASE_URL = 'https://staging-api.storyprotocol.net/api/v4';
-const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || 'MhBsxkU1z9fG6TofE59KqiiWV-YlYE8Q4awlLQehF3U';
+const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || "";
 
 // API Types
 export interface StoryAPIResponse<T> {

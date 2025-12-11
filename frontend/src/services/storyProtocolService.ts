@@ -7,7 +7,7 @@ import { erc20Abi } from 'viem';
 
 // Environment variables
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
-const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || 'KOTbaGUSWQ6cUJWhiJYiOjPgB0kTRu1eCFFvQL0IWls';
+const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || "";
 
 // Sovry Launchpad Contract Address (bonding curve launch)
 export const SOVRY_LAUNCHPAD_ADDRESS =
@@ -86,10 +86,10 @@ const LAUNCHPAD_VIEW_ABI = [
 ];
 
 const DEFAULT_BASE_PRICE_WEI = BigInt(
-  process.env.NEXT_PUBLIC_BASE_PRICE_WEI,
+  process.env.NEXT_PUBLIC_BASE_PRICE_WEI || "100000000000", // 1e11 wei default
 );
 const DEFAULT_PRICE_INCREMENT_WEI = BigInt(
-  process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI,
+  process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI || "2000000", // 2e6 wei default
 );
 
 // Token balance interface

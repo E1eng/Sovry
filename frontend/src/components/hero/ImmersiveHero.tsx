@@ -23,9 +23,7 @@ interface ImmersiveHeroProps {
   sampleLaunch?: ImmersiveHeroSampleLaunch;
 }
 
-const SUBGRAPH_URL =
-  process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.0.1/gn";
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL!;
 
 interface HeroTradeTickerItem {
   id: string;

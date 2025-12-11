@@ -3,9 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { enrichLaunchesData } from "@/services/launchDataService"
 
-const SUBGRAPH_URL =
-  process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/Sovry-Aeneid/1.0.0/gn"
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL!
 
 interface BasicLaunch {
   id: string
