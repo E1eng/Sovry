@@ -288,7 +288,7 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
             {/* Main Headline */}
             <div className="space-y-3">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-zinc-50">
-                Launch IP-backed tokens in one place.
+                Launch IP-backed tokens on Sovry.
               </h1>
               <p className="max-w-xl text-sm sm:text-base text-zinc-400">
                 Register your IP, launch a bonding curve token, and let the market discover it.
