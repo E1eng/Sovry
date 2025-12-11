@@ -95,7 +95,13 @@ export function ProgressToGraduation({
   }
 
   const totalRaisedFormatted = formatIP(totalRaisedBigInt)
-  const targetRaiseFormatted = formatIP(targetRaiseBigInt)
+
+  // For the target threshold, show a clean whole number (e.g. 10,000 IP)
+  // instead of a decimal representation like 10000.000 IP.
+  const targetRaiseNumber = parseFloat(formatEther(targetRaiseBigInt))
+  const targetRaiseDisplay = Number.isFinite(targetRaiseNumber)
+    ? targetRaiseNumber.toLocaleString()
+    : formatEther(targetRaiseBigInt)
   const isNearCompletion = animatedProgress > 90
 
   // IMPORTANT: Treat "graduated" purely as an on-chain/subgraph state.
@@ -119,7 +125,7 @@ export function ProgressToGraduation({
       <div className="flex items-center justify-between text-sm">
         <span className="font-semibold text-zinc-50">Progress to Graduate</span>
         <span className="text-zinc-400 font-mono">
-          {totalRaisedFormatted} IP / {targetRaiseFormatted} IP ({progress.toFixed(1)}%)
+          {totalRaisedFormatted} IP / {targetRaiseDisplay} IP ({progress.toFixed(1)}%)
         </span>
       </div>
 
