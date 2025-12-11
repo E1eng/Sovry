@@ -137,7 +137,7 @@ Key on‑chain behaviours:
 
 - **Profile (`/profile`) – Portfolio & Creator Console**
   - **Header**: wallet address, username/bio/avatar from Supabase `profiles`
-  - **Tokens you have launched** (creator view):
+  - **Tokens launched** (creator view):
     - Pulled from subgraph (`WrapperToken.creator == wallet`)
     - Shows symbol, name, on‑chain balance, and **Available to Harvest (WIP)**
     - `Available to Harvest (WIP)` is computed from Story royalty vault WIP balance via `getClaimableRoyaltyForIp`
