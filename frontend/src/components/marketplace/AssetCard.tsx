@@ -56,7 +56,7 @@ export default function AssetCard({ launch }: AssetCardProps) {
   return (
     <Link
       href={`/pool/${address}`}
-      className="group relative flex flex-row items-stretch rounded-xl border border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 overflow-hidden hover:border-sovry-green/70 hover:shadow-[0_0_40px_rgba(34,197,94,0.25)] hover:bg-zinc-900/95 transition-all duration-200"
+      className="group relative flex flex-row items-stretch rounded-xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm overflow-hidden hover:border-sovry-green/70 hover:shadow-[0_0_40px_rgba(34,197,94,0.25)] hover:bg-zinc-900/80 transition-all duration-200"
     >
       {/* Left - Image Section (square) */}
       <div className="relative w-28 sm:w-32 lg:w-36 aspect-square bg-zinc-900/80 overflow-hidden flex-shrink-0">

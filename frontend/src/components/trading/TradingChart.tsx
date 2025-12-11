@@ -111,15 +111,13 @@ function TradingChartComponent({
           volume += v
         }
 
-        // Compute 24h change directly from raw trade prices so we don't
-        // accidentally collapse all trades into a single OHLC bucket and
-        // show 0.00% when there was real movement.
+        // Compute 24h change from the TRUE 24h low to the latest price so we
+        // show the maximum pump within the 24h window.
         let changePct: number | null = null
         if (trades.length > 0) {
-          const firstPrice = trades[0].price
           const lastPrice = trades[trades.length - 1].price
-          if (firstPrice && firstPrice > 0) {
-            changePct = ((lastPrice - firstPrice) / firstPrice) * 100
+          if (low && low > 0) {
+            changePct = ((lastPrice - low) / low) * 100
           }
         }
 

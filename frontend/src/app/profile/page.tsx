@@ -111,6 +111,7 @@ export default function ProfilePage() {
   const [harvestError, setHarvestError] = useState<string | null>(null);
   const [premineClaimingId, setPremineClaimingId] = useState<string | null>(null);
   const [premineError, setPremineError] = useState<string | null>(null);
+  const [hasCopiedAddress, setHasCopiedAddress] = useState(false);
 
   const handleProfileUpdated = (update: {
     username?: string | null;
@@ -429,7 +430,24 @@ export default function ProfilePage() {
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
     try {
-      await navigator.clipboard.writeText(walletAddress);
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        await navigator.clipboard.writeText(walletAddress);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = walletAddress;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      setHasCopiedAddress(true);
+      window.setTimeout(() => setHasCopiedAddress(false), 1500);
     } catch (err) {
       console.error("Failed to copy address", err);
     }
@@ -437,10 +455,10 @@ export default function ProfilePage() {
 
   return (
     <>
-      <section className="mb-6 px-2 sm:px-4">
+      <section className="mb-4 sm:mb-6 px-2 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-full border-4 border-zinc-900 shadow-xl overflow-hidden bg-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="relative h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-full border-3 border-zinc-900 shadow-xl overflow-hidden bg-zinc-800 flex-shrink-0">
               <Image
                 src={profileAvatarUrl || "/Sovry_Logo.png"}
                 alt="Profile picture"
@@ -449,25 +467,28 @@ export default function ProfilePage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold text-zinc-50 tracking-tight">
+              <h1 className="text-lg sm:text-2xl md:text-3xl font-semibold text-zinc-50 tracking-tight">
                 {headerName}
               </h1>
               {walletAddress && (
-                <div className="inline-flex items-center gap-2 text-[11px] sm:text-xs text-zinc-100 font-mono bg-zinc-900/80 border border-sovry-crimson/50 rounded-full px-3 py-1 mt-1 shadow-sm">
-                  <span className="truncate max-w-[180px] sm:max-w-[300px] md:max-w-[420px]">
+                <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-sm text-zinc-100 font-mono bg-zinc-900/80 border border-sovry-crimson/50 rounded-full px-2 py-0.5 sm:px-3 sm:py-1 mt-1 shadow-sm">
+                  <span className="truncate max-w-[120px] sm:max-w-[260px] md:max-w-[420px]">
                     {walletAddress}
                   </span>
                   <button
                     type="button"
                     onClick={handleCopyAddress}
-                    className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs text-sovry-crimson hover:text-sovry-crimson/80"
+                    className="inline-flex items-center gap-1 text-sovry-crimson hover:text-sovry-crimson/80 cursor-pointer"
+                    aria-label={hasCopiedAddress ? "Address copied" : "Copy address"}
                   >
-                    <Copy className="h-3 w-3" />
-                    <span>Copy address</span>
+                    <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+                    <span className="hidden sm:inline whitespace-nowrap">
+                      {hasCopiedAddress ? "Copied" : "Copy address"}
+                    </span>
                   </button>
                 </div>
               )}
-              <p className="mt-2 text-sm sm:text-base text-zinc-300 max-w-xl">
+              <p className="mt-2 text-sm sm:text-lg text-zinc-300 max-w-xl">
                 {headerBio}
               </p>
             </div>
@@ -476,7 +497,7 @@ export default function ProfilePage() {
             <Button
               size="sm"
               variant="outline"
-              className="text-xs sm:text-sm"
+              className="h-7 px-3 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium"
               onClick={() => setIsProfileDialogOpen(true)}
             >
               Edit profile
@@ -501,16 +522,26 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue={initialTab} className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="tokens">Tokens you have launched</TabsTrigger>
-          <TabsTrigger value="holdings">Your holdings</TabsTrigger>
+      <Tabs defaultValue={initialTab} className="space-y-4 sm:space-y-6">
+        <TabsList className="h-7 rounded-full bg-zinc-900/70 p-0 overflow-hidden sm:h-9">
+          <TabsTrigger
+            value="tokens"
+            className="flex-1 h-full text-[11px] sm:text-sm font-medium rounded-full hover:bg-zinc-800/40 hover:text-zinc-100"
+          >
+            Tokens launched
+          </TabsTrigger>
+          <TabsTrigger
+            value="holdings"
+            className="flex-1 h-full text-[11px] sm:text-sm font-medium rounded-full hover:bg-zinc-800/40 hover:text-zinc-100"
+          >
+            Your holdings
+          </TabsTrigger>
         </TabsList>
 
         {/* My Tokens Tab */}
         <TabsContent value="tokens" className="space-y-6">
           {holdingsLoading ? (
-            <div className="py-16 text-center">
+            <div className="py-10 sm:py-16 text-center">
               <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
               <p className="text-zinc-400">Loading your tokens...</p>
             </div>
@@ -524,7 +555,7 @@ export default function ProfilePage() {
               )}
               <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-zinc-50">
+                  <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
                     Launched Tokens
                   </CardTitle>
                 </CardHeader>
@@ -533,94 +564,115 @@ export default function ProfilePage() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-zinc-800">
-                          <th className="text-left py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-left py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Asset
                           </th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Balance
                           </th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Value
                           </th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Available to Harvest
                           </th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Harvest
                           </th>
-                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Premine
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {launchedAssets.map((asset) => (
-                          <tr
-                            key={asset.id}
-                            className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                          >
-                            <td className="py-4 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                                  <Image
-                                    src={asset.image}
-                                    alt={asset.name}
-                                    width={40}
-                                    height={40}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                                <div>
-                                  <p className="font-medium text-zinc-50">{asset.symbol}</p>
-                                  <p className="text-sm text-zinc-400">{asset.name}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="text-right py-4 px-4 text-zinc-50">
-                              {asset.balance.toFixed(2)}
-                            </td>
-                            <td className="text-right py-4 px-4 text-zinc-50">
-                              {new Intl.NumberFormat("en-US", {
-                                style: "currency",
-                                currency: "USD",
-                              }).format(asset.valueUSD)}
-                            </td>
-                            <td className="text-right py-4 px-4">
-                              {asset.claimableRevenue > 0 ? (
-                                <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-3 py-1 rounded-full text-sm font-medium border border-sovry-crimson/40">
-                                  {asset.claimableRevenue.toLocaleString("en-US", {
-                                    maximumFractionDigits: 4,
-                                  })}
-                                  <span className="text-xs font-normal text-zinc-300 ml-1">WIP</span>
-                                </span>
-                              ) : (
-                                <span className="text-zinc-400">-</span>
-                              )}
-                            </td>
-                            <td className="text-right py-4 px-4">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-9 px-4 text-xs font-medium"
-                                onClick={() => handleHarvestAsset(asset.id)}
-                                disabled={!primaryWallet || harvestingId === asset.id}
-                              >
-                                {harvestingId === asset.id ? "Harvesting..." : "Harvest"}
-                              </Button>
-                            </td>
-                            <td className="text-right py-4 px-4">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-9 px-4 text-xs font-medium"
-                                onClick={() => handleClaimPremine(asset.id)}
-                                disabled={!primaryWallet || premineClaimingId === asset.id}
-                              >
-                                {premineClaimingId === asset.id ? "Claiming..." : "Claim premine"}
-                              </Button>
+                        {launchedAssets.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="py-4 px-3 text-center text-xs text-zinc-500"
+                            >
+                              You haven't launched any tokens yet.
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          launchedAssets.map((asset) => (
+                            <tr
+                              key={asset.id}
+                              className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
+                            >
+                              <td className="py-2 px-2 sm:py-3 sm:px-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
+                                    <Image
+                                      src={asset.image}
+                                      alt={asset.name}
+                                      width={40}
+                                      height={40}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs sm:text-base font-medium text-zinc-50">
+                                      {asset.symbol}
+                                    </p>
+                                    <p className="text-[10px] sm:text-sm text-zinc-400">
+                                      {asset.name}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                                {asset.balance.toFixed(2)}
+                              </td>
+                              <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                                {new Intl.NumberFormat("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                }).format(asset.valueUSD)}
+                              </td>
+                              <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                {asset.claimableRevenue > 0 ? (
+                                  <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-2.5 py-0.5 rounded-full text-[10px] sm:text-sm font-medium border border-sovry-crimson/40">
+                                    {asset.claimableRevenue.toLocaleString("en-US", {
+                                      maximumFractionDigits: 4,
+                                    })}
+                                    <span className="text-[9px] sm:text-[11px] font-normal text-zinc-300 ml-1">
+                                      WIP
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-zinc-500">-</span>
+                                )}
+                              </td>
+                              <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                  onClick={() => handleHarvestAsset(asset.id)}
+                                  disabled={!primaryWallet || harvestingId === asset.id}
+                                >
+                                  {harvestingId === asset.id
+                                    ? "Harvesting..."
+                                    : "Harvest"}
+                                </Button>
+                              </td>
+                              <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                  onClick={() => handleClaimPremine(asset.id)}
+                                  disabled={!primaryWallet || premineClaimingId === asset.id}
+                                >
+                                  {premineClaimingId === asset.id
+                                    ? "Claiming..."
+                                    : "Claim premine"}
+                                </Button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -630,83 +682,105 @@ export default function ProfilePage() {
           )}
         </TabsContent>
 
-        {/* Holding Tab */}
+        {/* Holdings Tab */}
         <TabsContent value="holdings" className="space-y-6">
-          <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-zinc-50">
-                Holdings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-zinc-800">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                        Asset
-                      </th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                        Balance
-                      </th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                        Value
-                      </th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                        Trade
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {holdingAssets.map((asset) => (
-                      <tr
-                        key={asset.id}
-                        className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                      >
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                              <Image
-                                src={asset.image}
-                                alt={asset.name}
-                                width={40}
-                                height={40}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <div>
-                              <p className="font-medium text-zinc-50">{asset.symbol}</p>
-                              <p className="text-sm text-zinc-400">{asset.name}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="text-right py-4 px-4 text-zinc-50">
-                          {asset.balance.toFixed(2)}
-                        </td>
-                        <td className="text-right py-4 px-4 text-zinc-50">
-                          {new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: "USD",
-                          }).format(asset.valueUSD)}
-                        </td>
-                        <td className="text-right py-4 px-4">
-                          <Link href={`/pool/${asset.id}`}>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-9 px-4 text-xs font-medium"
-                            >
-                              Trade
-                            </Button>
-                          </Link>
-                        </td>
+          {holdingsLoading ? (
+            <div className="py-10 sm:py-16 text-center">
+              <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
+              <p className="text-zinc-400">Loading your holdings...</p>
+            </div>
+          ) : (
+            <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
+              <CardHeader>
+                <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
+                  Holdings
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        <th className="text-left py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          Asset
+                        </th>
+                        <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          Balance
+                        </th>
+                        <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          Value
+                        </th>
+                        <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          Trade
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                    </thead>
+                    <tbody>
+                      {holdingAssets.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={4}
+                            className="py-4 px-3 text-center text-xs text-zinc-500"
+                          >
+                            You don't hold any assets yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        holdingAssets.map((asset) => (
+                          <tr
+                            key={asset.id}
+                            className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
+                          >
+                            <td className="py-2 px-2 sm:py-4 sm:px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
+                                  <Image
+                                    src={asset.image}
+                                    alt={asset.name}
+                                    width={40}
+                                    height={40}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div>
+                                  <p className="text-xs sm:text-base font-medium text-zinc-50">
+                                    {asset.symbol}
+                                  </p>
+                                  <p className="text-[10px] sm:text-sm text-zinc-400">
+                                    {asset.name}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                              {asset.balance.toFixed(2)}
+                            </td>
+                            <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                              {new Intl.NumberFormat("en-US", {
+                                style: "currency",
+                                currency: "USD",
+                              }).format(asset.valueUSD)}
+                            </td>
+                            <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                              <Link href={`/pool/${asset.id}`}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                >
+                                  Trade
+                                </Button>
+                              </Link>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </>

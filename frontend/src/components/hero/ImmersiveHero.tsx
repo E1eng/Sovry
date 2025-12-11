@@ -264,15 +264,15 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
   const sampleImageUrl = sampleLaunch?.imageUrl;
 
   return (
-    <section className="px-4 md:px-6 pt-6 pb-8">
-      <div className="relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
+    <section className="px-3 sm:px-4 md:px-6 pt-4 pb-6 sm:pt-6 sm:pb-8">
+      <div className="relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 px-4 py-5 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
         {/* Decorative glows */}
         <div className="pointer-events-none absolute -left-20 top-0 h-56 w-56 rounded-full bg-sovry-green/15 blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 right-0 h-64 w-64 rounded-full bg-sovry-pink/10 blur-3xl" />
 
-        <div className="relative flex flex-col lg:flex-row items-start gap-8 lg:gap-10">
+        <div className="relative flex flex-col lg:flex-row items-start gap-6 lg:gap-10">
           {/* Left: Text content */}
-          <div className="flex-1 min-w-0 space-y-6">
+          <div className="flex-1 min-w-0 space-y-5 sm:space-y-6">
             {/* Stats Badge */}
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700/70 bg-zinc-900/70 px-3 py-1 text-xs text-zinc-400 backdrop-blur">

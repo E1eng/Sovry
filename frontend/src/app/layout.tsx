@@ -10,7 +10,7 @@ import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Sovry - IP Asset Trading Platform",
+  title: "Sovry - Trade Token Backed IP Asset",
   description: "Trade Token Backed IP assets on Story Protocol",
   icons: {
     icon: "/Logo only no bg 1x1.ico",
@@ -24,11 +24,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className={inter.className}>
+      <body className={`${inter.className} overflow-x-hidden`}>
         <Providers>
-          <div className="min-h-screen bg-zinc-950 flex">
+          <div className="min-h-screen bg-zinc-950 flex overflow-x-hidden">
             <Sidebar />
-            <main className="flex-1 pb-20 md:ml-16 md:pb-10">
+            <main className="flex-1 pb-20 md:ml-16 md:pb-10 overflow-x-hidden">
               <div className="container mx-auto px-4 py-8 max-w-[1600px]">
                 {children}
               </div>

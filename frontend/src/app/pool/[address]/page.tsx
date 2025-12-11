@@ -285,8 +285,8 @@ export default function TokenDetailPage() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen px-4 md:px-6 lg:px-8 py-8 sm:py-12">
-        <div className="w-full space-y-6">
+      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 py-5 sm:py-8 lg:py-10">
+        <div className="w-full space-y-5 sm:space-y-6">
           {/* Breadcrumbs */}
           <Breadcrumb items={breadcrumbItems} />
 
@@ -301,7 +301,7 @@ export default function TokenDetailPage() {
         </div>
 
         {/* Mobile Layout: Stack vertically with custom order */}
-        <div className="flex flex-col lg:hidden space-y-6">
+        <div className="flex flex-col lg:hidden space-y-4 sm:space-y-6">
             {/* Swap Interface - First on mobile */}
             <div
               style={{

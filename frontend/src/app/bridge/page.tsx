@@ -1,14 +1,14 @@
  "use client";
 
- import { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
- const DEBRIDGE_WIDGET_CONFIG = {
+const DEBRIDGE_WIDGET_CONFIG = {
   element: "debridgeWidget",
   title: "",
   description: "",
-  width: "600",
+  width: "100%",
   height: "600",
-  isAutoHeight: false,
+  isAutoHeight: true,
   r: null,
   affiliateFeePercent: "0.3",
   affiliateFeeRecipient: "0x8c317fb91a73e2c8d4883dded3981982f046f733",
@@ -143,11 +143,11 @@ export default function BridgePage() {
   }, []);
 
   return (
-    <div className="w-full flex justify-center">
-      <div 
+    <div className="w-full flex justify-center px-3 sm:px-4 pt-4 pb-6 sm:pt-6 sm:pb-8">
+      <div
         id={DEBRIDGE_WIDGET_CONFIG.element}
         ref={widgetContainerRef}
-        className="pointer-events-none"
+        className="w-full max-w-md sm:max-w-lg pointer-events-none"
       />
     </div>
   );

@@ -40,7 +40,7 @@ function NowTrendingSection() {
   const activeLaunches = launches.filter((launch) => !launch.graduated);
 
   return (
-    <section className="px-4 md:px-6 py-6" aria-labelledby="now-trending-heading">
+    <section className="px-3 sm:px-4 md:px-6 py-4 sm:py-6" aria-labelledby="now-trending-heading">
       <div className="w-full space-y-4">
         {/* Section Header */}
         <div className="flex items-center justify-between">
@@ -65,14 +65,17 @@ function NowTrendingSection() {
           </div>
         </div>
 
-        {/* Trending Cards Carousel */}
+        {/* Trending Cards Horizontal Carousel */}
         {loading ? (
           <div
             ref={scrollRef}
-            className="flex gap-3 overflow-x-auto no-scrollbar pb-2"
+            className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1"
           >
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="w-[260px] sm:w-[300px] flex-none">
+              <div
+                key={i}
+                className="min-w-[240px] sm:min-w-[260px] md:min-w-[280px] flex-none"
+              >
                 <LaunchCardSkeleton />
               </div>
             ))}
@@ -96,7 +99,7 @@ function NowTrendingSection() {
         ) : (
           <div
             ref={scrollRef}
-            className="flex gap-3 overflow-x-auto no-scrollbar pb-2"
+            className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1"
             role="list"
           >
             {activeLaunches.slice(0, 8).map((launch) => {
@@ -109,7 +112,11 @@ function NowTrendingSection() {
               const tokenAddress = launch.token || launch.id;
 
               return (
-                <div key={tokenAddress} role="listitem" className="w-[260px] sm:w-[300px] flex-none">
+                <div
+                  key={tokenAddress}
+                  role="listitem"
+                  className="min-w-[240px] sm:min-w-[260px] md:min-w-[280px] flex-none"
+                >
                   <LaunchCard
                     image={image}
                     ticker={ticker}
@@ -178,7 +185,7 @@ export default function Home() {
       <NowTrendingSection />
 
       {/* Explore Section */}
-      <div id="explore" className="px-4 md:px-6 py-6 space-y-4">
+      <div id="explore" className="px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-3 sm:space-y-4">
         {/* Tabs: Explore / Watchlist */}
         <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
           <div className="flex items-center gap-6">

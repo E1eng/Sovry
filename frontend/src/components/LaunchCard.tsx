@@ -51,9 +51,9 @@ function LaunchCardComponent({
         <div
           className={cn(
             "relative flex h-full cursor-pointer items-start gap-4 overflow-hidden",
-            "rounded-xl border border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950",
+            "rounded-xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm",
             "shadow-sm transition-all duration-200",
-            "hover:border-sovry-green/70 hover:shadow-[0_0_30px_rgba(34,197,94,0.25)] hover:bg-zinc-900/95",
+            "hover:border-sovry-green/70 hover:shadow-[0_0_30px_rgba(34,197,94,0.25)] hover:bg-zinc-900/80",
             "px-4 py-3 sm:px-5 sm:py-4",
             className
           )}
