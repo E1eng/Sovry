@@ -12,6 +12,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Sovry - IP Asset Trading Platform",
   description: "Trade Token Backed IP assets on Story Protocol",
+  icons: {
+    icon: "/Logo only no bg 1x1.ico",
+  },
 };
 
 export default function RootLayout({
