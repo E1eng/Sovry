@@ -384,6 +384,47 @@ export async function checkRoyaltyTokens(ipId: string, primaryWallet?: any): Pro
   }
 }
 
+export async function getClaimableRoyaltyForIp(
+  ipId: string,
+  primaryWallet?: any,
+): Promise<number> {
+  try {
+    const royaltyVaultAddress = await getRoyaltyVaultAddress(ipId, primaryWallet);
+    if (
+      !royaltyVaultAddress ||
+      royaltyVaultAddress === '0x0000000000000000000000000000000000000000'
+    ) {
+      return 0;
+    }
+
+    const client = createPublicClientForStory();
+
+    const balance = await client.readContract({
+      address: WIP_TOKEN_ADDRESS as Address,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [royaltyVaultAddress as Address],
+    }) as bigint;
+
+    if (balance === 0n) {
+      return 0;
+    }
+
+    const decimals = await client.readContract({
+      address: WIP_TOKEN_ADDRESS as Address,
+      abi: ERC20_ABI,
+      functionName: 'decimals',
+    }) as number;
+
+    const base = 10n ** BigInt(decimals);
+    const integer = Number(balance / base);
+    const fraction = Number(balance % base) / Number(base);
+    return integer + fraction;
+  } catch (error) {
+    console.error('Error getting claimable royalty for IP:', error);
+    return 0;
+  }
+}
 
 // Get token balance for user wallet
 export async function getTokenBalance(userAddress: string, tokenAddress: string): Promise<TokenBalance | null> {
@@ -677,55 +718,10 @@ export async function launchOnBondingCurveDynamic(
 
     console.log('✅ Launch token address is a contract');
 
-    // Resolve the actual ERC20 token behind the vault (if applicable)
-    let actualToken = royaltyTokenAddress;
-
-    try {
-      // Try token() first
-      const tokenResult = await publicClient.readContract({
-        address: royaltyTokenAddress as Address,
-        abi: [{
-          inputs: [],
-          name: 'token',
-          outputs: [{ internalType: 'address', name: '', type: 'address' }],
-          stateMutability: 'view',
-          type: 'function',
-        }],
-        functionName: 'token',
-      });
-
-      if (tokenResult && tokenResult !== '0x0000000000000000000000000000000000000000') {
-        actualToken = tokenResult as string;
-        console.log('✅ Found launch token via token():', actualToken);
-      } else {
-        throw new Error('token() returned zero address');
-      }
-    } catch (tokenError) {
-      console.log('⚠️ token() failed, trying asset() on vault...', tokenError);
-
-      try {
-        const assetResult = await publicClient.readContract({
-          address: royaltyTokenAddress as Address,
-          abi: [{
-            inputs: [],
-            name: 'asset',
-            outputs: [{ internalType: 'address', name: '', type: 'address' }],
-            stateMutability: 'view',
-            type: 'function',
-          }],
-          functionName: 'asset',
-        });
-
-        if (assetResult && assetResult !== '0x0000000000000000000000000000000000000000') {
-          actualToken = assetResult as string;
-          console.log('✅ Found launch token via asset():', actualToken);
-        } else {
-          console.log('⚠️ asset() also returned zero address, using original token as-is');
-        }
-      } catch (assetError) {
-        console.log('❌ asset() failed, using original token as launch token', assetError);
-      }
-    }
+    // For Sovry we treat the provided royaltyTokenAddress as the actual ERC20
+    // launch token. The address comes from Story's royalty vault and is already
+    // an ERC20, so we don't need to probe token()/asset() on wrapper contracts.
+    const actualToken = royaltyTokenAddress as string;
 
     // Verify actual token looks like an ERC20
     try {

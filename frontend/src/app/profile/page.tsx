@@ -19,7 +19,11 @@ import {
 
 import UserProfile from "@/components/social/UserProfile";
 import { supabase } from "@/lib/supabaseClient";
-import { getTokenBalance, type TokenBalance } from "@/services/storyProtocolService";
+import {
+  getTokenBalance,
+  type TokenBalance,
+  getClaimableRoyaltyForIp,
+} from "@/services/storyProtocolService";
 import { enrichLaunchesData } from "@/services/launchDataService";
 import { launchpadService } from "@/services/launchpadService";
 
@@ -103,6 +107,8 @@ export default function ProfilePage() {
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [harvestingId, setHarvestingId] = useState<string | null>(null);
   const [harvestError, setHarvestError] = useState<string | null>(null);
+  const [premineClaimingId, setPremineClaimingId] = useState<string | null>(null);
+  const [premineError, setPremineError] = useState<string | null>(null);
 
   const handleProfileUpdated = (update: {
     username?: string | null;
@@ -192,7 +198,7 @@ export default function ProfilePage() {
                 `Token ${wrapper.id.slice(0, 8)}`,
               image:
                 (enriched.imageUrl as string) ||
-                "/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png",
+                "/Sovry_Logo.png",
               balance: balanceNum,
               valueUSD: 0,
               claimableRevenue: 0,
@@ -223,7 +229,7 @@ export default function ProfilePage() {
                 `Token ${wrapper.id.slice(0, 8)}`,
               image:
                 (enriched.imageUrl as string) ||
-                "/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png",
+                "/Sovry_Logo.png",
               balance: balanceNum,
               valueUSD: 0,
               claimableRevenue: 0,
@@ -232,8 +238,31 @@ export default function ProfilePage() {
             };
           });
 
+        // Enrich launched tokens with real onchain royalty data for the
+        // "Available to Harvest" column by reading the WIP balance held in
+        // the Story Protocol royalty vault backing each IP.
+        const launchedWithRevenue: PortfolioAsset[] = await Promise.all(
+          launched.map(async (asset) => {
+            if (!asset.ipId || !asset.ipId.startsWith("0x") || asset.ipId.length !== 42) {
+              return asset;
+            }
+
+            try {
+              const claimable = await getClaimableRoyaltyForIp(asset.ipId, primaryWallet);
+
+              return {
+                ...asset,
+                claimableRevenue: isFinite(claimable) && claimable > 0 ? claimable : 0,
+              };
+            } catch (err) {
+              console.error("Error loading claimable royalty for IP", asset.ipId, err);
+              return asset;
+            }
+          }),
+        );
+
         setHoldingAssets(holdings);
-        setLaunchedAssets(launched);
+        setLaunchedAssets(launchedWithRevenue);
       } catch (error) {
         console.error("Error loading holdings from subgraph:", error);
         setLaunchedAssets([]);
@@ -349,18 +378,51 @@ export default function ProfilePage() {
     }
   };
 
+  const handleClaimPremine = async (assetId: string) => {
+    if (!primaryWallet) return;
+
+    const asset = launchedAssets.find((a) => a.id === assetId);
+    if (!asset) {
+      setPremineError("Unknown asset for premine claim");
+      return;
+    }
+
+    setPremineError(null);
+    setPremineClaimingId(assetId);
+
+    try {
+      const result = await launchpadService.claimCreatorPremine(asset.id, primaryWallet);
+
+      if (!result.success) {
+        setPremineError(result.error || "Failed to claim premine");
+        return;
+      }
+
+      // We don't know the exact premine amount from the transaction without
+      // re-reading on-chain state or the subgraph; for now we simply rely on
+      // the next refresh of holdings to reflect the updated balance.
+    } catch (err: any) {
+      console.error("Error claiming premine from profile page:", err);
+      setPremineError(err?.message || "Failed to claim premine");
+    } finally {
+      setPremineClaimingId(null);
+    }
+  };
+
   const displayAddress =
-    walletAddress && walletAddress.length > 8
-      ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
-      : walletAddress || "Your wallet";
+    walletAddress && walletAddress.length > 10
+      ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+      : walletAddress || "Unknown address";
 
-  const headerName = profileUsername && profileUsername.trim().length > 0
-    ? profileUsername.trim()
-    : displayAddress;
+  const headerName =
+    profileUsername && profileUsername.trim().length > 0
+      ? profileUsername.trim()
+      : displayAddress;
 
-  const headerBio = profileBio && profileBio.trim().length > 0
-    ? profileBio.trim()
-    : "This user has not added a bio yet.";
+  const headerBio =
+    profileBio && profileBio.trim().length > 0
+      ? profileBio.trim()
+      : "This user has not added a bio yet.";
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
@@ -378,7 +440,7 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <div className="relative h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-full border-4 border-zinc-900 shadow-xl overflow-hidden bg-zinc-800">
               <Image
-                src={profileAvatarUrl || "/profile-logos/515591D7-FD6F-4C0B-B5F6-AEB092D452F1.png"}
+                src={profileAvatarUrl || "/Sovry_Logo.png"}
                 alt="Profile picture"
                 fill
                 className="object-cover"
@@ -443,118 +505,25 @@ export default function ProfilePage() {
           <TabsTrigger value="holdings">Your holdings</TabsTrigger>
         </TabsList>
 
-            {/* My Tokens Tab */}
-            <TabsContent value="tokens" className="space-y-6">
-              {holdingsLoading ? (
-                <div className="py-16 text-center">
-                  <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-                  <p className="text-zinc-400">Loading your tokens...</p>
-                </div>
-              ) : (
-                <>
-                  {harvestError && (
-                    <p className="text-sm text-red-400 px-2">{harvestError}</p>
-                  )}
-                  <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-                    <CardHeader>
-                      <CardTitle className="text-lg font-semibold text-zinc-50">
-                        Launched Tokens
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b border-zinc-800">
-                              <th className="text-left py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                                Asset
-                              </th>
-                              <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                                Balance
-                              </th>
-                              <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                                Value
-                              </th>
-                              <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                                Available to Harvest
-                              </th>
-                              <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                                Harvest
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {launchedAssets.map((asset) => (
-                              <tr
-                                key={asset.id}
-                                className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                              >
-                                <td className="py-4 px-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                                      <Image
-                                        src={asset.image}
-                                        alt={asset.name}
-                                        width={40}
-                                        height={40}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                    <div>
-                                      <p className="font-medium text-zinc-50">{asset.symbol}</p>
-                                      <p className="text-sm text-zinc-400">{asset.name}</p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="text-right py-4 px-4 text-zinc-50">
-                                  {asset.balance.toFixed(2)}
-                                </td>
-                                <td className="text-right py-4 px-4 text-zinc-50">
-                                  {new Intl.NumberFormat("en-US", {
-                                    style: "currency",
-                                    currency: "USD",
-                                  }).format(asset.valueUSD)}
-                                </td>
-                                <td className="text-right py-4 px-4">
-                                  {asset.claimableRevenue > 0 ? (
-                                    <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-3 py-1 rounded-full text-sm font-medium border border-sovry-crimson/40">
-                                      {new Intl.NumberFormat("en-US", {
-                                        style: "currency",
-                                        currency: "USD",
-                                      }).format(asset.claimableRevenue)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-zinc-400">-</span>
-                                  )}
-                                </td>
-                                <td className="text-right py-4 px-4">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-9 px-4 text-xs font-medium"
-                                    onClick={() => handleHarvestAsset(asset.id)}
-                                    disabled={!primaryWallet || harvestingId === asset.id}
-                                  >
-                                    {harvestingId === asset.id ? "Harvesting..." : "Harvest"}
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
+        {/* My Tokens Tab */}
+        <TabsContent value="tokens" className="space-y-6">
+          {holdingsLoading ? (
+            <div className="py-16 text-center">
+              <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
+              <p className="text-zinc-400">Loading your tokens...</p>
+            </div>
+          ) : (
+            <>
+              {harvestError && (
+                <p className="text-sm text-red-400 px-2">{harvestError}</p>
               )}
-            </TabsContent>
-
-            {/* Holding Tab */}
-            <TabsContent value="holdings" className="space-y-6">
+              {premineError && (
+                <p className="text-sm text-red-400 px-2 mt-1">{premineError}</p>
+              )}
               <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-zinc-50">
-                    Holdings
+                    Launched Tokens
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -572,12 +541,18 @@ export default function ProfilePage() {
                             Value
                           </th>
                           <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
-                            Trade
+                            Available to Harvest
+                          </th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                            Harvest
+                          </th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                            Premine
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {holdingAssets.map((asset) => (
+                        {launchedAssets.map((asset) => (
                           <tr
                             key={asset.id}
                             className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
@@ -609,15 +584,38 @@ export default function ProfilePage() {
                               }).format(asset.valueUSD)}
                             </td>
                             <td className="text-right py-4 px-4">
-                              <Link href={`/pool/${asset.id}`}>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-9 px-4 text-xs font-medium"
-                                >
-                                  Trade
-                                </Button>
-                              </Link>
+                              {asset.claimableRevenue > 0 ? (
+                                <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-3 py-1 rounded-full text-sm font-medium border border-sovry-crimson/40">
+                                  {asset.claimableRevenue.toLocaleString("en-US", {
+                                    maximumFractionDigits: 4,
+                                  })}
+                                  <span className="text-xs font-normal text-zinc-300 ml-1">WIP</span>
+                                </span>
+                              ) : (
+                                <span className="text-zinc-400">-</span>
+                              )}
+                            </td>
+                            <td className="text-right py-4 px-4">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-9 px-4 text-xs font-medium"
+                                onClick={() => handleHarvestAsset(asset.id)}
+                                disabled={!primaryWallet || harvestingId === asset.id}
+                              >
+                                {harvestingId === asset.id ? "Harvesting..." : "Harvest"}
+                              </Button>
+                            </td>
+                            <td className="text-right py-4 px-4">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-9 px-4 text-xs font-medium"
+                                onClick={() => handleClaimPremine(asset.id)}
+                                disabled={!primaryWallet || premineClaimingId === asset.id}
+                              >
+                                {premineClaimingId === asset.id ? "Claiming..." : "Claim premine"}
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -626,8 +624,89 @@ export default function ProfilePage() {
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
-        </>
-      );
-    }
+            </>
+          )}
+        </TabsContent>
+
+        {/* Holding Tab */}
+        <TabsContent value="holdings" className="space-y-6">
+          <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-zinc-50">
+                Holdings
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-zinc-800">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                        Asset
+                      </th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                        Balance
+                      </th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                        Value
+                      </th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-zinc-400 uppercase tracking-wide">
+                        Trade
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {holdingAssets.map((asset) => (
+                      <tr
+                        key={asset.id}
+                        className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
+                      >
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
+                              <Image
+                                src={asset.image}
+                                alt={asset.name}
+                                width={40}
+                                height={40}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div>
+                              <p className="font-medium text-zinc-50">{asset.symbol}</p>
+                              <p className="text-sm text-zinc-400">{asset.name}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="text-right py-4 px-4 text-zinc-50">
+                          {asset.balance.toFixed(2)}
+                        </td>
+                        <td className="text-right py-4 px-4 text-zinc-50">
+                          {new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: "USD",
+                          }).format(asset.valueUSD)}
+                        </td>
+                        <td className="text-right py-4 px-4">
+                          <Link href={`/pool/${asset.id}`}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-9 px-4 text-xs font-medium"
+                            >
+                              Trade
+                            </Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </>
+  );
+}

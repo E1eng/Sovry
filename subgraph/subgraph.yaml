@@ -7,9 +7,9 @@ dataSources:
     name: SovryLaunchpad
     network: story-aeneid
     source:
-      address: "0xe28E59088cd78614c8Ea52eC52fd96F13366b4D1" # Aeneid launchpad (update for mainnet)
+      address: "0x96Ca2E66d0ae229B16EE9aCbBA9B96470b28c8D4" # Aeneid launchpad (update for mainnet)
       abi: SovryLaunchpad
-      startBlock: 11964481
+      startBlock: 12093886
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -39,10 +39,6 @@ dataSources:
           handler: handleRoyaltiesHarvested
         - event: Graduated(indexed address,uint256,indexed address)
           handler: handleGraduated
-        - event: RTDeposited(indexed address,indexed address,uint256)
-          handler: handleRTDeposited
-        - event: RTWithdrawn(indexed address,indexed address,uint256)
-          handler: handleRTWithdrawn
         - event: CreatorPremineClaimed(indexed address,indexed address,uint256)
           handler: handleCreatorPremineClaimed
         - event: GraduationThresholdUpdated(uint256)

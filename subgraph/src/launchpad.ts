@@ -6,8 +6,6 @@ import {
   TokensSold as TokensSoldEvent,
   RoyaltiesHarvested as RoyaltiesHarvestedEvent,
   Graduated as GraduatedEvent,
-  RTDeposited as RTDepositedEvent,
-  RTWithdrawn as RTWithdrawnEvent,
   CreatorPremineClaimed as CreatorPremineClaimedEvent,
   GraduationThresholdUpdated as GraduationThresholdUpdatedEvent,
 } from "../generated/SovryLaunchpad/SovryLaunchpad";
@@ -17,7 +15,6 @@ import {
   WrapperToken,
   User,
   Trade,
-  Deposit,
   Harvest,
   GraduationEvent,
   Candle,
@@ -285,51 +282,6 @@ export function handleGraduated(event: GraduatedEvent): void {
   grad.save();
 
   launchpad.save();
-}
-
-export function handleRTDeposited(event: RTDepositedEvent): void {
-  let user = getOrCreateUser(event.params.user.toHex());
-  let depositId = event.params.user
-    .toHex()
-    .concat("-")
-    .concat(event.params.rtToken.toHex());
-
-  let deposit = Deposit.load(depositId);
-  if (deposit == null) {
-    deposit = new Deposit(depositId);
-    deposit.user = user.id;
-    deposit.rt = event.params.rtToken;
-    deposit.amount = BigInt.zero();
-    deposit.createdAt = event.block.timestamp;
-    deposit.updatedAt = event.block.timestamp;
-  }
-
-  deposit.amount = deposit.amount.plus(event.params.amount);
-  deposit.updatedAt = event.block.timestamp;
-  deposit.save();
-}
-
-export function handleRTWithdrawn(event: RTWithdrawnEvent): void {
-  let user = getOrCreateUser(event.params.user.toHex());
-  let depositId = event.params.user
-    .toHex()
-    .concat("-")
-    .concat(event.params.rtToken.toHex());
-
-  let deposit = Deposit.load(depositId);
-  if (deposit == null) {
-    // If withdraw comes before any deposit tracked by subgraph (unlikely),
-    // initialize and then subtract.
-    deposit = new Deposit(depositId);
-    deposit.user = user.id;
-    deposit.rt = event.params.rtToken;
-    deposit.amount = BigInt.zero();
-    deposit.createdAt = event.block.timestamp;
-  }
-
-  deposit.amount = deposit.amount.minus(event.params.amount);
-  deposit.updatedAt = event.block.timestamp;
-  deposit.save();
 }
 
 export function handleCreatorPremineClaimed(

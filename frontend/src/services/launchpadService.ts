@@ -50,6 +50,13 @@ const launchpadAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
+    name: "claimCreatorPremine",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ] as const;
 
 const publicClient = createPublicClient({
@@ -500,6 +507,59 @@ export async function harvestAndPump(
   }
 }
 
+export async function claimCreatorPremine(
+  tokenAddress: string,
+  primaryWallet: any
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    if (!primaryWallet) {
+      throw new Error("No wallet connected");
+    }
+
+    const walletClient = await primaryWallet.getWalletClient();
+    if (!walletClient) {
+      throw new Error("No wallet client available");
+    }
+
+    const data = encodeFunctionData({
+      abi: launchpadAbi,
+      functionName: "claimCreatorPremine",
+      args: [tokenAddress as Address],
+    });
+
+    const txHash = await walletClient.sendTransaction({
+      to: SOVRY_LAUNCHPAD_ADDRESS as Address,
+      data,
+    });
+
+    try {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      if (receipt.status !== "success") {
+        return {
+          success: false,
+          txHash,
+          error: "Premine claim transaction reverted on-chain",
+        };
+      }
+    } catch (waitError) {
+      console.error("Error waiting for premine claim transaction receipt:", waitError);
+      return {
+        success: false,
+        txHash,
+        error: "Failed to confirm premine claim transaction status",
+      };
+    }
+
+    return { success: true, txHash };
+  } catch (error) {
+    console.error("Error claiming creator premine:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error claiming premine",
+    };
+  }
+}
+
 // New contract ABI for market cap, bonding curve, token info, and harvest
 export const newLaunchpadAbi = [
   {
@@ -791,6 +851,7 @@ export const launchpadService = {
   detectContractVersion,
   getMarketCap,
   getCurveParams,
+  claimCreatorPremine,
 };
 
 // LaunchInfo and RoyaltyLockInfo are already exported via their interface/type
