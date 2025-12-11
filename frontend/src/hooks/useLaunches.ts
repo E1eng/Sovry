@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from "react"
 import { enrichLaunchesData } from "@/services/launchDataService"
 
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
-if (!SUBGRAPH_URL) {
+const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
+if (!SUBGRAPH_URL_RAW) {
   throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
 }
+const SUBGRAPH_URL: string = SUBGRAPH_URL_RAW;
 
 interface BasicLaunch {
   id: string

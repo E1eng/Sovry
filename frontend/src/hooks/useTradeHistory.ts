@@ -3,10 +3,11 @@
 import { useQuery } from "@tanstack/react-query"
 import { formatEther } from "viem"
 
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
-if (!SUBGRAPH_URL) {
+const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
+if (!SUBGRAPH_URL_RAW) {
   throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
 }
+const SUBGRAPH_URL: string = SUBGRAPH_URL_RAW;
 
 export type Timeframe = "1M" | "5M" | "15M" | "1H" | "1D" | "3D" | "7D"
 
