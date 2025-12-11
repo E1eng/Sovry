@@ -5,7 +5,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PlusCircle, ArrowRight } from "lucide-react";
+import { formatEther } from "viem";
 import { formatMarketCap } from "@/services/launchDataService";
+import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
 
 interface ImmersiveHeroSampleLaunch {
   name?: string;
@@ -21,14 +23,64 @@ interface ImmersiveHeroProps {
   sampleLaunch?: ImmersiveHeroSampleLaunch;
 }
 
+const SUBGRAPH_URL =
+  process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
+  "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.0.1/gn";
+
 export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: ImmersiveHeroProps) {
-  const targetValue = 98375.19;
+  const [totalVolumeIP, setTotalVolumeIP] = useState<number | null>(null);
   const [displayValue, setDisplayValue] = useState(0);
 
+  // Fetch aggregate launchpad stats (total trading volume) from Goldsky subgraph
   useEffect(() => {
+    const fetchStats = async () => {
+      if (!SUBGRAPH_URL) return;
+
+      try {
+        const query = `
+          query GetLaunchpadStats($id: ID!) {
+            launchpad(id: $id) {
+              id
+              totalVolume
+            }
+          }
+        `;
+
+        const res = await fetch(SUBGRAPH_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query,
+            variables: { id: SOVRY_LAUNCHPAD_ADDRESS.toLowerCase() },
+          }),
+        });
+
+        if (!res.ok) return;
+
+        const json = await res.json();
+        const raw = json?.data?.launchpad?.totalVolume as string | null | undefined;
+        if (!raw) return;
+
+        const volumeIP = parseFloat(formatEther(BigInt(raw)));
+        if (!Number.isFinite(volumeIP)) return;
+
+        setTotalVolumeIP(volumeIP);
+      } catch (error) {
+        console.error("Error fetching launchpad stats from subgraph", error);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // Animate the displayed volume when the real value is available
+  useEffect(() => {
+    if (totalVolumeIP === null || !Number.isFinite(totalVolumeIP)) return;
+
     const duration = 2000;
     const startTime = Date.now();
     const startValue = 0;
+    const targetValue = totalVolumeIP;
 
     const animate = () => {
       const now = Date.now();
@@ -50,12 +102,10 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [totalVolumeIP]);
 
-  const formatCurrency = (value: number) => {
+  const formatIPVolume = (value: number) => {
     return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
@@ -124,9 +174,9 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
             {/* Stats Row */}
             <div className="flex gap-3 pt-2 text-xs sm:text-sm">
               <div className="flex-1 rounded-xl border border-zinc-800/80 bg-zinc-950/70 px-3 py-2 sm:px-4 sm:py-3">
-                <div className="text-[11px] sm:text-xs text-zinc-400">Total IP rewards earned</div>
+                <div className="text-[11px] sm:text-xs text-zinc-400">Total trading volume (IP)</div>
                 <div className="text-sm sm:text-lg font-semibold text-zinc-50">
-                  {formatCurrency(displayValue)}
+                  {totalVolumeIP !== null ? `${formatIPVolume(displayValue)} IP` : "—"}
                 </div>
               </div>
               <div className="flex-1 rounded-xl border border-zinc-800/80 bg-zinc-950/70 px-3 py-2 sm:px-4 sm:py-3">
