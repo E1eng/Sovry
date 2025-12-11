@@ -5,8 +5,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PlusCircle, ArrowRight } from "lucide-react";
-import { formatEther } from "viem";
-import { formatMarketCap } from "@/services/launchDataService";
+import { formatEther, formatUnits } from "viem";
+import { formatMarketCap, enrichLaunchData } from "@/services/launchDataService";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
 
 interface ImmersiveHeroSampleLaunch {
@@ -27,9 +27,19 @@ const SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
   "https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.0.1/gn";
 
+interface HeroTradeTickerItem {
+  id: string;
+  type: "BUY" | "SELL";
+  amount: number;
+  pricePerToken: number;
+  buyer: string;
+  tokenSymbol: string;
+}
+
 export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: ImmersiveHeroProps) {
   const [totalVolumeIP, setTotalVolumeIP] = useState<number | null>(null);
   const [displayValue, setDisplayValue] = useState(0);
+  const [recentTrades, setRecentTrades] = useState<HeroTradeTickerItem[]>([]);
 
   // Fetch aggregate launchpad stats (total trading volume) from Goldsky subgraph
   useEffect(() => {
@@ -110,6 +120,135 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
       maximumFractionDigits: 2,
     }).format(value);
   };
+
+  const formatTradeAmount = (value: number) => {
+    if (value >= 1_000) return value.toFixed(0);
+    if (value >= 1) return value.toFixed(2);
+    return value.toFixed(4);
+  };
+
+  const formatTradePrice = (value: number) => {
+    if (value >= 1) return value.toFixed(3);
+    if (value >= 0.01) return value.toFixed(4);
+    return value.toFixed(6);
+  };
+
+  const shortenAddress = (addr: string | null | undefined) => {
+    if (!addr || addr.length < 10) return addr || "";
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  // Fetch recent trades for hero ticker
+  useEffect(() => {
+    const fetchRecentTrades = async () => {
+      if (!SUBGRAPH_URL) return;
+
+      try {
+        const query = `
+          query GetRecentTrades($first: Int!) {
+            trades(first: $first, orderBy: timestamp, orderDirection: desc) {
+              id
+              type
+              amount
+              value
+              user { id }
+              wrapper { id }
+            }
+          }
+        `;
+
+        const res = await fetch(SUBGRAPH_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, variables: { first: 8 } }),
+        });
+
+        if (!res.ok) return;
+
+        const json = await res.json();
+        const raw = (json?.data?.trades || []) as any[];
+
+        if (!Array.isArray(raw) || raw.length === 0) return;
+
+        // Collect wrapper addresses for symbol enrichment
+        const wrapperAddrs = Array.from(
+          new Set(
+            raw
+              .map((t: any) => t?.wrapper?.id as string | undefined)
+              .filter((x): x is string => typeof x === "string" && x.length > 0)
+          )
+        );
+
+        const symbolMap = new Map<string, string>();
+        if (wrapperAddrs.length > 0) {
+          try {
+            const results = await Promise.all(
+              wrapperAddrs.map(async (addr) => {
+                try {
+                  const data = await enrichLaunchData(addr);
+                  const sym = (data.symbol || data.name || addr.slice(0, 6)).toString();
+                  return [addr, sym] as [string, string];
+                } catch {
+                  return [addr, addr.slice(0, 6)] as [string, string];
+                }
+              })
+            );
+            for (const [addr, sym] of results) {
+              symbolMap.set(addr.toLowerCase(), sym);
+            }
+          } catch (e) {
+            console.error("Error enriching symbols for hero trades", e);
+          }
+        }
+
+        const parsed: HeroTradeTickerItem[] = raw
+          .map((t) => {
+            try {
+              const amountRaw = t?.amount as string | undefined;
+              const valueRaw = t?.value as string | undefined;
+              const userId = t?.user?.id as string | undefined;
+              const wrapperId = (t?.wrapper?.id as string | undefined) || "";
+              if (!amountRaw || !valueRaw || !wrapperId) return null;
+
+              const amountBigInt = BigInt(amountRaw);
+              const valueBigInt = BigInt(valueRaw);
+              if (amountBigInt === 0n) return null;
+
+              const amount = parseFloat(formatUnits(amountBigInt, 6));
+              const ipValue = parseFloat(formatEther(valueBigInt));
+              if (!Number.isFinite(amount) || !Number.isFinite(ipValue) || amount <= 0) {
+                return null;
+              }
+
+              const pricePerToken = ipValue / amount;
+              const symbolKey = wrapperId.toLowerCase();
+              const tokenSymbol = symbolMap.get(symbolKey) || symbolKey.slice(0, 6).toUpperCase();
+
+              return {
+                id: String(t.id),
+                type: String(t.type) === "SELL" ? "SELL" : "BUY",
+                amount,
+                pricePerToken,
+                buyer: userId ? shortenAddress(userId) : "",
+                tokenSymbol,
+              } as HeroTradeTickerItem;
+            } catch {
+              return null;
+            }
+          })
+          .filter((x): x is HeroTradeTickerItem => x !== null)
+          .slice(0, 8);
+
+        if (parsed.length > 0) {
+          setRecentTrades(parsed);
+        }
+      } catch (error) {
+        console.error("Error fetching recent trades for hero ticker", error);
+      }
+    };
+
+    fetchRecentTrades();
+  }, []);
 
   const sampleName = sampleLaunch?.name ?? "Sovry Sample IP";
   const sampleSymbol = sampleLaunch?.symbol ?? "SVRY";
@@ -244,18 +383,49 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
                     <div className="flex animate-infinite-cards gap-2 px-3 py-2">
                       {Array.from({ length: 2 }).map((_, outerIndex) => (
                         <div key={outerIndex} className="flex gap-2">
-                          {[
-                            "IP Rights",
-                            "Royalties",
-                            "Liquidity",
-                            "Collectors",
-                          ].map((label) => (
+                          {(recentTrades.length > 0
+                            ? recentTrades
+                            : [
+                                {
+                                  id: "placeholder-1",
+                                  type: "BUY" as const,
+                                  amount: 120.45,
+                                  pricePerToken: 0.0123,
+                                  buyer: "0x1234...5678",
+                                  tokenSymbol: "SVY",
+                                },
+                                {
+                                  id: "placeholder-2",
+                                  type: "SELL" as const,
+                                  amount: 80.1,
+                                  pricePerToken: 0.0098,
+                                  buyer: "0x9876...cdef",
+                                  tokenSymbol: "WIP",
+                                },
+                                {
+                                  id: "placeholder-3",
+                                  type: "BUY" as const,
+                                  amount: 45.67,
+                                  pricePerToken: 0.0154,
+                                  buyer: "0xabcd...ef01",
+                                  tokenSymbol: "SVY",
+                                },
+                              ]
+                          ).map((trade, index) => (
                             <div
-                              key={label + outerIndex}
+                              key={`${trade.id}-${outerIndex}-${index}`}
                               className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-[11px] text-zinc-300 shadow-sm"
                             >
-                              <span className="h-1.5 w-1.5 rounded-full bg-sovry-green" />
-                              <span className="whitespace-nowrap">{label}</span>
+                              <span
+                                className={
+                                  trade.type === "BUY"
+                                    ? "h-1.5 w-1.5 rounded-full bg-emerald-400"
+                                    : "h-1.5 w-1.5 rounded-full bg-red-400"
+                                }
+                              />
+                              <span className="whitespace-nowrap">
+                                {`${trade.type} - ${formatTradeAmount(trade.amount)} ${trade.tokenSymbol}`}
+                              </span>
                             </div>
                           ))}
                         </div>
