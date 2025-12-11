@@ -5,6 +5,7 @@ import { StoryClient, PILFlavor, WIP_TOKEN_ADDRESS } from '@story-protocol/core-
 import { createPublicClient, http, Address, custom, encodeFunctionData } from 'viem';
 import { erc20Abi } from 'viem';
 import { pinJSONToIPFS, pinFileToIPFS } from './pinataService';
+import { logger } from '@/lib/logger';
 
 // Environment variables
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
@@ -41,7 +42,7 @@ async function createStoryProtocolClient(primaryWallet: any) {
   try {
     // Get wallet client from Dynamic SDK
     const walletClient = await primaryWallet.getWalletClient();
-    console.log('🔍 Got wallet client from Dynamic SDK');
+    logger.log('🔍 Got wallet client from Dynamic SDK');
     
     // Create Story SDK client with proper wallet integration
     const config: any = {
@@ -51,14 +52,14 @@ async function createStoryProtocolClient(primaryWallet: any) {
     };
     
     const client = (StoryClient as any).newClient?.(config) || (StoryClient as any).new?.(config);
-    console.log('✅ Story SDK client created with wallet client');
+    logger.log('✅ Story SDK client created with wallet client');
     return client;
   } catch (error) {
-    console.error('Error creating Story SDK client:', error);
+    logger.error('Error creating Story SDK client:', error);
     
     // Fallback: try with account only
     try {
-      console.log('🔄 Trying fallback with account only...');
+      logger.log('🔄 Trying fallback with account only...');
       const walletAddress = primaryWallet.address;
       
       const config: any = {
@@ -68,10 +69,10 @@ async function createStoryProtocolClient(primaryWallet: any) {
       };
       
       const client = (StoryClient as any).newClient?.(config) || (StoryClient as any).new?.(config);
-      console.log('✅ Story SDK client created (account fallback)');
+      logger.log('✅ Story SDK client created (account fallback)');
       return client;
     } catch (fallbackError) {
-      console.error('Fallback also failed:', fallbackError);
+      logger.error('Fallback also failed:', fallbackError);
       throw error;
     }
   }
@@ -136,7 +137,7 @@ async function calculateSHA256(data: any): Promise<string> {
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     return hashHex;
   } catch (error) {
-    console.warn('Failed to calculate SHA256, using fallback:', error);
+    logger.warn('Failed to calculate SHA256, using fallback:', error);
     // Fallback to simple hash
     const dataStr = JSON.stringify(data);
     let hash = 0;
@@ -209,7 +210,7 @@ export async function registerIPAssetWithPolling(
         throw new Error(`IP registration transaction reverted or failed (status=${receipt.status})`);
       }
     } catch (pollError) {
-      console.error('❌ Error waiting for transaction receipt:', pollError);
+      logger.error('❌ Error waiting for transaction receipt:', pollError);
       // We will still trust the SDK response.ipId below, but surface the error message.
     }
     
@@ -227,7 +228,7 @@ export async function registerIPAssetWithPolling(
     try {
       royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(finalIpId as Address);
     } catch (vaultError) {
-      console.warn('Could not get royalty vault address:', vaultError);
+      logger.warn('Could not get royalty vault address:', vaultError);
     }
     
     onStatusUpdate?.('success');
@@ -242,7 +243,7 @@ export async function registerIPAssetWithPolling(
     };
     
   } catch (error) {
-    console.error('Error registering IP asset:', error);
+    logger.error('Error registering IP asset:', error);
     onStatusUpdate?.('error');
     
     // Provide user-friendly error messages
@@ -391,7 +392,7 @@ export async function injectDemoRoyaltyWIP(
 
     await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
 
-    console.log('✅ Demo royalty injected! Tx:', txHash);
+    logger.log('✅ Demo royalty injected! Tx:', txHash);
 
     return {
       success: true,
@@ -399,7 +400,7 @@ export async function injectDemoRoyaltyWIP(
       txHash,
     };
   } catch (error) {
-    console.error('❌ Error injecting demo WIP royalty:', error);
+    logger.error('❌ Error injecting demo WIP royalty:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to inject royalties',
@@ -427,7 +428,7 @@ export async function claimRevenue(
   error?: string;
 }> {
   try {
-    console.log('💰 Claiming revenue for IP:', ipId);
+    logger.log('💰 Claiming revenue for IP:', ipId);
     
     // Create Story SDK client
     const client = await createStoryProtocolClient(primaryWallet);
@@ -437,8 +438,8 @@ export async function claimRevenue(
       ipId: ipId as Address,
     });
     
-    console.log('✅ Revenue claimed successfully!');
-    console.log(`Transaction Hash: ${response.txHash}`);
+    logger.log('✅ Revenue claimed successfully!');
+    logger.log(`Transaction Hash: ${response.txHash}`);
     
     return {
       success: true,
@@ -447,7 +448,7 @@ export async function claimRevenue(
     };
     
   } catch (error) {
-    console.error('❌ Error claiming revenue:', error);
+    logger.error('❌ Error claiming revenue:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to claim revenue',
@@ -467,7 +468,7 @@ export async function mintLicenseToken(
   error?: string;
 }> {
   try {
-    console.log('📜 Minting license token for IP:', ipId);
+    logger.log('📜 Minting license token for IP:', ipId);
     
     if (!primaryWallet || !primaryWallet.address) {
       throw new Error('Wallet not connected');
@@ -487,9 +488,9 @@ export async function mintLicenseToken(
       maxRevenueShare: 100, // cap only
     });
     
-    console.log('✅ License token minted successfully!');
-    console.log(`Transaction Hash: ${response.txHash}`);
-    console.log(`License Token ID: ${response.licenseTokenIds?.[0]}`);
+    logger.log('✅ License token minted successfully!');
+    logger.log(`Transaction Hash: ${response.txHash}`);
+    logger.log(`License Token ID: ${response.licenseTokenIds?.[0]}`);
     
     return {
       success: true,
@@ -498,7 +499,7 @@ export async function mintLicenseToken(
     };
     
   } catch (error) {
-    console.error('❌ Error minting license token:', error);
+    logger.error('❌ Error minting license token:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to mint license token',
@@ -522,7 +523,7 @@ export async function transferRoyaltyTokensFromIP(
   error?: string;
 }> {
   try {
-    console.log('🔄 Transferring royalty tokens from IP Account to wallet...');
+    logger.log('🔄 Transferring royalty tokens from IP Account to wallet...');
     
     if (!primaryWallet || !primaryWallet.address) {
       throw new Error('Wallet not connected');
@@ -538,7 +539,7 @@ export async function transferRoyaltyTokensFromIP(
       throw new Error('No royalty vault found for this IP. This IP may not have any royalty tokens yet.');
     }
     
-    console.log('✅ Royalty vault address found:', royaltyVaultAddress);
+    logger.log('✅ Royalty vault address found:', royaltyVaultAddress);
     
     // Transfer a percentage of Royalty Tokens from the IP Account to the user wallet.
     // Per Story TypeScript tutorial, Royalty Tokens are simple ERC-20s with total
@@ -557,8 +558,8 @@ export async function transferRoyaltyTokensFromIP(
       ],
     });
     
-    console.log('✅ Royalty tokens transferred successfully!');
-    console.log(`Transaction Hash: ${transferResponse.txHash}`);
+    logger.log('✅ Royalty tokens transferred successfully!');
+    logger.log(`Transaction Hash: ${transferResponse.txHash}`);
     
     return {
       success: true,
@@ -566,7 +567,7 @@ export async function transferRoyaltyTokensFromIP(
     };
     
   } catch (error) {
-    console.error('❌ Error transferring royalty tokens:', error);
+    logger.error('❌ Error transferring royalty tokens:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to transfer royalty tokens',

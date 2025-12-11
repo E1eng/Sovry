@@ -1,6 +1,9 @@
 import { formatEther } from "viem";
 
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL!;
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
+if (!SUBGRAPH_URL) {
+  throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
+}
 
 // Raw shape aligned with current Trade entity in the subgraph
 interface RawTrade {

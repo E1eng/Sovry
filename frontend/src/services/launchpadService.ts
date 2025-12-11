@@ -2,6 +2,7 @@ import { createPublicClient, http, Address, encodeFunctionData, parseEther } fro
 
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
+import { logger } from "@/lib/logger";
 
 import {
   SOVRY_LAUNCHPAD_ADDRESS,
@@ -164,16 +165,16 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
           reserveBalance,
         };
       } catch (error) {
-        console.error("Error fetching launch info from new SovryLaunchpad:", error);
+        logger.error("Error fetching launch info from new SovryLaunchpad:", error);
         return null;
       }
     }
 
     // Fallback when the launchpad has no supported read methods; treat as no launch info.
-    console.warn("getLaunchInfo: detected legacy SovryLaunchpad contract without supported read methods; returning null.");
+    logger.warn("getLaunchInfo: detected legacy SovryLaunchpad contract without supported read methods; returning null.");
     return null;
   } catch (error) {
-    console.error("Error fetching launch info:", error);
+    logger.error("Error fetching launch info:", error);
     return null;
   }
 }
@@ -205,7 +206,7 @@ export async function getMarketCap(
         });
         return formatBigIntToFloat(marketCap as bigint, 18).toString();
       } catch (error) {
-        console.error(`Error fetching market cap (new contract) for ${tokenAddress}:`, error);
+        logger.error(`Error fetching market cap (new contract) for ${tokenAddress}:`, error);
         return null;
       }
     } else {
@@ -215,7 +216,7 @@ export async function getMarketCap(
       return formatBigIntToFloat(launchInfo.totalRaised, 18).toString();
     }
   } catch (error) {
-    console.error(`Error fetching market cap for ${tokenAddress}:`, error);
+    logger.error(`Error fetching market cap for ${tokenAddress}:`, error);
     return null;
   }
 }
@@ -235,7 +236,7 @@ export async function getEstimatedTokensForIP(
     const numeric = formatBigIntToFloat(tokenAmount, 6);
     return numeric.toString();
   } catch (error) {
-    console.error("Error getting estimated tokens for IP:", error);
+    logger.error("Error getting estimated tokens for IP:", error);
     return "0";
   }
 }
@@ -252,7 +253,7 @@ export async function estimateIPForTokens(
     const numeric = formatBigIntToFloat(tokenAmountWei, 18);
     return numeric.toString();
   } catch (error) {
-    console.error("Error estimating IP for tokens:", error);
+    logger.error("Error estimating IP for tokens:", error);
     return "0";
   }
 }
@@ -330,7 +331,7 @@ export async function buy(
         };
       }
     } catch (waitError) {
-      console.error("Error waiting for buy transaction receipt:", waitError);
+      logger.error("Error waiting for buy transaction receipt:", waitError);
       return {
         success: false,
         txHash,
@@ -340,7 +341,7 @@ export async function buy(
 
     return { success: true, txHash };
   } catch (error) {
-    console.error("Error buying on Launchpad:", error);
+    logger.error("Error buying on Launchpad:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error buying on Launchpad",
@@ -404,7 +405,7 @@ export async function sell(
         });
       }
     } catch (allowanceError) {
-      console.error("Error checking allowance for sell; falling back to approve+sell:", allowanceError);
+      logger.error("Error checking allowance for sell; falling back to approve+sell:", allowanceError);
       const approveData = encodeFunctionData({
         abi: erc20Abi,
         functionName: "approve",
@@ -444,7 +445,7 @@ export async function sell(
         };
       }
     } catch (waitError) {
-      console.error("Error waiting for sell transaction receipt:", waitError);
+      logger.error("Error waiting for sell transaction receipt:", waitError);
       return {
         success: false,
         approveTxHash,
@@ -455,7 +456,7 @@ export async function sell(
 
     return { success: true, approveTxHash, sellTxHash };
   } catch (error) {
-    console.error("Error selling on Launchpad:", error);
+    logger.error("Error selling on Launchpad:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error selling on Launchpad",
@@ -478,7 +479,7 @@ export async function getRoyaltyVaultBalance(
 
     return balance;
   } catch (error) {
-    console.error("Error getting royalty vault balance:", error);
+    logger.error("Error getting royalty vault balance:", error);
     return null;
   }
 }
@@ -499,7 +500,7 @@ export async function harvestAndPump(
 
     return await claimRevenueToWalletAndPump(ipId, tokenAddress, primaryWallet);
   } catch (error) {
-    console.error("Error in harvestAndPump flow:", error);
+    logger.error("Error in harvestAndPump flow:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error harvesting royalties",
@@ -542,7 +543,7 @@ export async function claimCreatorPremine(
         };
       }
     } catch (waitError) {
-      console.error("Error waiting for premine claim transaction receipt:", waitError);
+      logger.error("Error waiting for premine claim transaction receipt:", waitError);
       return {
         success: false,
         txHash,
@@ -552,7 +553,7 @@ export async function claimCreatorPremine(
 
     return { success: true, txHash };
   } catch (error) {
-    console.error("Error claiming creator premine:", error);
+    logger.error("Error claiming creator premine:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error claiming premine",
@@ -705,7 +706,7 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
       initialCurveSupply,
     };
   } catch (error) {
-    console.error("Error fetching bonding curve params:", error);
+    logger.error("Error fetching bonding curve params:", error);
     return null;
   }
 }

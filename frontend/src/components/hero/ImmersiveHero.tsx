@@ -23,7 +23,10 @@ interface ImmersiveHeroProps {
   sampleLaunch?: ImmersiveHeroSampleLaunch;
 }
 
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL!;
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
+if (!SUBGRAPH_URL) {
+  throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
+}
 
 interface HeroTradeTickerItem {
   id: string;

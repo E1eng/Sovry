@@ -4,6 +4,7 @@
 import { StoryClient, WIP_TOKEN_ADDRESS } from '@story-protocol/core-sdk';
 import { createPublicClient, http, Address, encodeFunctionData, custom } from 'viem';
 import { erc20Abi } from 'viem';
+import { logger } from '@/lib/logger';
 
 // Environment variables
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
@@ -103,7 +104,7 @@ export interface TokenBalance {
 // Create Story Protocol client with Dynamic wallet
 async function createStoryProtocolClient(primaryWallet?: any) {
   if (!primaryWallet) {
-    console.warn('No wallet provided for Story SDK - using read-only client');
+    logger.warn('No wallet provided for Story SDK - using read-only client');
     // Read-only client for public queries
     return (StoryClient as any).new?.({
       transport: http(STORY_RPC_URL),
@@ -128,7 +129,7 @@ async function createStoryProtocolClient(primaryWallet?: any) {
     
     return (StoryClient as any).newClient?.(config) || (StoryClient as any).new?.(config);
   } catch (error) {
-    console.error('Error creating Story SDK client with Dynamic wallet:', error);
+    logger.error('Error creating Story SDK client with Dynamic wallet:', error);
     
     // Fallback to address-only client
     const walletAddress = await primaryWallet.address;
@@ -236,7 +237,7 @@ export async function claimRevenueToWalletAndPump(
 
     return { success: true, txHash: harvestTxHash };
   } catch (error) {
-    console.error("Error in claimRevenueToWalletAndPump:", error);
+    logger.error("Error in claimRevenueToWalletAndPump:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to claim and pump royalties",
@@ -334,7 +335,7 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any):
     // Validate IP ID format (should be a valid address)
     if (!ipId || ipId === '0x0000000000000000000000000000000000000000' || 
         !ipId.startsWith('0x') || ipId.length !== 42) {
-      console.warn('Invalid IP ID format:', ipId);
+      logger.warn('Invalid IP ID format:', ipId);
       return null;
     }
 
@@ -344,7 +345,7 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any):
     
     return royaltyVaultAddress;
   } catch (error) {
-    console.error('Error getting royalty vault address from SDK:', error);
+    logger.error('Error getting royalty vault address from SDK:', error);
     
     // Fallback to direct contract call
     try {
@@ -360,8 +361,8 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any):
       
       return royaltyVaultAddress;
     } catch (contractError) {
-      console.error('Contract call also failed:', contractError);
-      console.error('This IP might not exist or have no royalty vault:', ipId);
+      logger.error('Contract call also failed:', contractError);
+      logger.error('This IP might not exist or have no royalty vault:', ipId);
       
       // Return null instead of mock data - no mock data allowed
       return null;
@@ -379,7 +380,7 @@ export async function checkRoyaltyTokens(ipId: string, primaryWallet?: any): Pro
            royaltyVaultAddress !== undefined && 
            royaltyVaultAddress !== '0x0000000000000000000000000000000000000000';
   } catch (error) {
-    console.error('Error checking royalty tokens:', error);
+    logger.error('Error checking royalty tokens:', error);
     return false;
   }
 }
@@ -421,7 +422,7 @@ export async function getClaimableRoyaltyForIp(
     const fraction = Number(balance % base) / Number(base);
     return integer + fraction;
   } catch (error) {
-    console.error('Error getting claimable royalty for IP:', error);
+    logger.error('Error getting claimable royalty for IP:', error);
     return 0;
   }
 }
@@ -431,7 +432,7 @@ export async function getTokenBalance(userAddress: string, tokenAddress: string)
   try {
     // If token address is zero address, there's no ERC20 to query
     if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
-      console.warn('getTokenBalance called with zero token address, returning null');
+      logger.warn('getTokenBalance called with zero token address, returning null');
       return null;
     }
 
@@ -468,7 +469,7 @@ export async function getTokenBalance(userAddress: string, tokenAddress: string)
       symbol,
     };
   } catch (error) {
-    console.error('Error getting token balance:', error);
+    logger.error('Error getting token balance:', error);
     return null;
   }
 }
@@ -485,7 +486,7 @@ export async function needsTokenUnlock(userAddress: string, tokenAddress: string
     const balance = Number(tokenBalance.balance);
     return balance <= 0.000001;
   } catch (error) {
-    console.error('Error checking token unlock need:', error);
+    logger.error('Error checking token unlock need:', error);
     // On error, assume the user needs to unlock
     return true;
   }
@@ -569,7 +570,7 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         });
 
         if (!response.ok) {
-          console.warn(`Approach ${i + 1} failed:`, response.status, response.statusText);
+          logger.log(`Approach ${i + 1} failed:`, response.status, response.statusText);
           continue;
         }
 
@@ -635,14 +636,14 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
           return ipAssets;
         }
       } catch (error) {
-        console.error(`Approach ${i + 1} error:`, error);
+        logger.error(`Approach ${i + 1} error:`, error);
       }
     }
 
-    console.log('All approaches failed - no IP assets with royalty tokens found');
+    logger.log('All approaches failed - no IP assets with royalty tokens found');
     return [];
   } catch (error) {
-    console.error('Error fetching wallet IP assets from Story API:', error);
+    logger.error('Error fetching wallet IP assets from Story API:', error);
     return [];
   }
 }
@@ -690,8 +691,8 @@ export async function launchOnBondingCurveDynamic(
       throw new Error("No wallet connected");
     }
 
-    console.log('🔥 Dynamic Launch - WRITE Operation (Sovry Launchpad)');
-    console.log('Launch params:', { 
+    logger.log('🔥 Dynamic Launch - WRITE Operation (Sovry Launchpad)');
+    logger.log('Launch params:', { 
       royaltyToken: royaltyTokenAddress,
       launchpad: SOVRY_LAUNCHPAD_ADDRESS,
       name: tokenName,
@@ -716,7 +717,7 @@ export async function launchOnBondingCurveDynamic(
       throw new Error(`Address ${royaltyTokenAddress} is not a contract`);
     }
 
-    console.log('✅ Launch token address is a contract');
+    logger.log('✅ Launch token address is a contract');
 
     // For Sovry we treat the provided royaltyTokenAddress as the actual ERC20
     // launch token. The address comes from Story's royalty vault and is already
@@ -730,7 +731,7 @@ export async function launchOnBondingCurveDynamic(
         abi: erc20Abi,
         functionName: 'symbol',
       });
-      console.log('✅ Launch token is ERC20, symbol:', symbol);
+      logger.log('✅ Launch token is ERC20, symbol:', symbol);
     } catch (symbolError) {
       throw new Error(`Launch token ${actualToken} is not a valid ERC20: ${symbolError}`);
     }
@@ -743,7 +744,7 @@ export async function launchOnBondingCurveDynamic(
       args: [userAddress as Address],
     }) as bigint;
 
-    console.log('💰 User launch token balance:', userBalance.toString());
+    logger.log('💰 User launch token balance:', userBalance.toString());
 
     if (userBalance === 0n) {
       throw new Error('You have no royalty tokens to launch. Please Get Royalty Tokens first.');
@@ -769,13 +770,13 @@ export async function launchOnBondingCurveDynamic(
       args: [SOVRY_LAUNCHPAD_ADDRESS as Address, amountToLock],
     });
 
-    console.log('📤 Sending approve transaction for launch token via Dynamic...');
+    logger.log('📤 Sending approve transaction for launch token via Dynamic...');
     const approveTxHash = await walletClient.sendTransaction({
       to: actualToken as Address,
       data: approveData,
     });
 
-    console.log('✅ Launch token approve success! Tx Hash:', approveTxHash);
+    logger.log('✅ Launch token approve success! Tx Hash:', approveTxHash);
 
     const basePrice = DEFAULT_BASE_PRICE_WEI;
     const priceIncrement = DEFAULT_PRICE_INCREMENT_WEI;
@@ -794,7 +795,7 @@ export async function launchOnBondingCurveDynamic(
       ],
     });
 
-    console.log('📤 Calling SovryLaunchpad.launchToken...');
+    logger.log('📤 Calling SovryLaunchpad.launchToken...');
     const launchTxHash = await walletClient.sendTransaction({
       to: SOVRY_LAUNCHPAD_ADDRESS as Address,
       data: launchData,
@@ -802,13 +803,13 @@ export async function launchOnBondingCurveDynamic(
 
     // Wait for on-chain confirmation so UI reflects actual success/failure
     try {
-      console.log('⏳ Waiting for launch transaction confirmation...');
+      logger.log('⏳ Waiting for launch transaction confirmation...');
       const receipt = await publicClient.waitForTransactionReceipt({
         hash: launchTxHash,
       });
 
       if (receipt.status !== 'success') {
-        console.error('❌ Launch transaction reverted on-chain:', receipt);
+        logger.error('❌ Launch transaction reverted on-chain:', receipt);
         return {
           success: false,
           approveTxHash,
@@ -817,7 +818,7 @@ export async function launchOnBondingCurveDynamic(
         };
       }
     } catch (waitError) {
-      console.error('❌ Error waiting for launch transaction receipt:', waitError);
+      logger.error('❌ Error waiting for launch transaction receipt:', waitError);
       return {
         success: false,
         approveTxHash,
@@ -826,7 +827,7 @@ export async function launchOnBondingCurveDynamic(
       };
     }
 
-    console.log('✅ SovryLaunchpad launch success! Tx Hash:', launchTxHash);
+    logger.log('✅ SovryLaunchpad launch success! Tx Hash:', launchTxHash);
 
     let wrapperAddress: string | undefined;
     try {
@@ -840,10 +841,10 @@ export async function launchOnBondingCurveDynamic(
       if (mapped && mapped !== '0x0000000000000000000000000000000000000000') {
         wrapperAddress = mapped;
       } else {
-        console.warn('rtToWrapper returned zero address for', actualToken);
+        logger.warn('rtToWrapper returned zero address for', actualToken);
       }
     } catch (mapError) {
-      console.error('Error reading rtToWrapper from launchpad:', mapError);
+      logger.error('Error reading rtToWrapper from launchpad:', mapError);
     }
 
     return {
@@ -853,7 +854,7 @@ export async function launchOnBondingCurveDynamic(
       wrapperAddress,
     };
   } catch (error) {
-    console.error('❌ Launch on bonding curve failed:', error);
+    logger.error('❌ Launch on bonding curve failed:', error);
     return {
       success: false,
       error: mapLaunchError(error),
@@ -946,7 +947,7 @@ export async function getRoyaltyLockInfo(
       creatorBalance,
     };
   } catch (error) {
-    console.error('Error loading royalty lock info:', error);
+    logger.error('Error loading royalty lock info:', error);
     return null;
   }
 }

@@ -49,7 +49,10 @@ interface WrapperToken {
   graduated: boolean;
 }
 
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL!;
+const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
+if (!SUBGRAPH_URL) {
+  throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
+}
 
 async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promise<WrapperToken[]> {
   try {

@@ -20,6 +20,11 @@ const nextConfig = {
         hostname: 'nft-cdn.alchemy.com',
         pathname: '/story-aeneid/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'gateway.pinata.cloud', // If using Pinata gateway
+        pathname: '/ipfs/**',
+      },
     ],
   },
   // Empty turbopack config to silence Next.js 16 warning (we use webpack)
