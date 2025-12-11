@@ -76,6 +76,7 @@ function SwapInterfaceComponent({
   const [isSimulatingTx, setIsSimulatingTx] = useState(false)
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
   const [simulationError, setSimulationError] = useState<string | null>(null)
+  const [balanceRefreshNonce, setBalanceRefreshNonce] = useState(0)
 
   // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
   const FEE_BPS = 100n
@@ -298,13 +299,30 @@ function SwapInterfaceComponent({
           name: "Story Aeneid Testnet",
           nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
           rpcUrls: {
-            default: { http: [process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"] },
+            default: {
+              http: [process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"],
+            },
           },
         },
         transport: http(process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"),
       }),
     []
   )
+
+  // Listen for global balance refresh events triggered after trades
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const handler = () => {
+      setBalanceRefreshNonce((nonce) => nonce + 1)
+    }
+
+    window.addEventListener("refresh-balances", handler)
+
+    return () => {
+      window.removeEventListener("refresh-balances", handler)
+    }
+  }, [])
 
   // Fetch user's IP balance
   useEffect(() => {
@@ -327,7 +345,7 @@ function SwapInterfaceComponent({
     }
 
     fetchBalance()
-  }, [primaryWallet?.address, publicClient])
+  }, [primaryWallet?.address, publicClient, balanceRefreshNonce])
 
   // Fetch user's token balance (debounced on amount)
   useEffect(() => {
@@ -356,7 +374,7 @@ function SwapInterfaceComponent({
     }
 
     fetchTokenBalance()
-  }, [primaryWallet?.address, tokenAddress, publicClient])
+  }, [primaryWallet?.address, tokenAddress, publicClient, balanceRefreshNonce])
 
   // Handle place trade
   const handlePlaceTrade = async () => {
