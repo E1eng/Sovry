@@ -5,7 +5,6 @@
   "installCommand": "cd frontend && npm install",
   "framework": "nextjs",
   "outputDirectory": "frontend/.next",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- frontend vercel.json package.json package-lock.json",
   "builds": [
     {
       "src": "frontend/package.json",
