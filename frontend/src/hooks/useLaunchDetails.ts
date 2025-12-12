@@ -143,8 +143,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setDetails({
         tokenAddress,
         ...(enrichedData || {}),
-        marketCap:
-          enrichedData?.marketCap ?? (launchInfo ? formatEther(launchInfo.totalRaised) : undefined),
+        marketCap: enrichedData?.marketCap,
         reserveBalance: launchInfo ? formatEther(launchInfo.reserveBalance) : undefined,
         imageUrl: imageUrlFromSupabase ?? enrichedData?.imageUrl,
         name: nameFromSupabase ?? enrichedData?.name,

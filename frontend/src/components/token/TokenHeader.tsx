@@ -71,6 +71,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   const isGraduated = (wrapperMeta?.graduated ?? details.launchInfo?.graduated) || false
   const creator = wrapperMeta?.creator || details.launchInfo?.creator
   const totalRaised = details.launchInfo?.totalRaised
+  const marketCap = details.marketCap
   const imageUrl = details.imageUrl
   const ticker = details.symbol || "TOKEN"
   const name = details.name || ticker
@@ -80,6 +81,13 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
     if (!amount) return null
     const formatted = (Number(amount) / 1e18).toFixed(3)
     return `${formatted} IP`
+  }
+
+  const formatMarketCapString = (value: string | undefined) => {
+    if (!value) return null
+    const num = Number(value)
+    if (!Number.isFinite(num)) return null
+    return `${num.toLocaleString(undefined, { maximumFractionDigits: 3 })} IP`
   }
 
   const truncateAddress = (address: string) => {
@@ -177,12 +185,12 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                 </Badge>
               )}
             </div>
-            {/* Final Raise Amount for Graduated Tokens */}
-            {isGraduated && totalRaised && (
+            {/* Market Cap for Graduated Tokens */}
+            {isGraduated && (marketCap || totalRaised) && (
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs sm:text-sm text-zinc-500">Final Raise:</span>
+                <span className="text-xs sm:text-sm text-zinc-500">Market Cap:</span>
                 <span className="text-xs sm:text-sm font-semibold text-yellow-400">
-                  {formatFinalRaise(totalRaised)}
+                  {formatMarketCapString(marketCap) || formatFinalRaise(totalRaised)}
                 </span>
               </div>
             )}
