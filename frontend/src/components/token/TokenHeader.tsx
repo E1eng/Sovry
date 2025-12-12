@@ -87,6 +87,11 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
+  const getIpIdExplorerUrl = (ipId: string | undefined | null) => {
+    if (!ipId) return undefined
+    return `https://aeneid.explorer.story.foundation/ipa/${ipId}`
+  }
+
   const getAddressExplorerUrl = (address: string | undefined | null) => {
     if (!address) return undefined
     return `${storyscanBaseUrl}/address/${address}`
@@ -348,7 +353,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                       <div className="text-[10px] uppercase tracking-wide text-zinc-500">IPID</div>
                       {details.ipId ? (
                         <a
-                          href={getAddressExplorerUrl(details.ipId)}
+                          href={getIpIdExplorerUrl(details.ipId)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="block font-mono text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
