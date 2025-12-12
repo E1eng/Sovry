@@ -152,7 +152,7 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
                         )}
                       </a>
                       <span className="text-xs sm:text-sm text-muted-foreground">
-                        {parseFloat(holder.balanceFormatted).toFixed(4)} {unitLabel}
+                        {holder.balanceFormatted} {unitLabel}
                       </span>
                     </div>
                   </div>

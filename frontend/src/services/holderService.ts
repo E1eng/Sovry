@@ -90,7 +90,9 @@ export async function getHolderDistribution(
     if (balanceRaw <= 0n) continue;
 
     const balanceFloat = Number(balanceRaw) / 1e6; // wrapper uses 6 decimals
-    const balanceFormatted = balanceFloat.toFixed(4);
+    let balanceFormatted = balanceFloat.toFixed(4);
+    // Trim unnecessary trailing zeros (e.g. 222637.0000 -> 222637, 1.1200 -> 1.12)
+    balanceFormatted = balanceFormatted.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 
     holders.push({
       address,
