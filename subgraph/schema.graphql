@@ -18,6 +18,7 @@ type WrapperToken @entity {
   dexReserve: BigInt!
   initialCurveSupply: BigInt!
   totalRoyaltiesHarvested: BigInt!
+  totalFees: BigInt!
   poolAddress: Bytes
   createdAt: BigInt!
   updatedAt: BigInt!

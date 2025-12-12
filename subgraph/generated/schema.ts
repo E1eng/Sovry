@@ -269,6 +269,19 @@ export class WrapperToken extends Entity {
     this.set("totalRoyaltiesHarvested", Value.fromBigInt(value));
   }
 
+  get totalFees(): BigInt {
+    let value = this.get("totalFees");
+    if (!value || value.kind == ValueKind.NULL) {
+      throw new Error("Cannot return null for a required field.");
+    } else {
+      return value.toBigInt();
+    }
+  }
+
+  set totalFees(value: BigInt) {
+    this.set("totalFees", Value.fromBigInt(value));
+  }
+
   get poolAddress(): Bytes | null {
     let value = this.get("poolAddress");
     if (!value || value.kind == ValueKind.NULL) {

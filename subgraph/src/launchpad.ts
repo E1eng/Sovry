@@ -64,6 +64,7 @@ function getOrCreateWrapper(
     wrapper.dexReserve = BigInt.zero();
     wrapper.initialCurveSupply = BigInt.zero();
     wrapper.totalRoyaltiesHarvested = BigInt.zero();
+    wrapper.totalFees = BigInt.zero();
     wrapper.poolAddress = null;
     wrapper.createdAt = BigInt.zero();
     wrapper.updatedAt = BigInt.zero();
@@ -135,6 +136,7 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
   wrapper.dexReserve = BigInt.zero();      // can be enriched via calls if needed
   wrapper.initialCurveSupply = BigInt.zero();
   wrapper.totalRoyaltiesHarvested = BigInt.zero();
+  wrapper.totalFees = BigInt.zero();
   wrapper.graduated = false;
   wrapper.poolAddress = null;
   wrapper.createdAt = event.block.timestamp;
@@ -155,7 +157,6 @@ export function handleTokensPurchased(event: TokensPurchasedEvent): void {
 
   let wrapper = getOrCreateWrapper(launchpadId, event.params.wrapperToken);
   wrapper.updatedAt = event.block.timestamp;
-  wrapper.save();
 
   let user = getOrCreateUser(event.params.buyer.toHex());
 
@@ -171,7 +172,8 @@ export function handleTokensPurchased(event: TokensPurchasedEvent): void {
   trade.amount = event.params.amount;
   trade.value = event.params.cost;
   // Approximate fee: 1% of base cost (TOTAL_FEE_BPS = 100)
-  trade.fee = event.params.cost.div(BigInt.fromI32(100));
+  let buyFee = event.params.cost.div(BigInt.fromI32(100));
+  trade.fee = buyFee;
   trade.txHash = event.transaction.hash;
   trade.timestamp = event.block.timestamp;
   trade.save();
@@ -187,7 +189,9 @@ export function handleTokensPurchased(event: TokensPurchasedEvent): void {
 
   launchpad.totalTrades += 1;
   launchpad.totalVolume = launchpad.totalVolume.plus(event.params.cost);
-  launchpad.totalFees = launchpad.totalFees.plus(trade.fee);
+  launchpad.totalFees = launchpad.totalFees.plus(buyFee);
+  wrapper.totalFees = wrapper.totalFees.plus(buyFee);
+  wrapper.save();
   launchpad.save();
 }
 
@@ -212,7 +216,8 @@ export function handleTokensSold(event: TokensSoldEvent): void {
   trade.type = "SELL";
   trade.amount = event.params.amount;
   trade.value = event.params.proceeds;
-  trade.fee = event.params.proceeds.div(BigInt.fromI32(100));
+  let sellFee = event.params.proceeds.div(BigInt.fromI32(100));
+  trade.fee = sellFee;
   trade.txHash = event.transaction.hash;
   trade.timestamp = event.block.timestamp;
   trade.save();
@@ -228,7 +233,9 @@ export function handleTokensSold(event: TokensSoldEvent): void {
 
   launchpad.totalTrades += 1;
   launchpad.totalVolume = launchpad.totalVolume.plus(event.params.proceeds);
-  launchpad.totalFees = launchpad.totalFees.plus(trade.fee);
+  launchpad.totalFees = launchpad.totalFees.plus(sellFee);
+  wrapper.totalFees = wrapper.totalFees.plus(sellFee);
+  wrapper.save();
   launchpad.save();
 }
 
