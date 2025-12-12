@@ -21,6 +21,24 @@ export function parseTransactionError(error: unknown): ParsedTransactionError {
   const raw = getErrorMessage(error);
   const lower = raw.toLowerCase();
 
+  // Explicit handling for user-rejected transactions so we don't show a huge
+  // wallet error payload in the UI. Keep the message short and skip details.
+  if (
+    lower.includes("user rejected") ||
+    lower.includes("rejected the request") ||
+    lower.includes("user denied") ||
+    lower.includes("user canceled") ||
+    lower.includes("user cancelled")
+  ) {
+    return {
+      // Keep message empty so call sites that append "details" don't
+      // duplicate or expand the toast with raw error content.
+      message: "",
+      userFriendlyMessage: "Transaction rejected by user.",
+      suggestion: undefined,
+    };
+  }
+
   if (lower.includes("slippage") || lower.includes("insufficient output") || lower.includes("minout")) {
     return {
       message: raw,
