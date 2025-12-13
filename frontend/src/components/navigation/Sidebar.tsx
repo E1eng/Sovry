@@ -157,7 +157,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={openWalletModal}
-              className="h-10 w-10 flex items-center justify-center rounded-2xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 text-muted-foreground hover:text-foreground hover:bg-card/50 transition-all duration-200 group-hover:hidden"
+              className="h-10 w-10 flex cursor-pointer items-center justify-center rounded-2xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 text-muted-foreground hover:text-foreground hover:bg-card/50 transition-all duration-200 group-hover:hidden"
               aria-label="Open wallet"
             >
               <Wallet className="h-5 w-5" />
@@ -166,7 +166,7 @@ export function Sidebar() {
             <button
               type="button"
               onClick={openWalletModal}
-              className="hidden group-hover:flex w-full items-center rounded-2xl px-3.5 py-2.5 text-[15px] font-semibold transition-all duration-200 justify-start gap-3.5 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 text-muted-foreground hover:text-foreground hover:bg-card/50"
+              className="hidden group-hover:flex w-full cursor-pointer items-center rounded-2xl px-3.5 py-2.5 text-[15px] font-semibold transition-all duration-200 justify-start gap-3.5 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 text-muted-foreground hover:text-foreground hover:bg-card/50"
             >
               <div className="h-10 w-10 flex items-center justify-center flex-shrink-0 rounded-2xl bg-zinc-900/40 border border-zinc-800">
                 <Wallet className="h-5 w-5" />

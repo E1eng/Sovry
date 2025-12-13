@@ -22,7 +22,7 @@ export function MobileWalletButton() {
     <button
       type="button"
       onClick={openWalletModal}
-      className="h-10 inline-flex items-center gap-2 rounded-xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 px-3 text-xs font-semibold text-zinc-100 hover:bg-zinc-900/70 transition-colors"
+      className="h-10 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 px-3 text-xs font-semibold text-zinc-100 hover:bg-zinc-900/70 transition-colors"
       aria-label={primaryWallet ? "Open wallet" : "Connect wallet"}
     >
       <Wallet className="h-4 w-4 text-zinc-200" />
