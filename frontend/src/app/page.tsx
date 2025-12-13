@@ -163,6 +163,30 @@ export default function Home() {
   const heroSample = heroCandidates.length > 0 ? heroCandidates[heroIndex % heroCandidates.length] : undefined;
   const visibleLaunches = activeTab === "explore" ? liveLaunches : graduatedLaunches;
 
+  const sortedLaunches = (() => {
+    const items = [...visibleLaunches];
+
+    if (selectedFilter === "market-cap") {
+      items.sort((a, b) => {
+        const aCap = Number.parseFloat(a.marketCap || "0");
+        const bCap = Number.parseFloat(b.marketCap || "0");
+        const aVal = Number.isFinite(aCap) ? aCap : 0;
+        const bVal = Number.isFinite(bCap) ? bCap : 0;
+        return bVal - aVal;
+      });
+      return items;
+    }
+
+    if (selectedFilter === "oldest") {
+      items.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      return items;
+    }
+
+    // "live" and "new" both default to newest-first ordering.
+    items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return items;
+  })();
+
   return (
     <>
       {/* Hero Section */}
@@ -238,10 +262,6 @@ export default function Home() {
                 {option.label}
               </button>
             ))}
-            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700">
-              More
-              <ChevronRight className="h-3 w-3" />
-            </button>
           </div>
 
           {/* Right side: Filter button + View toggle + Settings */}
@@ -297,7 +317,7 @@ export default function Home() {
               viewMode === "grid" ? "sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
             )}
           >
-            {visibleLaunches.map((launch) => (
+            {sortedLaunches.map((launch) => (
               <AssetCard key={launch.token || launch.id} launch={launch} />
             ))}
           </div>

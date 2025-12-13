@@ -26,6 +26,23 @@ import { parseTransactionError, logError, isSlippageError } from "@/lib/errorUti
 import { trackTrade, trackEvent } from "@/lib/analytics"
 import { memo, useEffect as useReactEffect } from "react"
 
+function trimToDecimals(value: string, maxDecimals: number): string {
+  if (!value || maxDecimals < 0) return value
+  const dot = value.indexOf(".")
+  if (dot === -1) return value
+  const integer = value.slice(0, dot)
+  const decimals = value.slice(dot + 1)
+  const trimmed = decimals.slice(0, maxDecimals).replace(/0+$/, "")
+  return trimmed.length > 0 ? `${integer}.${trimmed}` : integer
+}
+
+function formatBalance(value: string | null, maxDecimals: number): string {
+  if (!value) return "0"
+  const num = parseFloat(value)
+  if (!isFinite(num) || num === 0) return "0"
+  return trimToDecimals(num.toFixed(maxDecimals), maxDecimals)
+}
+
 export interface SwapInterfaceProps {
   tokenAddress?: string
   tokenSymbol?: string
@@ -71,6 +88,7 @@ function SwapInterfaceComponent({
   const [tradeSuccess, setTradeSuccess] = useState(false)
   const [userBalance, setUserBalance] = useState<string | null>(null)
   const [tokenBalance, setTokenBalance] = useState<string | null>(null)
+  const [minReceive, setMinReceive] = useState<string | null>(null)
   const [balanceError, setBalanceError] = useState<string | null>(null)
   const [slippageError, setSlippageError] = useState<string | null>(null)
   const [isSimulatingTx, setIsSimulatingTx] = useState(false)
@@ -123,6 +141,7 @@ function SwapInterfaceComponent({
         !tokenAddress
       ) {
         setToAmount("")
+        setMinReceive(null)
         setPriceImpact(null)
         setExchangeRate("")
         return
@@ -138,6 +157,7 @@ function SwapInterfaceComponent({
           const freshParams = await launchpadService.getCurveParams(tokenAddress)
           if (!freshParams) {
             setToAmount("")
+            setMinReceive(null)
             setPriceImpact(null)
             setExchangeRate("")
             return
@@ -146,6 +166,7 @@ function SwapInterfaceComponent({
           const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(freshParams, amountBigInt)
           if (tokenAmount === 0n || totalCost === 0n) {
             setToAmount("")
+            setMinReceive(null)
             setPriceImpact(null)
             setExchangeRate("")
             return
@@ -153,15 +174,16 @@ function SwapInterfaceComponent({
 
           // Convert 6-decimal wrapper units to 18-decimal token units for display
           const tokenWei = tokenAmount * (10n ** 12n)
-          const expectedTokens = parseFloat(formatEther(tokenWei))
-
-          // Keep slippage for internal safety (used when building tx), but
-          // show the expected tokens (like Storyscan) in the main UI.
-          const slippagePercent = parseFloat(slippage) || 0.5
-          const _minOut = expectedTokens * (1 - slippagePercent / 100)
+          const expectedTokensStr = formatEther(tokenWei)
+          const expectedTokens = parseFloat(expectedTokensStr)
 
           // Display expected tokens received
-          setToAmount(expectedTokens.toFixed(6))
+          setToAmount(trimToDecimals(expectedTokensStr, 6))
+
+          const slippagePercent = parseFloat(slippage) || 0.5
+          const slippageBps = BigInt(Math.floor(slippagePercent * 100))
+          const minTokenWei = tokenWei * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+          setMinReceive(trimToDecimals(formatEther(minTokenWei), 6))
 
           impact = calculateRealPriceImpact(freshParams, tokenAmount, true)
           const rate = expectedTokens / parseFloat(amount)
@@ -172,6 +194,7 @@ function SwapInterfaceComponent({
           const wrapperAmount = tokenWeiIn / (10n ** 12n)
           if (wrapperAmount <= 0n) {
             setToAmount("")
+            setMinReceive(null)
             setPriceImpact(null)
             setExchangeRate("")
             return
@@ -182,6 +205,7 @@ function SwapInterfaceComponent({
           const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
           if (!paramsForSell) {
             setToAmount("")
+            setMinReceive(null)
             setPriceImpact(null)
             setExchangeRate("")
             return
@@ -190,6 +214,7 @@ function SwapInterfaceComponent({
           const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
           if (baseProceeds <= 0n) {
             setToAmount("")
+            setMinReceive(null)
             setPriceImpact(null)
             setExchangeRate("")
             return
@@ -203,8 +228,11 @@ function SwapInterfaceComponent({
           const slippageBps = BigInt(Math.floor(slippagePercent * 100))
           const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
 
-          const minIpOutFloat = parseFloat(formatEther(minProceeds))
-          setToAmount(minIpOutFloat.toFixed(6))
+          const expectedIpOutStr = formatEther(netProceeds)
+          const minIpOutStr = formatEther(minProceeds)
+
+          setToAmount(trimToDecimals(expectedIpOutStr, 8))
+          setMinReceive(trimToDecimals(minIpOutStr, 8))
 
           impact = calculateRealPriceImpact(paramsForSell, wrapperAmount, false)
           const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
@@ -214,6 +242,7 @@ function SwapInterfaceComponent({
       } catch (error) {
         console.error("Error calculating output:", error)
         setToAmount("")
+        setMinReceive(null)
         setPriceImpact(null)
         setExchangeRate("")
       } finally {
@@ -236,6 +265,7 @@ function SwapInterfaceComponent({
         calculateOutput(fromAmount, activeTab === "buy")
       } else {
         setToAmount("")
+        setMinReceive(null)
         setPriceImpact(null)
         setExchangeRate("")
       }
@@ -278,6 +308,7 @@ function SwapInterfaceComponent({
     // Clear amounts and errors
     setFromAmount("")
     setToAmount("")
+    setMinReceive(null)
     setPriceImpact(null)
     setExchangeRate("")
     setBalanceError(null)
@@ -982,8 +1013,8 @@ function SwapInterfaceComponent({
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 pt-1">
             <span className="text-xs text-zinc-500">
               Balance: {fromToken === "IP" 
-                ? (userBalance ? parseFloat(userBalance).toFixed(4) : "0.0000")
-                : (tokenBalance ? parseFloat(tokenBalance).toFixed(4) : "0.0000")
+                ? formatBalance(userBalance, 4)
+                : formatBalance(tokenBalance, 4)
               } {fromToken === "IP" ? "IP" : tokenSymbol}
             </span>
             <Button
@@ -1058,11 +1089,18 @@ function SwapInterfaceComponent({
           <div className="flex items-center justify-between pt-1">
             <span className="text-xs text-zinc-500">
               Balance: {toToken === "IP" 
-                ? (userBalance ? parseFloat(userBalance).toFixed(4) : "0.0000")
-                : (tokenBalance ? parseFloat(tokenBalance).toFixed(4) : "0.0000")
+                ? formatBalance(userBalance, 4)
+                : formatBalance(tokenBalance, 4)
               } {toToken === "IP" ? "IP" : tokenSymbol}
             </span>
           </div>
+          {minReceive && (
+            <div className="pt-1">
+              <span className="text-xs text-zinc-500">
+                Min received ({slippage}% slippage): {minReceive} {toToken === "IP" ? "IP" : tokenSymbol}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Exchange Rate and Price Impact */}

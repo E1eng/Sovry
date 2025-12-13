@@ -96,9 +96,9 @@ function processTrades(rawTrades: RawTrade[]): Trade[] {
     const amount = trade.amount || "0"
 
     // Total IP paid/received = base value + fee
-    const ipRaw = BigInt(ipValue) + BigInt(fee)
-    const tokenRaw = BigInt(amount)
     const isBuy = trade.type === "BUY"
+    const ipRaw = isBuy ? (BigInt(ipValue) + BigInt(fee)) : BigInt(ipValue)
+    const tokenRaw = BigInt(amount)
     const trader = trade.user?.id || ""
 
     // amount is in wrapper smallest units (6 decimals). Convert to 18-dec for formatting.
