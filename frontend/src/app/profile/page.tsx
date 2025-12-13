@@ -466,7 +466,7 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium text-zinc-100">Wallet not connected</p>
-                <p className="text-xs text-zinc-400">Connect your wallet to view your profile and holdings.</p>
+                <p className="text-xs text-zinc-400">Connect your wallet to view your profile.</p>
               </div>
               <Button
                 variant="outline"

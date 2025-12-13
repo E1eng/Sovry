@@ -5,7 +5,7 @@ import { Providers } from "./providers";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { StatusBar } from "@/components/navigation/StatusBar";
 import { MobileNavBar } from "@/components/navigation/MobileNavBar";
-import { DynamicWidget } from "@dynamic-labs/sdk-react-core";
+import { MobileWalletButton } from "@/components/navigation/MobileWalletButton";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -37,10 +37,8 @@ export default function RootLayout({
           </div>
           <MobileNavBar />
           {/* Global wallet UI (Dynamic) */}
-          <div className="fixed top-4 right-4 z-50 flex items-center gap-3">
-            <div className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-              <DynamicWidget variant="dropdown" />
-            </div>
+          <div className="fixed top-4 right-4 z-50 flex items-center gap-3 md:hidden">
+            <MobileWalletButton />
           </div>
         </Providers>
       </body>

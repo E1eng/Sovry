@@ -827,7 +827,7 @@ export default function CreatePage() {
                         )}
                       </div>
                       <p className="text-xs md:text-sm text-zinc-500">
-                        Using image from Story Protocol. You can override with a custom image below if needed.
+                        Using image from IP asset. You can override with a custom image below if needed.
                       </p>
                     </div>
                   </div>

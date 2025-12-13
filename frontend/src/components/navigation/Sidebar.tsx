@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { LayoutGrid, Coins, User, PlusCircle } from "lucide-react";
+import { DynamicUserProfile } from "@dynamic-labs/sdk-react-core";
+import { LayoutGrid, Coins, User, PlusCircle, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SovrySymbol } from "@/components/ui/SovrySymbol";
 import { supabase } from "@/lib/supabaseClient";
@@ -20,13 +21,15 @@ export const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { primaryWallet } = useDynamicContext();
+  const { primaryWallet, setShowAuthFlow, setShowDynamicUserProfile } = useDynamicContext();
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [profileUsername, setProfileUsername] = useState<string | null>(null);
 
   useEffect(() => {
     if (!primaryWallet?.address || !supabase) {
       setAvatarUrl(null);
+      setProfileUsername(null);
       return;
     }
 
@@ -36,7 +39,7 @@ export function Sidebar() {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("avatar_url")
+          .select("avatar_url, username")
           .eq("wallet_address", primaryWallet.address.toLowerCase())
           .maybeSingle();
 
@@ -48,16 +51,24 @@ export function Sidebar() {
         }
 
         const url = (data as any)?.avatar_url as string | undefined;
+        const username = (data as any)?.username as string | undefined;
         if (!cancelled) {
           if (url && typeof url === "string" && url.trim().length > 0) {
             setAvatarUrl(url);
           } else {
             setAvatarUrl(null);
           }
+
+          if (username && typeof username === "string" && username.trim().length > 0) {
+            setProfileUsername(username.trim());
+          } else {
+            setProfileUsername(null);
+          }
         }
       } catch {
         if (!cancelled) {
           setAvatarUrl(null);
+          setProfileUsername(null);
         }
       }
     };
@@ -68,6 +79,15 @@ export function Sidebar() {
       cancelled = true;
     };
   }, [primaryWallet?.address]);
+
+  const openWalletModal = () => {
+    if (primaryWallet) {
+      setShowDynamicUserProfile?.(true);
+      return;
+    }
+
+    setShowAuthFlow?.(true);
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-16 hover:w-64 flex-col bg-black/50 backdrop-blur-md border-r border-zinc-900/70 transition-[width] duration-200 group md:flex">
@@ -98,7 +118,7 @@ export function Sidebar() {
             const isActive = pathname === item.href;
             const Icon = item.icon;
 
-            return (
+            const linkNode = (
               <Link
                 key={item.href}
                 href={item.href}
@@ -127,11 +147,36 @@ export function Sidebar() {
                 </span>
               </Link>
             );
+            return linkNode;
           })}
         </nav>
 
         {/* Wallet summary (aligned with nav items) */}
         <div className="mt-auto border-t border-border px-0 pt-4 pb-3 flex flex-col gap-3">
+          <div className="px-3.5">
+            <button
+              type="button"
+              onClick={openWalletModal}
+              className="h-10 w-10 flex items-center justify-center rounded-2xl bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 text-muted-foreground hover:text-foreground hover:bg-card/50 transition-all duration-200 group-hover:hidden"
+              aria-label="Open wallet"
+            >
+              <Wallet className="h-5 w-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={openWalletModal}
+              className="hidden group-hover:flex w-full items-center rounded-2xl px-3.5 py-2.5 text-[15px] font-semibold transition-all duration-200 justify-start gap-3.5 bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 text-muted-foreground hover:text-foreground hover:bg-card/50"
+            >
+              <div className="h-10 w-10 flex items-center justify-center flex-shrink-0 rounded-2xl bg-zinc-900/40 border border-zinc-800">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <span className="whitespace-nowrap text-[15px] ml-2">
+                {primaryWallet ? "Wallet" : "Connect Wallet"}
+              </span>
+            </button>
+          </div>
+
           {primaryWallet && (
             <div className="flex items-center mb-1 justify-start gap-3.5 px-3.5">
               {/* Icon bubble always visible, like nav icons */}
@@ -145,12 +190,14 @@ export function Sidebar() {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  primaryWallet.address?.slice(2, 4).toUpperCase()
+                  (profileUsername?.slice(0, 2).toUpperCase() || primaryWallet.address?.slice(2, 4).toUpperCase())
                 )}
               </div>
               {/* Text appears when sidebar expands (group-hover), same as nav labels */}
               <div className="flex flex-col min-w-0 hidden group-hover:flex">
-                <span className="text-sm font-medium">Wallet</span>
+                <span className="text-sm font-medium">
+                  {profileUsername || `${primaryWallet.address?.slice(0, 6)}…${primaryWallet.address?.slice(-4)}`}
+                </span>
                 <span className="truncate text-xs text-muted-foreground">
                   {primaryWallet.address?.slice(0, 6)}…{primaryWallet.address?.slice(-4)}
                 </span>
@@ -158,6 +205,8 @@ export function Sidebar() {
             </div>
           )}
         </div>
+
+        <DynamicUserProfile />
       </div>
     </aside>
   );
