@@ -29,7 +29,7 @@ export default function RootLayout({
           <div className="min-h-screen bg-zinc-950 flex overflow-x-hidden">
             <Sidebar />
             <main className="flex-1 pb-20 md:ml-16 md:pb-10 overflow-x-hidden">
-              <div className="container mx-auto px-4 py-8 max-w-[1600px]">
+              <div className="w-full mx-auto px-0 sm:px-4 py-6 sm:py-8 max-w-[1600px]">
                 {children}
               </div>
             </main>

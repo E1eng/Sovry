@@ -522,41 +522,181 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue={initialTab} className="space-y-4 sm:space-y-6">
-        <TabsList className="h-7 rounded-full bg-zinc-900/70 p-0 overflow-hidden sm:h-9">
-          <TabsTrigger
-            value="tokens"
-            className="flex-1 h-full text-[11px] sm:text-sm font-medium rounded-full hover:bg-zinc-800/40 hover:text-zinc-100"
-          >
-            Tokens launched
-          </TabsTrigger>
-          <TabsTrigger
-            value="holdings"
-            className="flex-1 h-full text-[11px] sm:text-sm font-medium rounded-full hover:bg-zinc-800/40 hover:text-zinc-100"
-          >
-            Your holdings
-          </TabsTrigger>
-        </TabsList>
+      <section className="px-2 sm:px-4">
+        <Tabs defaultValue={initialTab} className="space-y-4 sm:space-y-6">
+          <TabsList className="inline-flex w-fit h-auto rounded-lg p-0.5 sm:p-1">
+            <TabsTrigger
+              value="tokens"
+              className="text-[11px] sm:text-sm font-medium px-3 sm:px-4 py-1 sm:py-1.5 rounded-md data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 hover:bg-zinc-800/40 hover:text-zinc-100"
+            >
+              <span className="sm:hidden">Tokens</span>
+              <span className="hidden sm:inline">Tokens launched</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="holdings"
+              className="text-[11px] sm:text-sm font-medium px-3 sm:px-4 py-1 sm:py-1.5 rounded-md data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 hover:bg-zinc-800/40 hover:text-zinc-100"
+            >
+              <span className="sm:hidden">Holdings</span>
+              <span className="hidden sm:inline">Your holdings</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* My Tokens Tab */}
-        <TabsContent value="tokens" className="space-y-6">
-          {holdingsLoading ? (
-            <div className="py-10 sm:py-16 text-center">
-              <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-              <p className="text-zinc-400">Loading your tokens...</p>
-            </div>
-          ) : (
-            <>
-              {harvestError && (
-                <p className="text-sm text-red-400 px-2">{harvestError}</p>
-              )}
-              {premineError && (
-                <p className="text-sm text-red-400 px-2 mt-1">{premineError}</p>
-              )}
+          {/* My Tokens Tab */}
+          <TabsContent value="tokens" className="space-y-6">
+            {holdingsLoading ? (
+              <div className="py-10 sm:py-16 text-center">
+                <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
+                <p className="text-zinc-400">Loading your tokens...</p>
+              </div>
+            ) : (
+              <>
+                {harvestError && (
+                  <p className="text-sm text-red-400">{harvestError}</p>
+                )}
+                {premineError && (
+                  <p className="text-sm text-red-400 mt-1">{premineError}</p>
+                )}
+                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
+                  <CardHeader>
+                    <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
+                      Launched Tokens
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-zinc-800">
+                            <th className="text-left py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                              Asset
+                            </th>
+                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                              Balance
+                            </th>
+                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                              Value
+                            </th>
+                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                              Available to Harvest
+                            </th>
+                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                              Harvest
+                            </th>
+                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                              Premine
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {launchedAssets.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={6}
+                                className="py-4 px-3 text-center text-xs text-zinc-500"
+                              >
+                                You haven't launched any tokens yet.
+                              </td>
+                            </tr>
+                          ) : (
+                            launchedAssets.map((asset) => (
+                              <tr
+                                key={asset.id}
+                                className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
+                              >
+                                <td className="py-2 px-2 sm:py-3 sm:px-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
+                                      <Image
+                                        src={asset.image}
+                                        alt={asset.name}
+                                        width={40}
+                                        height={40}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                    <div>
+                                      <p className="text-xs sm:text-base font-medium text-zinc-50">
+                                        {asset.symbol}
+                                      </p>
+                                      <p className="text-[10px] sm:text-sm text-zinc-400">
+                                        {asset.name}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                                  {asset.balance.toFixed(2)}
+                                </td>
+                                <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                                  {new Intl.NumberFormat("en-US", {
+                                    style: "currency",
+                                    currency: "USD",
+                                  }).format(asset.valueUSD)}
+                                </td>
+                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                  {asset.claimableRevenue > 0 ? (
+                                    <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-2.5 py-0.5 rounded-full text-[10px] sm:text-sm font-medium border border-sovry-crimson/40">
+                                      {asset.claimableRevenue.toLocaleString("en-US", {
+                                        maximumFractionDigits: 4,
+                                      })}
+                                      <span className="text-[9px] sm:text-[11px] font-normal text-zinc-300 ml-1">
+                                        WIP
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-zinc-500">-</span>
+                                  )}
+                                </td>
+                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                    onClick={() => handleHarvestAsset(asset.id)}
+                                    disabled={!primaryWallet || harvestingId === asset.id}
+                                  >
+                                    {harvestingId === asset.id
+                                      ? "Harvesting..."
+                                      : "Harvest"}
+                                  </Button>
+                                </td>
+                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                    onClick={() => handleClaimPremine(asset.id)}
+                                    disabled={!primaryWallet || premineClaimingId === asset.id}
+                                  >
+                                    {premineClaimingId === asset.id
+                                      ? "Claiming..."
+                                      : "Claim premine"}
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Holdings Tab */}
+          <TabsContent value="holdings" className="space-y-6">
+            {holdingsLoading ? (
+              <div className="py-10 sm:py-16 text-center">
+                <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
+                <p className="text-zinc-400">Loading your holdings...</p>
+              </div>
+            ) : (
               <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                 <CardHeader>
                   <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
-                    Launched Tokens
+                    Holdings
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -564,43 +704,37 @@ export default function ProfilePage() {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-zinc-800">
-                          <th className="text-left py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-left py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Asset
                           </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Balance
                           </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                             Value
                           </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                            Available to Harvest
-                          </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                            Harvest
-                          </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                            Premine
+                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                            Trade
                           </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {launchedAssets.length === 0 ? (
+                        {holdingAssets.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={6}
+                              colSpan={4}
                               className="py-4 px-3 text-center text-xs text-zinc-500"
                             >
-                              You haven't launched any tokens yet.
+                              You don't hold any assets yet.
                             </td>
                           </tr>
                         ) : (
-                          launchedAssets.map((asset) => (
+                          holdingAssets.map((asset) => (
                             <tr
                               key={asset.id}
                               className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
                             >
-                              <td className="py-2 px-2 sm:py-3 sm:px-3">
+                              <td className="py-2 px-2 sm:py-4 sm:px-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
                                     <Image
@@ -631,44 +765,15 @@ export default function ProfilePage() {
                                 }).format(asset.valueUSD)}
                               </td>
                               <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                                {asset.claimableRevenue > 0 ? (
-                                  <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-2.5 py-0.5 rounded-full text-[10px] sm:text-sm font-medium border border-sovry-crimson/40">
-                                    {asset.claimableRevenue.toLocaleString("en-US", {
-                                      maximumFractionDigits: 4,
-                                    })}
-                                    <span className="text-[9px] sm:text-[11px] font-normal text-zinc-300 ml-1">
-                                      WIP
-                                    </span>
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-zinc-500">-</span>
-                                )}
-                              </td>
-                              <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
-                                  onClick={() => handleHarvestAsset(asset.id)}
-                                  disabled={!primaryWallet || harvestingId === asset.id}
-                                >
-                                  {harvestingId === asset.id
-                                    ? "Harvesting..."
-                                    : "Harvest"}
-                                </Button>
-                              </td>
-                              <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
-                                  onClick={() => handleClaimPremine(asset.id)}
-                                  disabled={!primaryWallet || premineClaimingId === asset.id}
-                                >
-                                  {premineClaimingId === asset.id
-                                    ? "Claiming..."
-                                    : "Claim premine"}
-                                </Button>
+                                <Link href={`/pool/${asset.id}`}>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                  >
+                                    Trade
+                                  </Button>
+                                </Link>
                               </td>
                             </tr>
                           ))
@@ -678,111 +783,10 @@ export default function ProfilePage() {
                   </div>
                 </CardContent>
               </Card>
-            </>
-          )}
-        </TabsContent>
-
-        {/* Holdings Tab */}
-        <TabsContent value="holdings" className="space-y-6">
-          {holdingsLoading ? (
-            <div className="py-10 sm:py-16 text-center">
-              <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-              <p className="text-zinc-400">Loading your holdings...</p>
-            </div>
-          ) : (
-            <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-              <CardHeader>
-                <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
-                  Holdings
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-zinc-800">
-                        <th className="text-left py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                          Asset
-                        </th>
-                        <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                          Balance
-                        </th>
-                        <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                          Value
-                        </th>
-                        <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                          Trade
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {holdingAssets.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={4}
-                            className="py-4 px-3 text-center text-xs text-zinc-500"
-                          >
-                            You don't hold any assets yet.
-                          </td>
-                        </tr>
-                      ) : (
-                        holdingAssets.map((asset) => (
-                          <tr
-                            key={asset.id}
-                            className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                          >
-                            <td className="py-2 px-2 sm:py-4 sm:px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                                  <Image
-                                    src={asset.image}
-                                    alt={asset.name}
-                                    width={40}
-                                    height={40}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                                <div>
-                                  <p className="text-xs sm:text-base font-medium text-zinc-50">
-                                    {asset.symbol}
-                                  </p>
-                                  <p className="text-[10px] sm:text-sm text-zinc-400">
-                                    {asset.name}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
-                              {asset.balance.toFixed(2)}
-                            </td>
-                            <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
-                              {new Intl.NumberFormat("en-US", {
-                                style: "currency",
-                                currency: "USD",
-                              }).format(asset.valueUSD)}
-                            </td>
-                            <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                              <Link href={`/pool/${asset.id}`}>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
-                                >
-                                  Trade
-                                </Button>
-                              </Link>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+            )}
+          </TabsContent>
+        </Tabs>
+      </section>
     </>
   );
 }
