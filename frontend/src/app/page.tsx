@@ -142,24 +142,25 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { launches, loading } = useLaunches(24);
 
+  const liveLaunches = launches.filter((launch) => !launch.graduated);
+  const graduatedLaunches = launches.filter((launch) => launch.graduated);
+  const heroCandidates = liveLaunches.length > 0 ? liveLaunches : launches;
+
   // Token count for hero section
   const totalTokens = launches.length;
   const [heroIndex, setHeroIndex] = useState(0);
 
   useEffect(() => {
-    if (!launches.length) return;
+    if (!heroCandidates.length) return;
 
     const interval = setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % launches.length);
+      setHeroIndex((prev) => (prev + 1) % heroCandidates.length);
     }, 8000); // ganti card tiap 8 detik
 
     return () => clearInterval(interval);
-  }, [launches.length]);
+  }, [heroCandidates.length]);
 
-  const heroSample = launches[heroIndex];
-
-  const liveLaunches = launches.filter((launch) => !launch.graduated);
-  const graduatedLaunches = launches.filter((launch) => launch.graduated);
+  const heroSample = heroCandidates.length > 0 ? heroCandidates[heroIndex % heroCandidates.length] : undefined;
   const visibleLaunches = activeTab === "explore" ? liveLaunches : graduatedLaunches;
 
   return (

@@ -181,6 +181,7 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
 
 export function getBondingProgress(info: LaunchInfo | null): number {
   if (!info || TARGET_RAISE_IP === 0n) return 0;
+  if (info.graduated) return 100;
   const ratio = Number(info.totalRaised) / Number(TARGET_RAISE_IP);
   return Math.max(0, Math.min(100, ratio * 100));
 }

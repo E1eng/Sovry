@@ -252,15 +252,16 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
     fetchRecentTrades();
   }, []);
 
-  const sampleName = sampleLaunch?.name ?? "Sovry Sample IP";
-  const sampleSymbol = sampleLaunch?.symbol ?? "SVRY";
-  const sampleMarketCap = sampleLaunch?.marketCap
-    ? formatMarketCap(sampleLaunch.marketCap)
-    : "2.30M IP";
-  const sampleBonding =
-    typeof sampleLaunch?.bondingProgress === "number"
-      ? sampleLaunch.bondingProgress
-      : 72.5;
+  const sampleReady = Boolean(
+    sampleLaunch?.name &&
+      sampleLaunch?.marketCap &&
+      typeof sampleLaunch?.bondingProgress === "number"
+  );
+
+  const sampleName = sampleLaunch?.name || "";
+  const sampleSymbol = sampleLaunch?.symbol || "";
+  const sampleMarketCap = sampleLaunch?.marketCap ? formatMarketCap(sampleLaunch.marketCap) : "—";
+  const sampleBonding = typeof sampleLaunch?.bondingProgress === "number" ? sampleLaunch.bondingProgress : 0;
   const sampleImageUrl = sampleLaunch?.imageUrl;
 
   return (
@@ -336,119 +337,163 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
           {/* Right: Preview card */}
           <div className="w-full max-w-sm lg:max-w-md flex-shrink-0">
             <div className="relative overflow-hidden rounded-xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 p-4 flex flex-col gap-4">
-              {/* Preview header */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-zinc-800/80 flex items-center justify-center overflow-hidden">
-                    {sampleImageUrl ? (
-                      <Image
-                        src={sampleImageUrl}
-                        alt={sampleName}
-                        width={40}
-                        height={40}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-lg font-bold text-zinc-300">
-                        {sampleName.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-zinc-50 truncate">{sampleName}</p>
-                    <p className="text-xs text-zinc-500">{sampleSymbol}</p>
-                  </div>
-                </div>
-                <span className="inline-flex items-center rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300 whitespace-nowrap">
-                  MC {sampleMarketCap}
-                </span>
-              </div>
-
-              {/* Preview body */}
-              <div className="space-y-3 text-xs">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-zinc-400">
-                    <div className="h-6 w-6 flex-shrink-0">
-                      <Image
-                        src="/ip-badge-2.svg"
-                        alt="IP badge"
-                        width={24}
-                        height={24}
-                        className="h-full w-full object-contain"
-                      />
+              {sampleReady ? (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-zinc-800/80 flex items-center justify-center overflow-hidden">
+                        {sampleImageUrl ? (
+                          <Image
+                            src={sampleImageUrl}
+                            alt={sampleName}
+                            width={40}
+                            height={40}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-lg font-bold text-zinc-300">
+                            {sampleName.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-zinc-50 truncate">{sampleName}</p>
+                        <p className="text-xs text-zinc-500">{sampleSymbol}</p>
+                      </div>
                     </div>
-                    <span className="truncate">Backed by on-chain IP registration</span>
+                    <span className="inline-flex items-center rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300 whitespace-nowrap">
+                      MC {sampleMarketCap}
+                    </span>
                   </div>
 
-                  {/* Infinite moving cards strip */}
-                  <div className="relative mt-1 overflow-hidden rounded-md border border-zinc-800/80 bg-zinc-900/40">
-                    <div className="flex animate-infinite-cards gap-2 px-3 py-2">
-                      {Array.from({ length: 2 }).map((_, outerIndex) => (
-                        <div key={outerIndex} className="flex gap-2">
-                          {(recentTrades.length > 0
-                            ? recentTrades
-                            : [
-                                {
-                                  id: "placeholder-1",
-                                  type: "BUY" as const,
-                                  amount: 120.45,
-                                  pricePerToken: 0.0123,
-                                  buyer: "0x1234...5678",
-                                  tokenSymbol: "SVY",
-                                },
-                                {
-                                  id: "placeholder-2",
-                                  type: "SELL" as const,
-                                  amount: 80.1,
-                                  pricePerToken: 0.0098,
-                                  buyer: "0x9876...cdef",
-                                  tokenSymbol: "WIP",
-                                },
-                                {
-                                  id: "placeholder-3",
-                                  type: "BUY" as const,
-                                  amount: 45.67,
-                                  pricePerToken: 0.0154,
-                                  buyer: "0xabcd...ef01",
-                                  tokenSymbol: "SVY",
-                                },
-                              ]
-                          ).map((trade, index) => (
-                            <div
-                              key={`${trade.id}-${outerIndex}-${index}`}
-                              className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-[11px] text-zinc-300 shadow-sm"
-                            >
-                              <span
-                                className={
-                                  trade.type === "BUY"
-                                    ? "h-1.5 w-1.5 rounded-full bg-emerald-400"
-                                    : "h-1.5 w-1.5 rounded-full bg-red-400"
-                                }
-                              />
-                              <span className="whitespace-nowrap">
-                                {`${trade.type} - ${formatTradeAmount(trade.amount)} ${trade.tokenSymbol}`}
-                              </span>
+                  <div className="space-y-3 text-xs">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-zinc-400">
+                        <div className="h-6 w-6 flex-shrink-0">
+                          <Image
+                            src="/ip-badge-2.svg"
+                            alt="IP badge"
+                            width={24}
+                            height={24}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                        <span className="truncate">Backed by on-chain IP registration</span>
+                      </div>
+
+                      <div className="relative mt-1 overflow-hidden rounded-md border border-zinc-800/80 bg-zinc-900/40">
+                        <div className="flex animate-infinite-cards gap-2 px-3 py-2">
+                          {Array.from({ length: 2 }).map((_, outerIndex) => (
+                            <div key={outerIndex} className="flex gap-2">
+                              {(recentTrades.length > 0 ? recentTrades : []).map((trade, index) => (
+                                <div
+                                  key={`${trade.id}-${outerIndex}-${index}`}
+                                  className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-950/80 px-3 py-1 text-[11px] text-zinc-300 shadow-sm"
+                                >
+                                  <span
+                                    className={
+                                      trade.type === "BUY"
+                                        ? "h-1.5 w-1.5 rounded-full bg-emerald-400"
+                                        : "h-1.5 w-1.5 rounded-full bg-red-400"
+                                    }
+                                  />
+                                  <span className="whitespace-nowrap">
+                                    {`${trade.type} - ${formatTradeAmount(trade.amount)} ${trade.tokenSymbol}`}
+                                  </span>
+                                </div>
+                              ))}
+                              {recentTrades.length === 0 && (
+                                <div className="flex gap-2">
+                                  {Array.from({ length: 3 }).map((__, sk) => (
+                                    <div
+                                      key={`${outerIndex}-sk-${sk}`}
+                                      className="relative h-6 w-28 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950/80"
+                                    >
+                                      <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
-                      ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-zinc-400">
+                        <span>Bonding progress</span>
+                        <span className="font-semibold text-zinc-50">{sampleBonding.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-sovry-green"
+                          style={{ width: `${Math.max(0, Math.min(100, sampleBonding))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative h-10 w-10 overflow-hidden rounded-lg bg-zinc-800/80">
+                        <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                      </div>
+                      <div className="min-w-0 space-y-2">
+                        <div className="relative h-3 w-36 overflow-hidden rounded bg-zinc-800">
+                          <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                        </div>
+                        <div className="relative h-2.5 w-16 overflow-hidden rounded bg-zinc-900">
+                          <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="relative h-5 w-20 overflow-hidden rounded-lg border border-zinc-800 bg-emerald-500/10">
+                      <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/40 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="relative h-6 w-6 overflow-hidden rounded bg-zinc-800/80">
+                        <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                      </div>
+                      <div className="relative h-3 w-48 overflow-hidden rounded bg-zinc-800">
+                        <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                      </div>
+                    </div>
+
+                    <div className="relative overflow-hidden rounded-md border border-zinc-800/80 bg-zinc-900/40 px-3 py-2">
+                      <div className="flex gap-2">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div
+                            key={`hero-trade-skel-${i}`}
+                            className="relative h-6 w-28 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950/80"
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="relative h-3 w-24 overflow-hidden rounded bg-zinc-800">
+                          <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                        </div>
+                        <div className="relative h-3 w-12 overflow-hidden rounded bg-zinc-800">
+                          <div className="absolute inset-0 bg-gradient-to-r from-zinc-800 via-zinc-700/50 to-zinc-800 bg-[length:200%_100%] animate-shimmer" />
+                        </div>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden">
+                        <div className="h-full w-1/3 rounded-full bg-zinc-700/60" />
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-zinc-400">
-                    <span>Bonding progress</span>
-                    <span className="font-semibold text-zinc-50">{sampleBonding.toFixed(1)}%</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-zinc-800/80 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-sovry-green"
-                      style={{ width: `${Math.max(0, Math.min(100, sampleBonding))}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

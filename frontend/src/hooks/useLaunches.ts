@@ -94,10 +94,14 @@ export function useLaunches(limit: number = 8) {
       const merged: LaunchData[] = basicLaunches.map((basic) => {
         const token = basic.token || basic.id
         const enriched = enrichedData.get(token) || {}
+
+        const graduatedFromChain = (enriched as any)?.graduated
+        const graduated = typeof graduatedFromChain === "boolean" ? graduatedFromChain : basic.graduated
+
         return {
           ...basic,
           ...enriched,
-          graduated: basic.graduated,
+          graduated,
         }
       })
 

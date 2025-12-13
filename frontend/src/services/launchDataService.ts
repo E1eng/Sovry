@@ -159,6 +159,7 @@ export interface EnrichedLaunchData {
   category?: string;
   currentPrice?: string;
   rtAddress?: string;
+  graduated?: boolean;
 }
 
 /**
@@ -213,11 +214,11 @@ async function fetchBondingProgress(wrapperToken: string): Promise<number | null
 async function fetchTokenState(
   wrapperToken: string,
   launchpadAddress: string
-): Promise<{ marketCap: string | null; currentPrice: string | null }> {
+): Promise<{ marketCap: string | null; currentPrice: string | null; graduated: boolean | null }> {
   try {
     const version = await detectContractVersion(launchpadAddress);
     if (version !== "new") {
-      return { marketCap: null, currentPrice: null };
+      return { marketCap: null, currentPrice: null, graduated: null };
     }
 
     const rawState = await publicClient.readContract({
@@ -230,14 +231,16 @@ async function fetchTokenState(
     const state = rawState as any;
     const marketCap = state?.marketCap as bigint | undefined;
     const currentPrice = state?.currentPrice as bigint | undefined;
+    const graduatedRaw = state?.token?.graduated as boolean | undefined;
 
     return {
       marketCap: marketCap !== undefined ? formatEther(marketCap) : null,
       currentPrice: currentPrice !== undefined ? formatEther(currentPrice) : null,
+      graduated: graduatedRaw !== undefined ? Boolean(graduatedRaw) : null,
     };
   } catch (error) {
     console.error(`Error fetching token state for ${wrapperToken}:`, error);
-    return { marketCap: null, currentPrice: null };
+    return { marketCap: null, currentPrice: null, graduated: null };
   }
 }
 
@@ -406,6 +409,7 @@ export async function enrichLaunchData(
       category: category || undefined,
       currentPrice: tokenState.currentPrice || undefined,
       rtAddress: rtAddress || undefined,
+      graduated: tokenState.graduated ?? undefined,
     };
 
     // Cache the result
