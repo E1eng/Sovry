@@ -10,8 +10,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 export function TokenDetailSkeleton() {
   return (
     <>
-      <div className="min-h-screen px-4 md:px-6 lg:px-8 py-8 sm:py-12">
-        <div className="w-full space-y-6">
+      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 py-5 sm:py-8 lg:py-10">
+        <div className="w-full space-y-5 sm:space-y-6">
           {/* Breadcrumb Skeleton */}
           <div
             style={{
@@ -21,11 +21,18 @@ export function TokenDetailSkeleton() {
             <Skeleton className="h-5 w-48" />
           </div>
 
-          {/* Token Header Skeleton */}
-          <TokenHeaderSkeleton delay={0} />
+          {/* Token Header - Mobile */}
+          <div
+            className="lg:hidden"
+            style={{
+              animation: "fadeIn 0.5s ease-out 0ms both",
+            }}
+          >
+            <TokenHeaderSkeleton delay={0} />
+          </div>
 
           {/* Mobile Layout: Stack vertically with custom order */}
-          <div className="flex flex-col lg:hidden space-y-6">
+          <div className="flex flex-col lg:hidden space-y-4 sm:space-y-6">
             {/* Swap Interface - First on mobile */}
             <SwapInterfaceSkeleton delay={100} />
 
@@ -88,6 +95,16 @@ export function TokenDetailSkeleton() {
           <div className="hidden lg:grid grid-cols-[62%_38%] gap-6 items-start">
             {/* Left Column: Header already above, then Chart, Activity, Comments */}
             <div className="space-y-6">
+              {/* Desktop Token Header */}
+              <div
+                className="hidden lg:block"
+                style={{
+                  animation: "fadeIn 0.5s ease-out 0ms both",
+                }}
+              >
+                <TokenHeaderSkeleton delay={0} />
+              </div>
+
               {/* Chart Skeleton */}
               <ChartSkeleton height={500} delay={100} />
 
@@ -125,7 +142,7 @@ export function TokenDetailSkeleton() {
             </div>
 
             {/* Right Column: Swap, Progress, Top Holders */}
-            <div className="space-y-6 lg:space-y-5">
+            <div className="space-y-4 lg:space-y-5 lg:sticky lg:top-20 self-start">
               {/* Swap Interface Skeleton */}
               <SwapInterfaceSkeleton delay={150} />
 

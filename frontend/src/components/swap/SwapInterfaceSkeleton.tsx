@@ -26,9 +26,11 @@ export function SwapInterfaceSkeleton({ className, delay = 200 }: SwapInterfaceS
           <Skeleton className="h-3 w-20" />
         </div>
         {/* Tabs Skeleton */}
-        <div className="mt-4 flex gap-2">
-          <Skeleton className="h-9 flex-1 rounded-md" />
-          <Skeleton className="h-9 flex-1 rounded-md" />
+        <div className="mt-4">
+          <div className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 p-1 flex gap-1">
+            <Skeleton className="h-full flex-1 rounded-md" />
+            <Skeleton className="h-full flex-1 rounded-md" />
+          </div>
         </div>
       </CardHeader>
 

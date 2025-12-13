@@ -160,8 +160,9 @@ function TradingChartComponent({
   }
 
   const formatMarketCap = (value?: string | null): string => {
-    const num = value ? parseFloat(value) : 0
-    if (!isFinite(num) || num <= 0) return "0.0000 IP"
+    if (value === undefined || value === null) return "—"
+    const num = parseFloat(value)
+    if (!isFinite(num)) return "—"
 
     if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(2)}M IP`
     if (num >= 1_000) return `${(num / 1_000).toFixed(2)}K IP`

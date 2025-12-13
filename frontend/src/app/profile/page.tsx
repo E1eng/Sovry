@@ -27,7 +27,7 @@ import {
 import { enrichLaunchesData } from "@/services/launchDataService";
 import { launchpadService } from "@/services/launchpadService";
 
-import { Coins, Copy } from "lucide-react";
+import { Coins, Copy, AlertCircle } from "lucide-react";
 
 // ===== Holdings (from Portfolio) =====
 interface PortfolioAsset {
@@ -92,7 +92,7 @@ async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promis
 }
 
 export default function ProfilePage() {
-  const { primaryWallet } = useDynamicContext();
+  const { primaryWallet, setShowAuthFlow } = useDynamicContext();
   const walletAddress = primaryWallet?.address;
 
   // Default to the "tokens" tab; we no longer read `tab` from URL query
@@ -452,6 +452,36 @@ export default function ProfilePage() {
       console.error("Failed to copy address", err);
     }
   };
+
+  const isConnected = !!primaryWallet;
+
+  if (!isConnected) {
+    return (
+      <section className="px-2 sm:px-4">
+        <div className="min-h-[calc(100vh-10rem)] flex items-center justify-center">
+          <Card className="w-full max-w-xs sm:max-w-sm">
+            <CardContent className="p-6 text-center space-y-4">
+              <div className="mx-auto w-10 h-10 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-amber-400" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-zinc-100">Wallet not connected</p>
+                <p className="text-xs text-zinc-400">Connect your wallet to view your profile and holdings.</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs w-full"
+                onClick={() => setShowAuthFlow?.(true)}
+              >
+                Connect Wallet
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>

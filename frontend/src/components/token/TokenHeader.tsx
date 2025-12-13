@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import { formatEther } from "viem"
 import { Copy, Check, Twitter, Globe, MessageCircle, CheckCircle2, ChevronDown } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -72,21 +73,30 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   const creator = wrapperMeta?.creator || details.launchInfo?.creator
   const totalRaised = details.launchInfo?.totalRaised
   const marketCap = details.marketCap
+  const graduationLiquidity = details.graduationInfo?.totalLiquidity
   const imageUrl = details.imageUrl
   const ticker = details.symbol || "TOKEN"
   const name = details.name || ticker
 
   // Format final raise amount
   const formatFinalRaise = (amount: bigint | undefined) => {
-    if (!amount) return null
+    if (!amount || amount <= 0n) return null
     const formatted = (Number(amount) / 1e18).toFixed(3)
     return `${formatted} IP`
+  }
+
+  const formatLiquidity = (amount: bigint | undefined) => {
+    if (!amount || amount <= 0n) return null
+    const formatted = formatEther(amount)
+    const num = Number(formatted)
+    if (!Number.isFinite(num) || num <= 0) return null
+    return `${num.toLocaleString(undefined, { maximumFractionDigits: 3 })} IP`
   }
 
   const formatMarketCapString = (value: string | undefined) => {
     if (!value) return null
     const num = Number(value)
-    if (!Number.isFinite(num)) return null
+    if (!Number.isFinite(num) || num <= 0) return null
     return `${num.toLocaleString(undefined, { maximumFractionDigits: 3 })} IP`
   }
 
@@ -185,12 +195,20 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                 </Badge>
               )}
             </div>
-            {/* Market Cap for Graduated Tokens */}
-            {isGraduated && (marketCap || totalRaised) && (
+            {(isGraduated && formatMarketCapString(marketCap)) && (
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs sm:text-sm text-zinc-500">Market Cap:</span>
                 <span className="text-xs sm:text-sm font-semibold text-yellow-400">
-                  {formatMarketCapString(marketCap) || formatFinalRaise(totalRaised)}
+                  {formatMarketCapString(marketCap)}
+                </span>
+              </div>
+            )}
+
+            {(isGraduated && !formatMarketCapString(marketCap) && formatLiquidity(graduationLiquidity)) && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs sm:text-sm text-zinc-500">Liquidity:</span>
+                <span className="text-xs sm:text-sm font-semibold text-yellow-400">
+                  {formatLiquidity(graduationLiquidity)}
                 </span>
               </div>
             )}

@@ -275,6 +275,9 @@ export default function TokenDetailPage() {
   const ticker = details.symbol || "TOKEN"
   const tokenName = details.name || ticker
   const creatorAddress = details.wrapperMeta?.creator || details.launchInfo?.creator
+  const isTokenGraduated = Boolean(details.wrapperMeta?.graduated ?? launchInfo?.graduated)
+  const marketCapForChart = isTokenGraduated && details.marketCap === "0" ? null : (details.marketCap || null)
+  const reserveForChart = isTokenGraduated && details.reserveBalance === "0" ? null : (details.reserveBalance || null)
 
   // Breadcrumb items
   const breadcrumbItems = [
@@ -373,8 +376,8 @@ export default function TokenDetailPage() {
                     tokenAddress={address}
                     height={300}
                     currentPrice={details.currentPrice || null}
-                    marketCap={details.marketCap || null}
-                    reserveBalance={details.reserveBalance || null}
+                    marketCap={marketCapForChart}
+                    reserveBalance={reserveForChart}
                     onDailyChangePct={setDailyChangePct}
                   />
                 </CardContent>
@@ -463,8 +466,8 @@ export default function TokenDetailPage() {
                       tokenAddress={address}
                       height={500}
                       currentPrice={details.currentPrice || null}
-                      marketCap={details.marketCap || null}
-                      reserveBalance={details.reserveBalance || null}
+                      marketCap={marketCapForChart}
+                      reserveBalance={reserveForChart}
                       onDailyChangePct={setDailyChangePct}
                     />
                   </CardContent>
