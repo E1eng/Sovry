@@ -390,4 +390,5 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
 
 - [Story Protocol Docs](https://docs.story.foundation)
 - [Dynamic.xyz Docs](https://www.dynamic.xyz/docs)
-- [Goldsky / The Graph Docs](https://docs.goldsky.com)
+- [Goldsky](https://docs.goldsky.com)
+- [Tenderly](https://docs.tenderly.co)
