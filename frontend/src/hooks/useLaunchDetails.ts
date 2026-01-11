@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { formatEther } from "viem"
-import { enrichLaunchData } from "@/services/launchDataService"
-import { getLaunchInfo, type LaunchInfo } from "@/services/launchpadService"
+import type { LaunchInfo } from "@/services/launchpadService"
 import {
   getGraduationInfo,
   type GraduationInfo,
@@ -52,6 +51,9 @@ export function useLaunchDetails(tokenAddress: string | null) {
     try {
       setLoading(true)
       setError(null)
+
+      const { getLaunchInfo } = await import("@/services/launchpadService")
+      const { enrichLaunchData } = await import("@/services/launchDataService")
 
       // Fetch launch info, enriched data, graduation info, and subgraph wrapper metadata in parallel
       const [launchInfo, enrichedData, graduationInfo, wrapperMeta] = await Promise.all([

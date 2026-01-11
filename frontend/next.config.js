@@ -28,7 +28,28 @@ const nextConfig = {
     ],
   },
   // Empty turbopack config to silence Next.js 16 warning (we use webpack)
-  turbopack: {},
+  turbopack: {
+    resolveAlias: {
+      pino: path.resolve(__dirname, 'src/lib/pino-mock.js'),
+      'pino/pino.js': path.resolve(__dirname, 'src/lib/pino-mock.js'),
+      'pino/browser': path.resolve(__dirname, 'src/lib/pino-mock.js'),
+      'pino/browser.js': path.resolve(__dirname, 'src/lib/pino-mock.js'),
+      '@walletconnect/logger': path.resolve(__dirname, 'src/lib/walletconnect-logger-mock.js'),
+      '@walletconnect/logger/dist/index.es.js': path.resolve(__dirname, 'src/lib/walletconnect-logger-mock.js'),
+      '@walletconnect/logger/dist/index.cjs': path.resolve(__dirname, 'src/lib/walletconnect-logger-mock.js'),
+      '@react-native-async-storage/async-storage': path.resolve(__dirname, 'src/lib/async-storage-mock.js'),
+      'thread-stream': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      'thread-stream/index.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      'thread-stream/test/indexes.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      'thread-stream/test/helper.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      'why-is-node-running': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      'why-is-node-running/index.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      tape: path.resolve(__dirname, 'src/lib/empty-module.js'),
+      'tape/index.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      'fs-extra': path.resolve(__dirname, 'src/lib/empty-module.js'),
+      mkdirp: path.resolve(__dirname, 'src/lib/empty-module.js'),
+    },
+  },
   // Ensure output file tracing starts from the monorepo root (Sovry)
   outputFileTracingRoot: path.join(__dirname, ".."),
   // Ignore parent directory lockfiles to prevent warnings

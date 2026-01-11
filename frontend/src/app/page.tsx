@@ -1,15 +1,23 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ImmersiveHero } from "@/components/hero/ImmersiveHero";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Filter, LayoutGrid, List, Settings, Radio } from "lucide-react";
 import AssetCard from "@/components/marketplace/AssetCard";
-import { LaunchCard } from "@/components/LaunchCard";
 import { LaunchCardSkeleton } from "@/components/LaunchCardSkeleton";
 import { useLaunches } from "@/hooks/useLaunches";
-import { formatMarketCap } from "@/services/launchDataService";
-import { cn } from "@/lib/utils";
+import { cn, formatMarketCapIP } from "@/lib/utils";
+
+const ImmersiveHero = dynamic(
+  () => import("@/components/hero/ImmersiveHero").then((m) => m.ImmersiveHero),
+  { ssr: false }
+);
+
+const LaunchCard = dynamic(
+  () => import("@/components/LaunchCard").then((m) => m.LaunchCard),
+  { ssr: false, loading: () => <LaunchCardSkeleton /> }
+);
 
 // Filter options
 const FILTER_OPTIONS = [
@@ -106,7 +114,7 @@ function NowTrendingSection() {
               const image = launch.imageUrl || "";
               const ticker = launch.name || "TOKEN";
               const symbol = launch.symbol;
-              const marketCap = formatMarketCap(launch.marketCap);
+              const marketCap = formatMarketCapIP(launch.marketCap);
               const bondingCurvePercent = launch.bondingProgress || 0;
               const createdBy = launch.creator || "";
               const tokenAddress = launch.token || launch.id;

@@ -24,8 +24,6 @@ import {
   type TokenBalance,
   getClaimableRoyaltyForIp,
 } from "@/services/storyProtocolService";
-import { enrichLaunchesData } from "@/services/launchDataService";
-import { launchpadService } from "@/services/launchpadService";
 
 import { Coins, Copy, AlertCircle } from "lucide-react";
 
@@ -151,6 +149,7 @@ export default function ProfilePage() {
         }
 
         const wrapperIds = wrapperTokens.map((w) => w.id);
+        const { enrichLaunchesData } = await import("@/services/launchDataService");
         const enrichedMap = await enrichLaunchesData(wrapperIds);
 
         // Fetch balances for all wrapper tokens for this user
@@ -361,6 +360,7 @@ export default function ProfilePage() {
     setHarvestingId(assetId);
 
     try {
+      const { launchpadService } = await import("@/services/launchpadService");
       const result = await launchpadService.harvestAndPump(asset.ipId, asset.id, primaryWallet);
 
       if (!result.success) {
@@ -394,6 +394,7 @@ export default function ProfilePage() {
     setPremineClaimingId(assetId);
 
     try {
+      const { launchpadService } = await import("@/services/launchpadService");
       const result = await launchpadService.claimCreatorPremine(asset.id, primaryWallet);
 
       if (!result.success) {

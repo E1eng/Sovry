@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Trophy, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
-import confetti from "canvas-confetti"
 import { trackEvent } from "@/lib/analytics"
 
 export interface GraduationModalProps {
@@ -58,31 +57,44 @@ export function GraduationModal({
       return Math.random() * (max - min) + min
     }
 
-    const interval = setInterval(() => {
-      const timeLeft = animationEnd - Date.now()
+    let cancelled = false
+    let stopInterval: (() => void) | null = null
 
-      if (timeLeft <= 0) {
-        clearInterval(interval)
-        return
-      }
+    const startConfetti = async () => {
+      const mod = await import("canvas-confetti")
+      const confetti = mod.default
+      if (cancelled) return
 
-      const particleCount = 50 * (timeLeft / duration)
+      const interval = setInterval(() => {
+        const timeLeft = animationEnd - Date.now()
 
-      // Launch confetti from both sides
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
-        colors: ["#FFD700", "#FFA500", "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A"],
-      })
+        if (timeLeft <= 0) {
+          clearInterval(interval)
+          return
+        }
 
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
-        colors: ["#FFD700", "#FFA500", "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A"],
-      })
-    }, 250)
+        const particleCount = 50 * (timeLeft / duration)
+
+        // Launch confetti from both sides
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+          colors: ["#FFD700", "#FFA500", "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A"],
+        })
+
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+          colors: ["#FFD700", "#FFA500", "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A"],
+        })
+      }, 250)
+
+      stopInterval = () => clearInterval(interval)
+    }
+
+    startConfetti().catch(() => {})
 
     // Mark as shown in session storage
     sessionStorage.setItem(SESSION_STORAGE_KEY, "true")
@@ -128,7 +140,8 @@ export function GraduationModal({
     }
 
     return () => {
-      clearInterval(interval)
+      cancelled = true
+      if (stopInterval) stopInterval()
     }
   }, [open, onOpenChange])
 

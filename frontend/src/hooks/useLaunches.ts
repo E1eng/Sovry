@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { enrichLaunchesData } from "@/services/launchDataService"
 
 const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 if (!SUBGRAPH_URL_RAW) {
@@ -88,6 +87,7 @@ export function useLaunches(limit: number = 8) {
 
       // Enrich launch data
       const wrapperTokens = basicLaunches.map((l) => l.token || l.id)
+      const { enrichLaunchesData } = await import("@/services/launchDataService")
       const enrichedData = await enrichLaunchesData(wrapperTokens)
 
       // Merge basic launch data with enriched data and graduated status from subgraph

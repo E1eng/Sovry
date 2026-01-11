@@ -672,6 +672,13 @@ export const newLaunchpadAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "wrapperToRt",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 export async function getCurveParams(tokenAddress: string): Promise<BondingCurveParams | null> {

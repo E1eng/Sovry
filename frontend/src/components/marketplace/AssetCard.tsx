@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { formatMarketCap } from "@/services/launchDataService";
+import { formatMarketCapIP } from "@/lib/utils";
 
 export interface AssetCardData {
   id: string;
@@ -49,7 +49,7 @@ export default function AssetCard({ launch }: AssetCardProps) {
   const bondingProgress = launch.bondingProgress || 0;
   const displaySymbol = launch.symbol || address.slice(2, 6).toUpperCase();
   const displayName = launch.name || `Token ${address.slice(0, 6)}`;
-  const formattedMarketCap = launch.marketCap ? formatMarketCap(launch.marketCap) : "$0";
+  const formattedMarketCap = formatMarketCapIP(launch.marketCap);
   const creatorShort = truncateAddress(launch.creator);
   const timeAgoStr = launch.createdAt ? timeAgo(launch.createdAt) : "";
 

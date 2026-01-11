@@ -34,7 +34,6 @@ import {
   TokenBalance,
   SOVRY_LAUNCHPAD_ADDRESS,
 } from "@/services/storyProtocolService";
-import { launchpadService } from "@/services/launchpadService";
 import { transferRoyaltyTokensFromIP } from "@/services/storyProtocolRegistration";
 
 import { pinFileToIPFS, pinJSONToIPFS } from "@/services/pinataService";
@@ -254,6 +253,8 @@ export default function CreatePage() {
         const cleaned = base.replace(/[^A-Za-z0-9]/g, "");
         symbolForLaunch = (cleaned || "IP").slice(0, 10).toUpperCase();
       }
+
+      const { launchpadService } = await import("@/services/launchpadService");
 
       const result = await launchpadService.launchOnBondingCurve(
         ipAsset.royaltyVaultAddress,

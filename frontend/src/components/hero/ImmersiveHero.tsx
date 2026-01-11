@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PlusCircle, ArrowRight } from "lucide-react";
 import { formatEther, formatUnits } from "viem";
-import { formatMarketCap, enrichLaunchData } from "@/services/launchDataService";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
+import { formatMarketCapIP } from "@/lib/utils";
 
 interface ImmersiveHeroSampleLaunch {
   name?: string;
@@ -184,6 +184,7 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
         const symbolMap = new Map<string, string>();
         if (wrapperAddrs.length > 0) {
           try {
+            const { enrichLaunchData } = await import("@/services/launchDataService");
             const results = await Promise.all(
               wrapperAddrs.map(async (addr) => {
                 try {
@@ -260,7 +261,7 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
 
   const sampleName = sampleLaunch?.name || "";
   const sampleSymbol = sampleLaunch?.symbol || "";
-  const sampleMarketCap = sampleLaunch?.marketCap ? formatMarketCap(sampleLaunch.marketCap) : "—";
+  const sampleMarketCap = sampleLaunch?.marketCap ? formatMarketCapIP(sampleLaunch.marketCap) : "—";
   const sampleBonding = typeof sampleLaunch?.bondingProgress === "number" ? sampleLaunch.bondingProgress : 0;
   const sampleImageUrl = sampleLaunch?.imageUrl;
 

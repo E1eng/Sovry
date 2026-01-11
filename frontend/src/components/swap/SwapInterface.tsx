@@ -20,7 +20,6 @@ import {
   calculateBondingCurveSellProceeds,
 } from "@/lib/bondingCurve"
 import { SlippageSettings } from "@/components/swap/SlippageSettings"
-import { launchpadService } from "@/services/launchpadService"
 import { erc20Abi } from "viem"
 import { parseTransactionError, logError, isSlippageError } from "@/lib/errorUtils"
 import { trackTrade, trackEvent } from "@/lib/analytics"
@@ -150,6 +149,7 @@ function SwapInterfaceComponent({
       setIsCalculating(true)
 
       try {
+        const { launchpadService } = await import("@/services/launchpadService")
         const amountBigInt = parseEther(amount)
         let impact: number
         if (isBuy) {
@@ -411,7 +411,10 @@ function SwapInterfaceComponent({
   const handlePlaceTrade = async () => {
     if (!fromAmount || parseFloat(fromAmount) <= 0 || !tokenAddress) return
 
+    const { launchpadService } = await import("@/services/launchpadService")
+
     // Validation
+    setSlippageError(null)
     if (!isConnected || !primaryWallet) {
       toast.error("Please connect your wallet", {
         duration: 3000,
@@ -708,6 +711,8 @@ function SwapInterfaceComponent({
   // Handle sell transaction
   const handleSell = async () => {
     if (!tokenAddress || !primaryWallet || !fromAmount) return
+
+    const { launchpadService } = await import("@/services/launchpadService")
 
     setIsTrading(true)
     setTradeSuccess(false)

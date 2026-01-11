@@ -1,6 +1,4 @@
 import { Metadata } from "next"
-import { getLaunchInfo } from "@/services/launchpadService"
-import { enrichLaunchData } from "@/services/launchDataService"
 import { isAddress } from "viem"
 
 export async function generateMetadata({
@@ -19,6 +17,9 @@ export async function generateMetadata({
   }
 
   try {
+    const { getLaunchInfo } = await import("@/services/launchpadService")
+    const { enrichLaunchData } = await import("@/services/launchDataService")
+
     const [launchInfo, enrichedData] = await Promise.all([
       getLaunchInfo(address),
       enrichLaunchData(address),

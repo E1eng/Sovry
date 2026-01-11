@@ -32,8 +32,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@dynamic-labs/ethereum": "3.9.13",
-    "@graphprotocol/graph-cli": "0.98.1",
     "@openzeppelin/contracts": "^5.4.0",
     "@uniswap/v2-core": "^1.0.1",
     "@uniswap/v2-periphery": "^1.1.0-beta.0"
