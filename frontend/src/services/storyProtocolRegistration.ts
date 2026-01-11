@@ -6,6 +6,7 @@ import { createPublicClient, http, Address, custom, encodeFunctionData } from 'v
 import { erc20Abi } from 'viem';
 import { pinJSONToIPFS, pinFileToIPFS } from './pinataService';
 import { logger } from '@/lib/logger';
+import type { PrimaryWalletLike } from '@/services/domain/types';
 
 // Environment variables
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
@@ -37,17 +38,24 @@ function createPublicClientForStory() {
   });
 }
 
+async function getWalletAddress(primaryWallet: PrimaryWalletLike): Promise<Address> {
+  return (await primaryWallet.address) as Address;
+}
+
 // Create Story Protocol client with Dynamic wallet
-async function createStoryProtocolClient(primaryWallet: any) {
+async function createStoryProtocolClient(primaryWallet: PrimaryWalletLike) {
   try {
     // Get wallet client from Dynamic SDK
-    const walletClient = await primaryWallet.getWalletClient();
+    const walletClient = await primaryWallet.getWalletClient?.();
+    if (!walletClient) {
+      throw new Error('No wallet client available');
+    }
     logger.log('🔍 Got wallet client from Dynamic SDK');
     
     // Create Story SDK client with proper wallet integration
     const config: any = {
       wallet: walletClient, // Pass the actual wallet client
-      transport: custom(walletClient.transport), // Use custom transport
+      transport: custom((walletClient as any).transport), // Use custom transport
       chainId: "aeneid",
     };
     
@@ -60,7 +68,7 @@ async function createStoryProtocolClient(primaryWallet: any) {
     // Fallback: try with account only
     try {
       logger.log('🔄 Trying fallback with account only...');
-      const walletAddress = primaryWallet.address;
+      const walletAddress = await getWalletAddress(primaryWallet);
       
       const config: any = {
         transport: http(STORY_RPC_URL),
@@ -119,14 +127,15 @@ export interface RegistrationResult {
 }
 
 // Upload metadata to IPFS using Pinata
-async function uploadToIPFS(metadata: any): Promise<string> {
-  const name = (metadata && (metadata.title || metadata.name)) || 'ip-metadata';
+async function uploadToIPFS(metadata: unknown): Promise<string> {
+  const meta = metadata as { title?: string; name?: string } | null;
+  const name = meta?.title || meta?.name || 'ip-metadata';
   const result = await pinJSONToIPFS(metadata, name);
   return result.cid;
 }
 
 // Calculate SHA256 hash
-async function calculateSHA256(data: any): Promise<string> {
+async function calculateSHA256(data: unknown): Promise<string> {
   try {
     // Use Web Crypto API for real hash calculation
     const encoder = new TextEncoder();
@@ -154,7 +163,7 @@ async function calculateSHA256(data: any): Promise<string> {
 export async function registerIPAssetWithPolling(
   ipMetadata: IPMetadata,
   nftMetadata: NFTMetadata,
-  primaryWallet: any,
+  primaryWallet: PrimaryWalletLike,
   onStatusUpdate?: (status: RegistrationResult['status']) => void
 ): Promise<RegistrationResult> {
   try {
@@ -274,7 +283,7 @@ export async function registerIPAssetWithPolling(
 // using the RoyaltyModule, for testing harvest flows on fresh IPs.
 export async function injectDemoRoyaltyWIP(
   ipId: string,
-  primaryWallet: any,
+  primaryWallet: PrimaryWalletLike,
 ): Promise<{
   success: boolean;
   approveTxHash?: string;
@@ -283,7 +292,8 @@ export async function injectDemoRoyaltyWIP(
   wrapTxHash?: string;
 }> {
   try {
-    if (!primaryWallet || !primaryWallet.address) {
+    const userAddress = await getWalletAddress(primaryWallet);
+    if (!userAddress) {
       throw new Error('Wallet not connected');
     }
 
@@ -291,12 +301,10 @@ export async function injectDemoRoyaltyWIP(
       throw new Error('Invalid IP ID provided');
     }
 
-    const walletClient = await primaryWallet.getWalletClient();
+    const walletClient = await primaryWallet.getWalletClient?.();
     if (!walletClient) {
       throw new Error('No wallet client available');
     }
-
-    const userAddress = primaryWallet.address as Address;
     const publicClient = createPublicClientForStory();
 
     const targetAmount = DEMO_ROYALTY_AMOUNT_WEI;
@@ -412,7 +420,7 @@ export async function injectDemoRoyaltyWIP(
 export async function registerIPAsset(
   ipMetadata: IPMetadata,
   nftMetadata: NFTMetadata,
-  primaryWallet: any
+  primaryWallet: PrimaryWalletLike
 ): Promise<RegistrationResult> {
   return registerIPAssetWithPolling(ipMetadata, nftMetadata, primaryWallet);
 }
@@ -420,7 +428,7 @@ export async function registerIPAsset(
 // Claim revenue from IP Asset (to get royalty tokens)
 export async function claimRevenue(
   ipId: string,
-  primaryWallet: any
+  primaryWallet: PrimaryWalletLike
 ): Promise<{
   success: boolean;
   txHash?: string;
@@ -460,7 +468,7 @@ export async function claimRevenue(
 export async function mintLicenseToken(
   ipId: string,
   licenseTermsId: string,
-  primaryWallet: any
+  primaryWallet: PrimaryWalletLike
 ): Promise<{
   success: boolean;
   txHash?: string;
@@ -469,10 +477,8 @@ export async function mintLicenseToken(
 }> {
   try {
     logger.log('📜 Minting license token for IP:', ipId);
-    
-    if (!primaryWallet || !primaryWallet.address) {
-      throw new Error('Wallet not connected');
-    }
+
+    const walletAddress = await getWalletAddress(primaryWallet);
     
     // Create Story SDK client
     const client = await createStoryProtocolClient(primaryWallet);
@@ -482,7 +488,7 @@ export async function mintLicenseToken(
       licensorIpId: ipId as Address,
       licenseTermsId,
       amount: 1,
-      receiver: primaryWallet.address as Address,
+      receiver: walletAddress,
       royaltyContext: "0x", // Empty royalty context
       maxMintingFee: BigInt(0), // disabled
       maxRevenueShare: 100, // cap only
@@ -516,7 +522,7 @@ function convertRoyaltyPercentToTokens(royaltyPercent: number): bigint {
 // Transfer royalty tokens from IP Account to user wallet (mirrors Story TS example)
 export async function transferRoyaltyTokensFromIP(
   ipId: string,
-  primaryWallet: any
+  primaryWallet: PrimaryWalletLike
 ): Promise<{
   success: boolean;
   txHash?: string;
@@ -524,10 +530,8 @@ export async function transferRoyaltyTokensFromIP(
 }> {
   try {
     logger.log('🔄 Transferring royalty tokens from IP Account to wallet...');
-    
-    if (!primaryWallet || !primaryWallet.address) {
-      throw new Error('Wallet not connected');
-    }
+
+    const walletAddress = await getWalletAddress(primaryWallet);
     
     // Create Story SDK client
     const client = await createStoryProtocolClient(primaryWallet);
@@ -553,7 +557,7 @@ export async function transferRoyaltyTokensFromIP(
         {
           address: royaltyVaultAddress,
           amount: amountToTransfer,
-          target: primaryWallet.address as Address,
+          target: walletAddress,
         },
       ],
     });

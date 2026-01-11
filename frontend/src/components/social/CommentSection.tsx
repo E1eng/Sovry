@@ -88,8 +88,10 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
             logger.error("Error loading profiles for comments", profilesError);
           }
 
-          (profilesData || []).forEach((p: any) => {
-            profilesByAddress[(p.wallet_address as string).toLowerCase()] = p as Profile;
+          (profilesData as Profile[] | null | undefined)?.forEach((p) => {
+            if (p?.wallet_address) {
+              profilesByAddress[p.wallet_address.toLowerCase()] = p;
+            }
           });
         }
 
@@ -138,12 +140,13 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
               .select("username, avatar_url")
               .eq("wallet_address", newRow.user_address.toLowerCase())
               .maybeSingle();
-            username = (profile as any)?.username ?? null;
-            avatarUrl = (profile as any)?.avatar_url ?? null;
+            const p = profile as Pick<Profile, "username" | "avatar_url"> | null;
+            username = p?.username ?? null;
+            avatarUrl = p?.avatar_url ?? null;
           } catch {}
 
           setComments((prev) => {
-            if (prev.some((c) => c.id === (newRow as any).id)) {
+            if (prev.some((c) => c.id === newRow.id)) {
               return prev;
             }
             return [
@@ -202,8 +205,10 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
           logger.error("Error loading more profiles for comments", profilesError);
         }
 
-        (profilesData || []).forEach((p: any) => {
-          profilesByAddress[(p.wallet_address as string).toLowerCase()] = p as Profile;
+        (profilesData as Profile[] | null | undefined)?.forEach((p) => {
+          if (p?.wallet_address) {
+            profilesByAddress[p.wallet_address.toLowerCase()] = p;
+          }
         });
       }
 
@@ -271,14 +276,16 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
           .select("username, avatar_url")
           .eq("wallet_address", userAddress)
           .maybeSingle();
-        username = (profile as any)?.username ?? null;
-        avatarUrl = (profile as any)?.avatar_url ?? null;
+        const p = profile as Pick<Profile, "username" | "avatar_url"> | null;
+        username = p?.username ?? null;
+        avatarUrl = p?.avatar_url ?? null;
       } catch {}
 
-      if (inserted) {
+      const insertedRow = inserted as DbComment | null;
+      if (insertedRow) {
         setComments((prev) => [
           {
-            ...(inserted as any),
+            ...insertedRow,
             username,
             avatarUrl,
           },
