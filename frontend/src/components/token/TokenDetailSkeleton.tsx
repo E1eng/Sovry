@@ -1,10 +1,10 @@
 "use client"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { TokenHeaderSkeleton } from "./TokenHeaderSkeleton"
-import { ChartSkeleton } from "./ChartSkeleton"
-import { SwapInterfaceSkeleton } from "../swap/SwapInterfaceSkeleton"
-import { ProgressBarSkeleton } from "./ProgressBarSkeleton"
+import { TokenHeaderSkeleton } from "@/components/token/TokenHeaderSkeleton"
+import { ChartSkeleton } from "@/components/token/ChartSkeleton"
+import { SwapInterfaceSkeleton } from "@/components/swap/SwapInterfaceSkeleton"
+import { ProgressBarSkeleton } from "@/components/token/ProgressBarSkeleton"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
 export function TokenDetailSkeleton() {

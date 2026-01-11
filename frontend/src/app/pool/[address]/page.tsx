@@ -102,15 +102,6 @@ export default function TokenDetailPage() {
     enabled: !!address && !details?.launchInfo?.graduated, // Only watch if not already graduated
   })
 
-  // Check if token is already graduated on mount (handle edge case)
-  useEffect(() => {
-    if (details?.launchInfo?.graduated && !showGraduationModal) {
-      // Token is already graduated - don't show modal automatically
-      // but ensure the UI reflects the graduated state
-      // The modal can still be triggered manually if needed
-      }
-  }, [details?.launchInfo?.graduated, showGraduationModal])
-
   // Also refresh launch details immediately when the trading UI or
   // TransactionHistory dispatches a global "refresh-trades" event for
   // this token. This keeps the progress bar and header stats in sync

@@ -1,7 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useRouter } from "next/navigation";
@@ -42,6 +42,8 @@ import { supabase } from "@/lib/supabaseClient";
 export default function CreatePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
   const router = useRouter();
+
+  const externalImageLoader = ({ src }: { src: string }) => src;
 
   const isConnected = !!primaryWallet;
   const walletAddress = primaryWallet?.address;
@@ -641,12 +643,16 @@ export default function CreatePage() {
                         >
                           {ipAsset.imageUrl && (
                             <div className="relative w-full aspect-square">
-                              <img
+                              <Image
+                                loader={externalImageLoader}
+                                unoptimized
                                 src={ipAsset.imageUrl}
-                                alt={ipAsset.name}
+                                alt={ipAsset.name || "IP asset"}
+                                fill
+                                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
                                 className="absolute inset-0 w-full h-full object-cover"
                                 onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
+                                  const target = e.currentTarget as HTMLImageElement;
                                   target.style.display = "none";
                                 }}
                               />
@@ -742,12 +748,16 @@ export default function CreatePage() {
               <div className="flex items-start gap-4">
                 {selectedIPAsset.imageUrl && (
                   <div className="flex-shrink-0">
-                    <img
+                    <Image
+                      loader={externalImageLoader}
+                      unoptimized
                       src={selectedIPAsset.imageUrl}
-                      alt={selectedIPAsset.name}
+                      alt={selectedIPAsset.name || "Selected IP asset"}
+                      width={96}
+                      height={96}
                       className="w-24 h-24 rounded-xl object-cover border border-zinc-800"
                       onError={(e) => {
-                        const target = e.target as HTMLImageElement;
+                        const target = e.currentTarget as HTMLImageElement;
                         target.style.display = "none";
                       }}
                     />
@@ -816,9 +826,13 @@ export default function CreatePage() {
                     </Label>
                     <div className="flex items-center gap-4">
                       <div className="relative w-20 md:w-24 aspect-square rounded-full overflow-hidden border border-zinc-800 bg-zinc-900/40">
-                        <img
+                        <Image
+                          loader={externalImageLoader}
+                          unoptimized
                           src={launchImageUrl || selectedIPAsset.imageUrl}
                           alt="Token logo preview"
+                          fill
+                          sizes="96px"
                           className="absolute inset-0 w-full h-full object-cover"
                         />
                         {launchLogoFile && (
