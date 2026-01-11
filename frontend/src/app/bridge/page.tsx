@@ -1,6 +1,7 @@
  "use client";
 
 import { useEffect, useRef } from "react";
+import { logger } from "@/lib/logger";
 
 const DEBRIDGE_WIDGET_CONFIG = {
   element: "debridgeWidget",
@@ -125,7 +126,7 @@ export default function BridgePage() {
           element: container.id || DEBRIDGE_WIDGET_CONFIG.element,
         });
       } catch (error) {
-        console.error("Failed to initialize deBridge widget", error);
+        logger.error("Failed to initialize deBridge widget", error);
       }
     };
 

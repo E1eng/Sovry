@@ -8,6 +8,7 @@ import { PlusCircle, ArrowRight } from "lucide-react";
 import { formatEther, formatUnits } from "viem";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
 import { formatMarketCapIP } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 interface ImmersiveHeroSampleLaunch {
   name?: string;
@@ -78,7 +79,7 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
 
         setTotalVolumeIP(volumeIP);
       } catch (error) {
-        console.error("Error fetching launchpad stats from subgraph", error);
+        logger.error("Error fetching launchpad stats from subgraph", error);
       }
     };
 
@@ -200,7 +201,7 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
               symbolMap.set(addr.toLowerCase(), sym);
             }
           } catch (e) {
-            console.error("Error enriching symbols for hero trades", e);
+            logger.error("Error enriching symbols for hero trades", e);
           }
         }
 
@@ -246,7 +247,7 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
           setRecentTrades(parsed);
         }
       } catch (error) {
-        console.error("Error fetching recent trades for hero ticker", error);
+        logger.error("Error fetching recent trades for hero ticker", error);
       }
     };
 

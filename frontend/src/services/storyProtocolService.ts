@@ -1,156 +1,13 @@
 // Story Protocol service integration
 // ARCHITECTURE: Separate READ (Backend API) and WRITE (Dynamic Wallet)
 
-import { StoryClient, WIP_TOKEN_ADDRESS } from '@story-protocol/core-sdk';
-import { createPublicClient, http, Address, encodeFunctionData, custom } from 'viem';
-import { erc20Abi } from 'viem';
-import { logger } from '@/lib/logger';
-
-// Environment variables
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
-const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || "";
-
-// Sovry Launchpad Contract Address (bonding curve launch)
-export const SOVRY_LAUNCHPAD_ADDRESS =
-  process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS ||
-  "0xABddc4817c287cCc6F1a170Fa3C364e9df2464E6";
-
-// ===== READ OPERATIONS (Use Backend API / Goldsky) =====
-// These should NOT use user's MetaMask wallet
-
-// Single public client for READ operations only
-let publicClient: any = null;
-function getPublicClient() {
-  if (!publicClient) {
-    publicClient = createPublicClient({
-      chain: {
-        id: 1315,
-        name: 'Story Aeneid Testnet',
-        nativeCurrency: { name: 'IP', symbol: 'IP', decimals: 18 },
-        rpcUrls: {
-          default: { http: [STORY_RPC_URL] },
-        },
-        blockExplorers: {
-          default: { name: 'StoryScan', url: 'https://storyscan.xyz' },
-        },
-      },
-      transport: http(STORY_RPC_URL),
-    });
-  }
-  return publicClient;
-}
-
-// IP Asset interface
-export interface IPAsset {
-  ipId: string;
-  name: string;
-  description: string;
-  imageUrl: string;
-  mediaType?: string;
-  owner: string;
-  royaltyVaultAddress: string;
-  hasRoyaltyTokens: boolean;
-  metadataUri?: string;
-  createdAt: string;
-}
-
-// Sovry Launchpad ABI (wrapper-based launch)
-const SOVRY_LAUNCHPAD_ABI = [
-  {
-    inputs: [
-      { internalType: 'address', name: 'rtAddress', type: 'address' },
-      { internalType: 'uint256', name: 'amount', type: 'uint256' },
-      { internalType: 'string', name: 'name', type: 'string' },
-      { internalType: 'string', name: 'symbol', type: 'string' },
-      { internalType: 'uint256', name: 'basePrice', type: 'uint256' },
-      { internalType: 'uint256', name: 'priceIncrement', type: 'uint256' },
-    ],
-    name: 'launchToken',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-];
-
-const LAUNCHPAD_VIEW_ABI = [
-  {
-    inputs: [
-      { internalType: 'address', name: '', type: 'address' },
-    ],
-    name: 'rtToWrapper',
-    outputs: [
-      { internalType: 'address', name: '', type: 'address' },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-];
-
-const DEFAULT_BASE_PRICE_WEI = BigInt(
-  process.env.NEXT_PUBLIC_BASE_PRICE_WEI || "100000000000", // 1e11 wei default
-);
-const DEFAULT_PRICE_INCREMENT_WEI = BigInt(
-  process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI || "2000000", // 2e6 wei default
-);
-
-// Token balance interface
-export interface TokenBalance {
-  address: string;
-  balance: string;
-  decimals: number;
-  symbol: string;
-}
-
-// Create Story Protocol client with Dynamic wallet
-async function createStoryProtocolClient(primaryWallet?: any) {
-  if (!primaryWallet) {
-    logger.warn('No wallet provided for Story SDK - using read-only client');
-    // Read-only client for public queries
-    return (StoryClient as any).new?.({
-      transport: http(STORY_RPC_URL),
-      chainId: 1315, // Aeneid Testnet
-    }) || new (StoryClient as any)({
-      transport: http(STORY_RPC_URL),
-      chainId: 1315, // Aeneid Testnet
-    });
-  }
-  
-  try {
-    // Get wallet client from Dynamic SDK
-    const walletClient = await primaryWallet.getWalletClient();
-    
-    // Create Story SDK client with Dynamic wallet
-    // Use viem custom transport with Dynamic wallet client
-    const config: any = {
-      wallet: walletClient,
-      transport: custom(walletClient.transport),
-      chainId: "aeneid", // Use string as per docs
-    };
-    
-    return (StoryClient as any).newClient?.(config) || (StoryClient as any).new?.(config);
-  } catch (error) {
-    logger.error('Error creating Story SDK client with Dynamic wallet:', error);
-    
-    // Fallback to address-only client
-    const walletAddress = await primaryWallet.address;
-    return (StoryClient as any).new?.({
-      transport: http(STORY_RPC_URL),
-      chainId: 1315, // Aeneid Testnet
-      account: walletAddress as Address,
-    }) || new (StoryClient as any)({
-      transport: http(STORY_RPC_URL),
-      chainId: 1315, // Aeneid Testnet
-      account: walletAddress as Address,
-    });
-  }
-}
-
+/*
 // High-level helper: claim royalties for a backing IP using Story's royalty.claimAllRevenue
 // so that WIP is credited to the IP Account (ipId), then move that WIP from the IP
 // Account to the SovryLaunchpad contract via ipAccount.transferErc20 (no wallet hop),
 // and finally call harvest(wrapperToken) to apply those royalties to the bonding
 // curve / buyback.
-export async function claimRevenueToWalletAndPump(
+async function _legacyClaimRevenueToWalletAndPump(
   ipId: string,
   wrapperToken: string,
   primaryWallet: any,
@@ -174,7 +31,7 @@ export async function claimRevenueToWalletAndPump(
     }
 
     const publicClient = createPublicClientForStory();
-    const launchpadAddress = SOVRY_LAUNCHPAD_ADDRESS as Address;
+    const launchpadAddress = _SOVRY_LAUNCHPAD_ADDRESS as Address;
 
     // 1) Claim revenue so that WIP is credited to the IP Account (ipId), not the wallet.
     await client.royalty.claimAllRevenue({
@@ -330,7 +187,7 @@ const ERC20_ABI = [
 ] as const;
 
 // Get royalty vault address for IP asset using Story Protocol SDK
-export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any): Promise<string | null> {
+async function _legacyGetRoyaltyVaultAddress(ipId: string, primaryWallet?: any): Promise<string | null> {
   try {
     // Validate IP ID format (should be a valid address)
     if (!ipId || ipId === '0x0000000000000000000000000000000000000000' || 
@@ -371,9 +228,9 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: any):
 }
 
 // Check if IP asset has royalty tokens
-export async function checkRoyaltyTokens(ipId: string, primaryWallet?: any): Promise<boolean> {
+async function _legacyCheckRoyaltyTokens(ipId: string, primaryWallet?: any): Promise<boolean> {
   try {
-    const royaltyVaultAddress = await getRoyaltyVaultAddress(ipId, primaryWallet);
+    const royaltyVaultAddress = await _legacyGetRoyaltyVaultAddress(ipId, primaryWallet);
     
     // If vault address exists and is not zero address, IP has royalty tokens
     return royaltyVaultAddress !== null && 
@@ -385,12 +242,12 @@ export async function checkRoyaltyTokens(ipId: string, primaryWallet?: any): Pro
   }
 }
 
-export async function getClaimableRoyaltyForIp(
+async function _legacyGetClaimableRoyaltyForIp(
   ipId: string,
   primaryWallet?: any,
 ): Promise<number> {
   try {
-    const royaltyVaultAddress = await getRoyaltyVaultAddress(ipId, primaryWallet);
+    const royaltyVaultAddress = await _legacyGetRoyaltyVaultAddress(ipId, primaryWallet);
     if (
       !royaltyVaultAddress ||
       royaltyVaultAddress === '0x0000000000000000000000000000000000000000'
@@ -428,7 +285,7 @@ export async function getClaimableRoyaltyForIp(
 }
 
 // Get token balance for user wallet
-export async function getTokenBalance(userAddress: string, tokenAddress: string): Promise<TokenBalance | null> {
+async function _legacyGetTokenBalance(userAddress: string, tokenAddress: string): Promise<_TokenBalance | null> {
   try {
     // If token address is zero address, there's no ERC20 to query
     if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
@@ -473,9 +330,10 @@ export async function getTokenBalance(userAddress: string, tokenAddress: string)
     return null;
   }
 }
-export async function needsTokenUnlock(userAddress: string, tokenAddress: string): Promise<boolean> {
+
+async function _legacyNeedsTokenUnlock(userAddress: string, tokenAddress: string): Promise<boolean> {
   try {
-    const tokenBalance = await getTokenBalance(userAddress, tokenAddress);
+    const tokenBalance = await _legacyGetTokenBalance(userAddress, tokenAddress);
 
     if (!tokenBalance) {
       // Assume needs unlock if we can't get balance
@@ -494,10 +352,10 @@ export async function needsTokenUnlock(userAddress: string, tokenAddress: string
 
 // Simple in-memory cache for wallet IP assets within a session
 const WALLET_IP_ASSETS_CACHE_TTL_MS = 60_000; // 60 seconds
-const walletIpAssetsCache = new Map<string, { assets: IPAsset[]; timestamp: number }>();
+const walletIpAssetsCache = new Map<string, { assets: _IPAsset[]; timestamp: number }>();
 
 // Fetch IP assets for a wallet address using Story Protocol API
-export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?: any): Promise<IPAsset[]> {
+async function _legacyFetchWalletIPAssets(walletAddress: string, primaryWallet?: any): Promise<_IPAsset[]> {
   try {
     const cacheKey = walletAddress.toLowerCase();
     const cached = walletIpAssetsCache.get(cacheKey);
@@ -594,11 +452,11 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         }
 
         // Transform API response to IPAsset interface
-        const ipAssets: IPAsset[] = await Promise.all(
+        const ipAssets: _IPAsset[] = await Promise.all(
           assets.map(async (asset: any) => {
             // Get royalty vault address for each IP asset using connected wallet
-            const royaltyVaultAddress = await getRoyaltyVaultAddress(asset.ipId, primaryWallet);
-            const hasRoyaltyTokens = await checkRoyaltyTokens(asset.ipId, primaryWallet);
+            const royaltyVaultAddress = await _legacyGetRoyaltyVaultAddress(asset.ipId, primaryWallet);
+            const hasRoyaltyTokens = await _legacyCheckRoyaltyTokens(asset.ipId, primaryWallet);
 
             return {
               ipId: asset.ipId,
@@ -679,7 +537,7 @@ function mapLaunchError(error: unknown): string {
 
 // Dynamic SDK Launch Function - WRITE ONLY (Sovry Launchpad bonding curve)
 // Uses a wrapper token (SovryToken) around the locked royalty token.
-export async function launchOnBondingCurveDynamic(
+async function _legacyLaunchOnBondingCurveDynamic(
   royaltyTokenAddress: string,
   primaryWallet: any,
   tokenName: string,
@@ -694,7 +552,7 @@ export async function launchOnBondingCurveDynamic(
     logger.log('🔥 Dynamic Launch - WRITE Operation (Sovry Launchpad)');
     logger.log('Launch params:', { 
       royaltyToken: royaltyTokenAddress,
-      launchpad: SOVRY_LAUNCHPAD_ADDRESS,
+      launchpad: _SOVRY_LAUNCHPAD_ADDRESS,
       name: tokenName,
       symbol: tokenSymbol,
       percentage: launchPercentage,
@@ -767,7 +625,7 @@ export async function launchOnBondingCurveDynamic(
     const approveData = encodeFunctionData({
       abi: erc20Abi,
       functionName: 'approve',
-      args: [SOVRY_LAUNCHPAD_ADDRESS as Address, amountToLock],
+      args: [_SOVRY_LAUNCHPAD_ADDRESS as Address, amountToLock],
     });
 
     logger.log('📤 Sending approve transaction for launch token via Dynamic...');
@@ -797,7 +655,7 @@ export async function launchOnBondingCurveDynamic(
 
     logger.log('📤 Calling SovryLaunchpad.launchToken...');
     const launchTxHash = await walletClient.sendTransaction({
-      to: SOVRY_LAUNCHPAD_ADDRESS as Address,
+      to: _SOVRY_LAUNCHPAD_ADDRESS as Address,
       data: launchData,
     });
 
@@ -832,7 +690,7 @@ export async function launchOnBondingCurveDynamic(
     let wrapperAddress: string | undefined;
     try {
       const mapped = await publicClient.readContract({
-        address: SOVRY_LAUNCHPAD_ADDRESS as Address,
+        address: _SOVRY_LAUNCHPAD_ADDRESS as Address,
         abi: LAUNCHPAD_VIEW_ABI,
         functionName: 'rtToWrapper',
         args: [actualToken as Address],
@@ -862,92 +720,25 @@ export async function launchOnBondingCurveDynamic(
   }
 }
 
-export interface RoyaltyLockInfo {
-  royaltyToken: string;
-  symbol: string;
-  decimals: number;
-  locked: bigint;
-  creatorBalance: bigint;
-}
+*/
 
-export async function getRoyaltyLockInfo(
-  royaltyTokenAddress: string,
-  creatorAddress: string
-): Promise<RoyaltyLockInfo | null> {
-  try {
-    const publicClient = getPublicClient();
-    let actualToken = royaltyTokenAddress as string;
+export type { RoyaltyLockInfo } from "./domain/royalty.service";
 
-    try {
-      const tokenResult = await publicClient.readContract({
-        address: royaltyTokenAddress as Address,
-        abi: [{
-          inputs: [],
-          name: 'token',
-          outputs: [{ internalType: 'address', name: '', type: 'address' }],
-          stateMutability: 'view',
-          type: 'function',
-        }],
-        functionName: 'token',
-      });
+export { getRoyaltyLockInfo } from "./domain/royalty.service";
 
-      if (tokenResult && tokenResult !== '0x0000000000000000000000000000000000000000') {
-        actualToken = tokenResult as string;
-      }
-    } catch {
-      try {
-        const assetResult = await publicClient.readContract({
-          address: royaltyTokenAddress as Address,
-          abi: [{
-            inputs: [],
-            name: 'asset',
-            outputs: [{ internalType: 'address', name: '', type: 'address' }],
-            stateMutability: 'view',
-            type: 'function',
-          }],
-          functionName: 'asset',
-        });
+export { SOVRY_LAUNCHPAD_ADDRESS, launchOnBondingCurveDynamic } from "./domain/bondingCurve.service";
 
-        if (assetResult && assetResult !== '0x0000000000000000000000000000000000000000') {
-          actualToken = assetResult as string;
-        }
-      } catch {}
-    }
+export type { IPAsset } from "./domain/ipAsset.service";
 
-    const [decimals, symbol, launchpadBalance, creatorBalance] = await Promise.all([
-      publicClient.readContract({
-        address: actualToken as Address,
-        abi: erc20Abi,
-        functionName: 'decimals',
-      }) as Promise<number>,
-      publicClient.readContract({
-        address: actualToken as Address,
-        abi: erc20Abi,
-        functionName: 'symbol',
-      }) as Promise<string>,
-      publicClient.readContract({
-        address: actualToken as Address,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [SOVRY_LAUNCHPAD_ADDRESS as Address],
-      }) as Promise<bigint>,
-      publicClient.readContract({
-        address: actualToken as Address,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [creatorAddress as Address],
-      }) as Promise<bigint>,
-    ]);
+export { fetchWalletIPAssets } from "./domain/ipAsset.service";
 
-    return {
-      royaltyToken: actualToken,
-      symbol,
-      decimals,
-      locked: launchpadBalance,
-      creatorBalance,
-    };
-  } catch (error) {
-    logger.error('Error loading royalty lock info:', error);
-    return null;
-  }
-}
+export type { TokenBalance } from "./domain/token.service";
+
+export { getTokenBalance, needsTokenUnlock } from "./domain/token.service";
+
+export {
+  claimRevenueToWalletAndPump,
+  getRoyaltyVaultAddress,
+  checkRoyaltyTokens,
+  getClaimableRoyaltyForIp,
+} from "./domain/royalty.service";

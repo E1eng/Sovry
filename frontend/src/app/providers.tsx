@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { Toaster as HotToaster } from "react-hot-toast";
+import { logger } from "@/lib/logger";
 
 const queryClient = new QueryClient();
 
@@ -40,7 +41,7 @@ export function Providers({ children }: { children: ReactNode }) {
         },
         events: {
           onEmbeddedWalletCreated: (args) => {
-            console.log('Embedded wallet created:', args);
+            logger.log("Embedded wallet created:", args);
           },
         },
       }}

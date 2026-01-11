@@ -38,6 +38,7 @@ import { transferRoyaltyTokensFromIP } from "@/services/storyProtocolRegistratio
 
 import { pinFileToIPFS, pinJSONToIPFS } from "@/services/pinataService";
 import { supabase } from "@/lib/supabaseClient";
+import { logger } from "@/lib/logger";
 
 export default function CreatePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
@@ -215,7 +216,7 @@ export default function CreatePage() {
             }));
           }
         } catch (balanceError) {
-          console.error("Failed to refresh royalty token balance after transfer", balanceError);
+          logger.error("Failed to refresh royalty token balance after transfer", balanceError);
         }
       } else {
         setMintStatus("error");
@@ -297,7 +298,7 @@ export default function CreatePage() {
               const imageRes = await pinFileToIPFS(blob, fileName);
               imageUrl = imageRes.gatewayUrl;
             } catch (imageError) {
-              console.error("Failed to re-upload image to Pinata from source URL", imageError);
+              logger.error("Failed to re-upload image to Pinata from source URL", imageError);
               // Fallback: keep using original source URL so launch can still proceed
               imageUrl = sourceUrl;
             }
@@ -349,7 +350,7 @@ export default function CreatePage() {
           });
         }
       } catch (metaError) {
-        console.error("Failed to persist wrapper metadata", metaError);
+        logger.error("Failed to persist wrapper metadata", metaError);
       }
 
       setSuccess(

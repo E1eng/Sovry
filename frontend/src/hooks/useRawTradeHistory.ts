@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { formatEther } from "viem"
+import { logger } from "@/lib/logger"
 
 const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 if (!SUBGRAPH_URL_RAW) {
@@ -78,7 +79,7 @@ async function fetchRawTrades(tokenAddress: string, limit: number = 100): Promis
   // errors for debugging but still try to use whatever data is available
   // instead of failing the entire Recent Activity UI.
   if (json.errors && json.errors.length > 0) {
-    console.warn("Subgraph trade query returned errors", json.errors)
+    logger.warn("Subgraph trade query returned errors", json.errors)
   }
 
   const trades = (json?.data?.trades || []) as RawTrade[]

@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabaseClient";
+import { logger } from "@/lib/logger";
 import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import type { Comment as DbComment, Profile } from "@/types/supabase";
 
@@ -84,7 +85,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
             .in("wallet_address", uniqueUsers);
 
           if (profilesError) {
-            console.error("Error loading profiles for comments", profilesError);
+            logger.error("Error loading profiles for comments", profilesError);
           }
 
           (profilesData || []).forEach((p: any) => {
@@ -107,7 +108,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
         setHasMore(rows.length > PAGE_SIZE);
       } catch (err: any) {
         if (!isMounted) return;
-        console.error("Error loading comments from Supabase", err);
+        logger.error("Error loading comments from Supabase", err);
         setError("Failed to load comments");
       } finally {
         if (isMounted) setLoading(false);
@@ -198,7 +199,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
           .in("wallet_address", uniqueUsers);
 
         if (profilesError) {
-          console.error("Error loading more profiles for comments", profilesError);
+          logger.error("Error loading more profiles for comments", profilesError);
         }
 
         (profilesData || []).forEach((p: any) => {
@@ -218,7 +219,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
       setComments((prev) => [...prev, ...enriched]);
       setHasMore(rows.length > PAGE_SIZE);
     } catch (err: any) {
-      console.error("Error loading more comments from Supabase", err);
+      logger.error("Error loading more comments from Supabase", err);
       setError("Failed to load more comments");
     } finally {
       setLoadingMore(false);
@@ -241,7 +242,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
         .maybeSingle();
 
       if (profileError) {
-        console.error("Failed to check profile before commenting", profileError);
+        logger.error("Failed to check profile before commenting", profileError);
         throw profileError;
       }
 
@@ -287,7 +288,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
 
       setValue("");
     } catch (err: any) {
-      console.error("Failed to post comment", err);
+      logger.error("Failed to post comment", err);
       setError(err.message || "Failed to post comment");
     } finally {
       setPosting(false);

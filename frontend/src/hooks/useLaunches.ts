@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { logger } from "@/lib/logger"
 
 const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 if (!SUBGRAPH_URL_RAW) {
@@ -107,7 +108,7 @@ export function useLaunches(limit: number = 8) {
 
       setLaunches(merged)
     } catch (err) {
-      console.error("Error loading launches:", err)
+      logger.error("Error loading launches:", err)
       setError(err instanceof Error ? err.message : "Failed to load launches")
       setLaunches([])
     } finally {

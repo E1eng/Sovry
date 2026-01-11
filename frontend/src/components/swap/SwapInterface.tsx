@@ -23,6 +23,7 @@ import { SlippageSettings } from "@/components/swap/SlippageSettings"
 import { erc20Abi } from "viem"
 import { parseTransactionError, logError, isSlippageError } from "@/lib/errorUtils"
 import { trackTrade, trackEvent } from "@/lib/analytics"
+import { logger } from "@/lib/logger"
 import { memo, useEffect as useReactEffect } from "react"
 
 function trimToDecimals(value: string, maxDecimals: number): string {
@@ -240,7 +241,7 @@ function SwapInterfaceComponent({
         }
         setPriceImpact(impact)
       } catch (error) {
-        console.error("Error calculating output:", error)
+        logger.error("Error calculating output:", error)
         setToAmount("")
         setMinReceive(null)
         setPriceImpact(null)
@@ -370,7 +371,7 @@ function SwapInterfaceComponent({
 
         setUserBalance(formatEther(balance))
       } catch (error) {
-        console.error("Error fetching balance:", error)
+        logger.error("Error fetching balance:", error)
         setUserBalance(null)
       }
     }
@@ -399,7 +400,7 @@ function SwapInterfaceComponent({
         const tokenWei = balance * (10n ** 12n)
         setTokenBalance(formatEther(tokenWei))
       } catch (error) {
-        console.error("Error fetching token balance/approval:", error)
+        logger.error("Error fetching token balance/approval:", error)
         setTokenBalance(null)
       }
     }
@@ -481,7 +482,7 @@ function SwapInterfaceComponent({
         // Simulation passed; proceed silently to on-chain execution
       } catch (simError: any) {
         const message = simError?.message || "Simulation failed"
-        console.error("Tenderly simulation error (buy)", simError)
+        logger.error("Tenderly simulation error (buy)", simError)
         const lower = message.toLowerCase()
         const isRateLimited = lower.includes("429") || simError?.status === 429
         const isMethodMissing =
@@ -677,7 +678,7 @@ function SwapInterfaceComponent({
         // Simulation passed; proceed silently to on-chain execution
       } catch (simError: any) {
         const message = simError?.message || "Simulation failed"
-        console.error("Tenderly simulation error (sell)", simError)
+        logger.error("Tenderly simulation error (sell)", simError)
         const lower = message.toLowerCase()
         const isRateLimited = lower.includes("429") || simError?.status === 429
         const isMethodMissing =

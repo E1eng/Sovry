@@ -1,5 +1,7 @@
 // Minimal error utilities used by SwapInterface and other components.
 
+import { logger } from "@/lib/logger";
+
 export interface ParsedTransactionError {
   message: string;
   userFriendlyMessage: string;
@@ -101,5 +103,5 @@ export function logError(error: unknown, context?: string): void {
   if (typeof window === "undefined") return;
   if (process.env.NODE_ENV === "production") return;
 
-  console.error("[error]", context || "", error);
+  logger.error("[error]", context || "", error);
 }

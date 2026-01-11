@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getIPAssetById } from '@/services/storyProtocolAPI';
+import { logger } from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -16,11 +17,11 @@ export async function GET(
     }
 
     // Fetch IP asset data from Story Protocol API
-    console.log(`🔍 Fetching metadata for IP ID: ${ipId}`);
+    logger.log(`🔍 Fetching metadata for IP ID: ${ipId}`);
     const ipAsset = await getIPAssetById(ipId);
     
     if (!ipAsset) {
-      console.log(`❌ IP Asset not found: ${ipId}`);
+      logger.log(`❌ IP Asset not found: ${ipId}`);
       return NextResponse.json(
         { error: 'IP Asset not found' },
         { status: 404 }
@@ -60,7 +61,7 @@ export async function GET(
     return response;
     
   } catch (error) {
-    console.error('Error fetching IP asset metadata:', error);
+    logger.error('Error fetching IP asset metadata:', error);
     return NextResponse.json(
       { error: 'Failed to fetch IP asset metadata' },
       { status: 500 }

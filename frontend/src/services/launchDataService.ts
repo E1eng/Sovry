@@ -4,6 +4,7 @@ import { SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
 import { getIPAssetMetadata } from "@/utils/ipMetadata";
 import { extractCategory } from "@/utils/ipMetadata";
 import { supabase } from "@/lib/supabaseClient";
+import { logger } from "@/lib/logger";
 
 const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
 
@@ -69,7 +70,7 @@ async function fetchTokenSymbol(tokenAddress: string): Promise<string | null> {
     });
     return symbol as string;
   } catch (error) {
-    console.error(`Error fetching symbol for ${tokenAddress}:`, error);
+    logger.error(`Error fetching symbol for ${tokenAddress}:`, error);
     return null;
   }
 }
@@ -87,7 +88,7 @@ async function fetchBondingProgress(wrapperToken: string): Promise<number | null
     if (!info) return null;
     return getBondingProgress(info);
   } catch (error) {
-    console.error(`Error fetching bonding progress for ${wrapperToken}:`, error);
+    logger.error(`Error fetching bonding progress for ${wrapperToken}:`, error);
     return null;
   }
 }
@@ -122,7 +123,7 @@ async function fetchTokenState(
       graduated: graduatedRaw !== undefined ? Boolean(graduatedRaw) : null,
     };
   } catch (error) {
-    console.error(`Error fetching token state for ${wrapperToken}:`, error);
+    logger.error(`Error fetching token state for ${wrapperToken}:`, error);
     return { marketCap: null, currentPrice: null, graduated: null };
   }
 }
@@ -139,7 +140,7 @@ async function fetchTokenName(tokenAddress: string): Promise<string | null> {
     });
     return name as string;
   } catch (error) {
-    console.error(`Error fetching name for ${tokenAddress}:`, error);
+    logger.error(`Error fetching name for ${tokenAddress}:`, error);
     return null;
   }
 }
@@ -169,7 +170,7 @@ async function getRtAddressFromWrapper(
       return launchInfo?.royaltyToken || null;
     }
   } catch (error) {
-    console.error(`Error getting RT address for ${wrapperToken}:`, error);
+    logger.error(`Error getting RT address for ${wrapperToken}:`, error);
     return null;
   }
 }
@@ -186,7 +187,7 @@ async function fetchCategory(ipId: string | null): Promise<string> {
       return extractCategory(metadata);
     }
   } catch (error) {
-    console.error(`Error fetching category for IP ${ipId}:`, error);
+    logger.error(`Error fetching category for IP ${ipId}:`, error);
   }
   
   return "IP Asset";
@@ -222,7 +223,7 @@ async function fetchImageUrl(ipId: string | null, rtAddress: string | null): Pro
     const imageUrl = row.image_url as string | null | undefined;
     return imageUrl || null;
   } catch (error) {
-    console.error("Error fetching image URL from Supabase for RT", rtAddress, error);
+    logger.error("Error fetching image URL from Supabase for RT", rtAddress, error);
     return null;
   }
 }
@@ -274,7 +275,7 @@ export async function enrichLaunchData(
           }
         }
       } catch (e) {
-        console.error("Error resolving ipId from Supabase for", wrapperToken, e);
+        logger.error("Error resolving ipId from Supabase for", wrapperToken, e);
       }
     }
 
@@ -305,7 +306,7 @@ export async function enrichLaunchData(
 
     return enrichedData;
   } catch (error) {
-    console.error(`Error enriching launch data for ${wrapperToken}:`, error);
+    logger.error(`Error enriching launch data for ${wrapperToken}:`, error);
     return {};
   }
 }

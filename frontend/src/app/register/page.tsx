@@ -17,6 +17,8 @@ import {
   injectDemoRoyaltyWIP,
 } from "@/services/storyProtocolRegistration";
 
+import { logger } from "@/lib/logger";
+
 export default function StoryIPPage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
 
@@ -109,7 +111,7 @@ export default function StoryIPPage() {
       setLicenseTxHash(license.txHash || null);
       setStatus("Done! IP + license created.");
     } catch (err: any) {
-      console.error(err);
+      logger.error(err);
       setError(err?.message || "Failed to create IP");
       setStatus(null);
     } finally {
@@ -140,7 +142,7 @@ export default function StoryIPPage() {
 
       setStatus("WIP royalty injected. You can now harvest via SovryLaunchpad.");
     } catch (err: any) {
-      console.error(err);
+      logger.error(err);
       setError(err?.message || "Failed to inject royalties");
       setStatus(null);
     } finally {

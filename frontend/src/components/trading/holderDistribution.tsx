@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { getHolderDistribution, type HolderDistribution } from "@/services/holderService";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
+import { logger } from "@/lib/logger";
 
 const ADDRESS_EXPLORER_URL = "https://aeneid.storyscan.io/address/";
 
@@ -30,7 +31,7 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
         const data = await getHolderDistribution(tokenAddress, 100);
         setDistribution(data);
       } catch (err) {
-        console.error("Error loading holder distribution:", err);
+        logger.error("Error loading holder distribution:", err);
         setError(err instanceof Error ? err.message : "Failed to load holder distribution");
       } finally {
         setLoading(false);

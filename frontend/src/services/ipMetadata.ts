@@ -1,5 +1,6 @@
 import { getIPAssetById } from "@/services/storyProtocolAPI";
 import type { License } from "@/services/storyProtocolAPI";
+import { logger } from "@/lib/logger";
 
 const DEFAULT_IPFS_GATEWAY =
   process.env.NEXT_PUBLIC_IPFS_GATEWAY?.replace(/\/$/, "") || "https://ipfs.io/ipfs";
@@ -51,10 +52,10 @@ export async function fetchIPMetadata(ipId: string): Promise<StoryIPMetadata> {
       if (resp.ok) {
         tokenMetadata = await resp.json();
       } else {
-        console.warn(`Unable to fetch metadata JSON for ${ipId}`, resp.statusText);
+        logger.warn(`Unable to fetch metadata JSON for ${ipId}`, resp.statusText);
       }
     } catch (err) {
-      console.warn(`Failed to fetch metadata JSON for ${ipId}`, err);
+      logger.warn(`Failed to fetch metadata JSON for ${ipId}`, err);
     }
   }
 

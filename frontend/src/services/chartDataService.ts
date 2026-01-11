@@ -1,4 +1,5 @@
 import { formatEther } from "viem";
+import { logger } from "@/lib/logger";
 
 const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 if (!SUBGRAPH_URL_RAW) {
@@ -123,7 +124,7 @@ export async function fetchTrades(
       };
     });
   } catch (error) {
-    console.error("Error fetching trades:", error);
+    logger.error("Error fetching trades:", error);
     return [];
   }
 }

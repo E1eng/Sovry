@@ -2,6 +2,8 @@
 // Documentation: https://docs.story.foundation/api-reference
 // Staging API: https://staging-api.storyprotocol.net/api/v4
 
+import { logger } from "@/lib/logger";
+
 const STORY_API_BASE_URL = 'https://staging-api.storyprotocol.net/api/v4';
 const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || "";
 
@@ -128,7 +130,7 @@ export async function listIPAssets(params?: ListIPAssetsParams): Promise<StoryAP
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Error fetching IP assets:', error);
+    logger.error('Error fetching IP assets:', error);
     throw error;
   }
 }
@@ -143,7 +145,7 @@ export async function getIPAssetById(ipId: string): Promise<IPAsset | null> {
 
     return response.data[0] || null;
   } catch (error) {
-    console.error('Error fetching IP asset by ID:', error);
+    logger.error('Error fetching IP asset by ID:', error);
     return null;
   }
 }
@@ -155,7 +157,7 @@ export async function getIPAssetsByOwner(ownerAddress: string, limit = 20): Prom
       pagination: { limit, offset: 0 },
     });
   } catch (error) {
-    console.error('Error fetching IP assets by owner:', error);
+    logger.error('Error fetching IP assets by owner:', error);
     throw error;
   }
 }
@@ -180,7 +182,7 @@ export async function searchIPAssets(searchTerm: string, limit = 20): Promise<St
 
     return await response.json();
   } catch (error) {
-    console.error('Error searching IP assets:', error);
+    logger.error('Error searching IP assets:', error);
     throw error;
   }
 }
@@ -217,7 +219,7 @@ export async function getIPAssetsForPools(): Promise<any[]> {
 
     return response.data.map(formatIPAsset);
   } catch (error) {
-    console.error('Error fetching IP assets for pools:', error);
+    logger.error('Error fetching IP assets for pools:', error);
     return [];
   }
 }

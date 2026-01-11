@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger";
+
 const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 if (!SUBGRAPH_URL_RAW) {
   throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
@@ -63,7 +65,7 @@ export async function getGraduationInfo(tokenAddress: string): Promise<Graduatio
       txHash: grad.txHash,
     }
   } catch (error) {
-    console.error("Error fetching graduation info:", error)
+    logger.error("Error fetching graduation info:", error)
     return null
   }
 }
@@ -177,7 +179,7 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
           : undefined,
     }
   } catch (error) {
-    console.error("Error fetching wrapper token meta:", error)
+    logger.error("Error fetching wrapper token meta:", error)
     return null
   }
 }
@@ -185,12 +187,6 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
 export interface PremineClaimInfo {
   creator: string
   amount: bigint
-  timestamp: number
-  txHash: string
-}
-
-export interface ThresholdUpdateInfo {
-  newThreshold: bigint
   timestamp: number
   txHash: string
 }
@@ -242,9 +238,15 @@ export async function getLatestPremineClaim(
       txHash: claim.txHash as string,
     }
   } catch (error) {
-    console.error("Error fetching latest premine claim:", error)
+    logger.error("Error fetching latest premine claim:", error)
     return null
   }
+}
+
+export interface ThresholdUpdateInfo {
+  newThreshold: bigint
+  timestamp: number
+  txHash: string
 }
 
 export async function getLatestGraduationThreshold(): Promise<ThresholdUpdateInfo | null> {
@@ -286,7 +288,7 @@ export async function getLatestGraduationThreshold(): Promise<ThresholdUpdateInf
       txHash: upd.txHash as string,
     }
   } catch (error) {
-    console.error("Error fetching latest graduation threshold:", error)
+    logger.error("Error fetching latest graduation threshold:", error)
     return null
   }
 }

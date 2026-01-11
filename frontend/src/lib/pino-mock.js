@@ -1,17 +1,21 @@
 // Minimal browser-safe pino mock used to avoid Node-only dependencies in the frontend.
 
+import { logger as appLogger } from "./logger";
+
 function createLogger(options = {}) {
   const level = options.level || "silent";
   const name = options.name || options.context || "pino";
   const prefix = `[${name}]`;
 
   const makeMethod = (method) => (...args) => {
-    if (typeof console === "undefined") return;
-    const fn = console[method] || console.log;
-    fn(prefix, ...args);
+    const mapped = method === "debug" || method === "trace" ? "log" : method;
+    const fn = appLogger[mapped] || appLogger.log;
+    if (typeof fn === "function") {
+      fn(prefix, ...args);
+    }
   };
 
-  const logger = {
+  const pinoLogger = {
     level,
     info: makeMethod("info"),
     warn: makeMethod("warn"),
@@ -21,12 +25,12 @@ function createLogger(options = {}) {
   };
 
   // pino-style child logger
-  logger.child = (bindings = {}) => {
+  pinoLogger.child = (bindings = {}) => {
     const childName = bindings.name || bindings.context || name;
     return createLogger({ ...options, ...bindings, name: childName });
   };
 
-  return logger;
+  return pinoLogger;
 }
 
 export default createLogger;

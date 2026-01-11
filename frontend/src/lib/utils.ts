@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { logger } from "@/lib/logger"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -90,7 +91,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text)
       return true
     } catch (err) {
-      console.warn("Clipboard API failed, trying fallback:", err)
+      logger.warn("Clipboard API failed, trying fallback:", err)
     }
   }
 
@@ -110,7 +111,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 
     return successful
   } catch (err) {
-    console.error("Fallback copy method failed:", err)
+    logger.error("Fallback copy method failed:", err)
     return false
   }
 }

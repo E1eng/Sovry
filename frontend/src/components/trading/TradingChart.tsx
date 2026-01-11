@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { logger } from "@/lib/logger"
 import { useTradeHistory, type Timeframe } from "@/hooks/useTradeHistory"
 import { useLiveTrades } from "@/hooks/useLiveTrades"
 import { fetchTrades } from "@/services/chartDataService"
@@ -350,7 +351,7 @@ function TradingChartComponent({
 
         lastPriceLineRef.current = priceLine
       } catch (e) {
-        console.warn("Failed to create price line:", e)
+        logger.warn("Failed to create price line:", e)
       }
     }
 

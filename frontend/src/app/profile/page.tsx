@@ -19,6 +19,7 @@ import {
 
 import UserProfile from "@/components/social/UserProfile";
 import { supabase } from "@/lib/supabaseClient";
+import { logger } from "@/lib/logger";
 import {
   getTokenBalance,
   type TokenBalance,
@@ -84,7 +85,7 @@ async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promis
       graduated: Boolean(l.graduated),
     }));
   } catch (err) {
-    console.error("Error fetching wrapper tokens from subgraph:", err);
+    logger.error("Error fetching wrapper tokens from subgraph:", err);
     return [];
   }
 }
@@ -167,7 +168,7 @@ export default function ProfilePage() {
 
               return { wrapper, balanceInfo, balanceNum };
             } catch (err) {
-              console.error(
+              logger.error(
                 "Error loading wrapper token balance",
                 wrapper.id,
                 err,
@@ -257,7 +258,7 @@ export default function ProfilePage() {
                 claimableRevenue: isFinite(claimable) && claimable > 0 ? claimable : 0,
               };
             } catch (err) {
-              console.error("Error loading claimable royalty for IP", asset.ipId, err);
+              logger.error("Error loading claimable royalty for IP", asset.ipId, err);
               return asset;
             }
           }),
@@ -266,7 +267,7 @@ export default function ProfilePage() {
         setHoldingAssets(holdings);
         setLaunchedAssets(launchedWithRevenue);
       } catch (error) {
-        console.error("Error loading holdings from subgraph:", error);
+        logger.error("Error loading holdings from subgraph:", error);
         setLaunchedAssets([]);
         setHoldingAssets([]);
       } finally {
@@ -300,7 +301,7 @@ export default function ProfilePage() {
         if (cancelled) return;
 
         if (error) {
-          console.warn("Failed to load profile header", error);
+          logger.warn("Failed to load profile header", error);
           return;
         }
 
@@ -327,7 +328,7 @@ export default function ProfilePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          console.warn("Failed to load profile header", err);
+          logger.warn("Failed to load profile header", err);
         }
       }
     };
@@ -374,7 +375,7 @@ export default function ProfilePage() {
         ),
       );
     } catch (err: any) {
-      console.error("Error harvesting royalties from profile page:", err);
+      logger.error("Error harvesting royalties from profile page:", err);
       setHarvestError(err?.message || "Failed to harvest royalties");
     } finally {
       setHarvestingId(null);
@@ -406,7 +407,7 @@ export default function ProfilePage() {
       // re-reading on-chain state or the subgraph; for now we simply rely on
       // the next refresh of holdings to reflect the updated balance.
     } catch (err: any) {
-      console.error("Error claiming premine from profile page:", err);
+      logger.error("Error claiming premine from profile page:", err);
       setPremineError(err?.message || "Failed to claim premine");
     } finally {
       setPremineClaimingId(null);
@@ -450,7 +451,7 @@ export default function ProfilePage() {
       setHasCopiedAddress(true);
       window.setTimeout(() => setHasCopiedAddress(false), 1500);
     } catch (err) {
-      console.error("Failed to copy address", err);
+      logger.error("Failed to copy address", err);
     }
   };
 

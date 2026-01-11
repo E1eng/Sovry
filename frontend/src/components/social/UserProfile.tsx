@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import { supabase } from "@/lib/supabaseClient";
+import { logger } from "@/lib/logger";
 
 const AVATAR_BUCKET = "Profile Image"; // Make sure this bucket exists in Supabase
 
@@ -85,7 +86,7 @@ const UserProfile = ({ onClose, onProfileUpdated }: UserProfileProps) => {
         onProfileUpdated({ avatarUrl: publicUrl });
       }
     } catch (err: any) {
-      console.error("Failed to upload avatar", err);
+      logger.error("Failed to upload avatar", err);
       setError(err.message || "Failed to upload avatar");
     } finally {
       setUploadingAvatar(false);
@@ -118,7 +119,7 @@ const UserProfile = ({ onClose, onProfileUpdated }: UserProfileProps) => {
         onClose();
       }
     } catch (err: any) {
-      console.error("Failed to save profile", err);
+      logger.error("Failed to save profile", err);
       setError(err.message || "Failed to save profile");
     } finally {
       setSaving(false);

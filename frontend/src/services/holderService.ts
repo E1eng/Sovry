@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger";
+
 const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
 if (!SUBGRAPH_URL_RAW) {
   throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
@@ -56,7 +58,7 @@ export async function getHolderDistribution(
 
   if (json.errors && json.errors.length > 0) {
     // Surface GraphQL errors to the caller for easier debugging
-    console.error("Subgraph holder query returned errors", json.errors);
+    logger.error("Subgraph holder query returned errors", json.errors);
     throw new Error(json.errors[0]?.message || "Subgraph holder query failed");
   }
   const rawHolders = (json?.data?.wrapperToken?.holders || []) as any[];

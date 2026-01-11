@@ -1,6 +1,8 @@
 // Lightweight analytics helper for frontend components
 // This avoids hard dependency on any external analytics SDK.
 
+import { logger } from "@/lib/logger";
+
 export type AnalyticsEventProps = Record<string, unknown> | undefined;
 
 /**
@@ -17,7 +19,7 @@ export function trackEvent(eventName: string, props?: AnalyticsEventProps): void
   // TODO: Integrate with real analytics SDK here if desired
   if (process.env.NODE_ENV !== "production") {
     // Dev logging only to avoid noisy production console
-    console.debug("[analytics]", eventName, props || {});
+    logger.log("[analytics]", eventName, props || {});
   }
 }
 

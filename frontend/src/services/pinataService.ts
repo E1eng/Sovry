@@ -1,7 +1,9 @@
+import { logger } from "@/lib/logger";
+
 const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT;
 
 if (!PINATA_JWT) {
-  console.warn("Missing NEXT_PUBLIC_PINATA_JWT – Pinata uploads will fail until it is set in .env");
+  logger.warn("Missing NEXT_PUBLIC_PINATA_JWT – Pinata uploads will fail until it is set in .env");
 }
 
 interface PinataUploadResult {

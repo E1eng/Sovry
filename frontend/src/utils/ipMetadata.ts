@@ -35,10 +35,6 @@ interface IPAssetMetadata {
   externalUrl?: string;
 }
 
-// Cache for metadata to avoid repeated API calls
-const metadataCache = new Map<string, IPAssetMetadata>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 /**
  * Fetch IP asset metadata with caching
  * @param ipId The IP asset ID
@@ -59,59 +55,6 @@ export async function getIPAssetMetadata(_ipId: string): Promise<IPAssetMetadata
 export async function getMultipleIPAssetMetadata(ipIds: string[]): Promise<Array<IPAssetMetadata | null>> {
   const promises = ipIds.map(ipId => getIPAssetMetadata(ipId));
   return Promise.all(promises);
-}
-
-/**
- * Clear metadata cache (useful for refresh functionality)
- * @param ipId Optional specific IP ID to clear, or clear all if not provided
- */
-export function clearMetadataCache(ipId?: string): void {
-  if (ipId) {
-    metadataCache.delete(ipId);
-  } else {
-    metadataCache.clear();
-  }
-}
-
-/**
- * Get cached metadata without API call (returns null if not cached)
- * @param ipId The IP asset ID
- * @returns IPAssetMetadata | null
- */
-export function getCachedMetadata(ipId: string): IPAssetMetadata | null {
-  const cached = metadataCache.get(ipId);
-  if (cached && Date.now() - new Date(cached.createdAt).getTime() < CACHE_DURATION) {
-    return cached;
-  }
-  return null;
-}
-
-/**
- * Format IP asset metadata for display
- * @param metadata Raw IP asset metadata
- * @returns Formatted metadata for UI components
- */
-export function formatIPAssetForDisplay(metadata: IPAssetMetadata) {
-  return {
-    id: metadata.ipId,
-    name: metadata.name,
-    description: metadata.description,
-    image: metadata.image,
-    thumbnail: metadata.thumbnail,
-    category: metadata.category,
-    owner: metadata.owner,
-    tokenId: metadata.tokenId,
-    collectionName: metadata.collection.name,
-    attributes: metadata.attributes,
-    licenseTerms: metadata.licenseTerms,
-    createdAt: metadata.createdAt,
-    registrationDate: metadata.registrationDate,
-    // Helper properties
-    displayName: metadata.name || `IP Asset #${metadata.tokenId}`,
-    displayDescription: metadata.description || 'No description available',
-    hasImage: !!metadata.image,
-    isLicensed: !!metadata.licenseTerms,
-  };
 }
 
 /**
@@ -141,23 +84,4 @@ export function extractCategory(metadata: IPAssetMetadata): string {
   }
   
   return 'IP Asset';
-}
-
-/**
- * Generate fallback image URL based on category
- * @param category Asset category
- * @returns Fallback image URL
- */
-export function generateFallbackImage(category: string): string {
-  const fallbacks: Record<string, string> = {
-    'Music': '/placeholders/music.png',
-    'Art': '/placeholders/art.png',
-    'Gaming': '/placeholders/gaming.png',
-    'Photography': '/placeholders/photography.png',
-    '3D Art': '/placeholders/3d-art.png',
-    'Commercial IP': '/placeholders/commercial.png',
-    'Personal IP': '/placeholders/personal.png',
-  };
-  
-  return fallbacks[category] || '/placeholders/ip-asset.png';
 }

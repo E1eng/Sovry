@@ -3,6 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { Loader2 } from "lucide-react"
+import { logger } from "@/lib/logger"
 
 interface TokenLogoProps {
   tokenAddress?: string
@@ -80,7 +81,7 @@ export default function TokenLogo({
         setHasError(true)
         setIsLoading(false)
       } catch (error) {
-        console.warn("Error fetching token image:", error)
+        logger.warn("Error fetching token image:", error)
         setHasError(true)
         setIsLoading(false)
       }
