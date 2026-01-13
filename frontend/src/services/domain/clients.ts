@@ -2,10 +2,9 @@ import { StoryClient } from "@story-protocol/core-sdk";
 import { createPublicClient, custom, http, type Address } from "viem";
 
 import { logger } from "@/lib/logger";
+import { STORY_RPC_URL } from "@/lib/env";
 
 import type { PrimaryWalletLike } from "./types";
-
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
 
 type StoryPublicClient = ReturnType<typeof createPublicClient>;
 

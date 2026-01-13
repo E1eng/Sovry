@@ -6,6 +6,7 @@ import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { Toaster as HotToaster } from "react-hot-toast";
 import { logger } from "@/lib/logger";
+import { STORY_RPC_URL } from "@/lib/env";
 
 const queryClient = new QueryClient();
 
@@ -23,7 +24,7 @@ const evmNetworks = [
       iconUrl: "https://app.dynamic.xyz/assets/networks/eth.svg",
     },
     networkId: 1315,
-    rpcUrls: [process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"],
+    rpcUrls: [STORY_RPC_URL],
     vanityName: "Story Aeneid Testnet",
   },
 ];

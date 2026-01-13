@@ -2,12 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { logger } from "@/lib/logger"
+import { getSubgraphUrl } from "@/lib/env"
 
-const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
-if (!SUBGRAPH_URL_RAW) {
-  throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
-}
-const SUBGRAPH_URL: string = SUBGRAPH_URL_RAW;
+const SUBGRAPH_URL = getSubgraphUrl()
 
 interface BasicLaunch {
   id: string

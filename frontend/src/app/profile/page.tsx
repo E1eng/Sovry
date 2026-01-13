@@ -20,6 +20,7 @@ import {
 import UserProfile from "@/components/social/UserProfile";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
+import { getSubgraphUrl } from "@/lib/env";
 import {
   getTokenBalance,
   type TokenBalance,
@@ -48,11 +49,7 @@ interface WrapperToken {
   graduated: boolean;
 }
 
-const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
-if (!SUBGRAPH_URL_RAW) {
-  throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
-}
-const SUBGRAPH_URL: string = SUBGRAPH_URL_RAW;
+const SUBGRAPH_URL = getSubgraphUrl();
 
 async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promise<WrapperToken[]> {
   try {

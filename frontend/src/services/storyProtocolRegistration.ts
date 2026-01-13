@@ -4,10 +4,8 @@
 import { StoryClient } from '@story-protocol/core-sdk';
 import { http, Address, custom } from 'viem';
 import { logger } from '@/lib/logger';
+import { STORY_RPC_URL } from "@/lib/env";
 import type { PrimaryWalletLike } from '@/services/domain/types';
-
-// Environment variables
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || 'https://aeneid.storyrpc.io';
 
 async function getWalletAddress(primaryWallet: PrimaryWalletLike): Promise<Address> {
   return (await primaryWallet.address) as Address;

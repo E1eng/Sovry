@@ -9,6 +9,9 @@ import { formatEther, formatUnits } from "viem";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
 import { formatMarketCapIP } from "@/lib/utils";
 import { logger } from "@/lib/logger";
+import { getSubgraphUrl } from "@/lib/env";
+
+const SUBGRAPH_URL = getSubgraphUrl();
 
 interface ImmersiveHeroSampleLaunch {
   name?: string;
@@ -23,12 +26,6 @@ interface ImmersiveHeroProps {
   liveCount?: number;
   sampleLaunch?: ImmersiveHeroSampleLaunch;
 }
-
-const SUBGRAPH_URL_RAW = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
-if (!SUBGRAPH_URL_RAW) {
-  throw new Error('NEXT_PUBLIC_SUBGRAPH_URL is required but not set in environment variables');
-}
-const SUBGRAPH_URL: string = SUBGRAPH_URL_RAW;
 
 interface HeroTradeTickerItem {
   id: string;

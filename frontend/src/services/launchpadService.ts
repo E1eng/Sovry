@@ -3,6 +3,7 @@ import { createPublicClient, http, Address, encodeFunctionData, parseEther } fro
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
 import { logger } from "@/lib/logger";
+import { STORY_RPC_URL, TENDERLY_RPC_URL } from "@/lib/env";
 
 import {
   SOVRY_LAUNCHPAD_ADDRESS,
@@ -10,9 +11,6 @@ import {
   getRoyaltyLockInfo,
   claimRevenueToWalletAndPump,
 } from "./storyProtocolService";
-
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
-const TENDERLY_RPC_URL = process.env.NEXT_PUBLIC_TENDERLY_RPC_URL || STORY_RPC_URL;
 
 // Large approval amount so that subsequent sells can skip additional approve
 // transactions while allowance remains sufficient.

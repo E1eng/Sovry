@@ -3,8 +3,7 @@ import { erc20Abi } from "viem";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
-
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
+import { STORY_RPC_URL } from "@/lib/env";
 
 const publicClient = createPublicClient({
   chain: {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { createPublicClient, http } from "viem"
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
+import { STORY_RPC_URL } from "@/lib/env"
 import {
   Timeframe,
   RawTrade,
@@ -13,8 +14,6 @@ import {
   processTrades,
   transformToOHLC,
 } from "@/hooks/useTradeHistory"
-
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"
 
 const TRADE_EVENTS_ABI = [
   {

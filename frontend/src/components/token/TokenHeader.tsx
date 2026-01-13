@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import toast from "react-hot-toast"
 import { cn, copyToClipboard } from "@/lib/utils"
+import { IPFS_GATEWAY, STORYSCAN_BASE_URL } from "@/lib/env"
 import type { LaunchDetails } from "@/hooks/useLaunchDetails"
 
 export interface TokenHeaderProps {
@@ -25,15 +26,14 @@ interface SocialLinks {
 export function TokenHeader({ details, className }: TokenHeaderProps) {
   const [copied, setCopied] = useState(false)
   const [metricsOpen, setMetricsOpen] = useState(false)
-  const storyscanBaseUrl =
-    process.env.NEXT_PUBLIC_STORYSCAN_BASE_URL || "https://aeneid.storyscan.io"
+  const storyscanBaseUrl = STORYSCAN_BASE_URL
 
   // Normalize metadata URI for browser navigation: display raw ipfs://, but
   // click-through uses an HTTP IPFS gateway so it opens correctly.
   const metadataUri = details.metadata_uri || details.metadataUri
   const metadataHref =
     metadataUri && metadataUri.startsWith("ipfs://")
-      ? `https://ipfs.io/ipfs/${metadataUri.replace("ipfs://", "")}`
+      ? `${IPFS_GATEWAY}/${metadataUri.replace("ipfs://", "")}`
       : metadataUri
 
   const handleCopyAddress = async () => {

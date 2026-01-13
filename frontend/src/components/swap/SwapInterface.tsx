@@ -13,6 +13,7 @@ import { parseEther, formatEther } from "viem"
 import { createPublicClient, http } from "viem"
 import toast from "react-hot-toast"
 import { cn } from "@/lib/utils"
+import { STORY_RPC_URL } from "@/lib/env"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
 import {
   estimateBuyAmountForIp,
@@ -332,11 +333,11 @@ function SwapInterfaceComponent({
           nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
           rpcUrls: {
             default: {
-              http: [process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"],
+              http: [STORY_RPC_URL],
             },
           },
         },
-        transport: http(process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"),
+        transport: http(STORY_RPC_URL),
       }),
     []
   )

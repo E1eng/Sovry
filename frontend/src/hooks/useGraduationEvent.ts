@@ -3,8 +3,7 @@
 import { useEffect, useRef } from "react"
 import { createPublicClient, http } from "viem"
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
-
-const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io"
+import { STORY_RPC_URL } from "@/lib/env"
 
 // Graduated event ABI
 // Event signature: Graduated(address indexed wrapperToken, uint256 liquidity, address indexed poolAddress)
