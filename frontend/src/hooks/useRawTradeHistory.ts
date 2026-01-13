@@ -3,9 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { formatEther } from "viem"
 import { logger } from "@/lib/logger"
-import { getSubgraphUrl } from "@/lib/env"
-
-const SUBGRAPH_URL = getSubgraphUrl()
+import { fetchSubgraph } from "@/services/subgraph"
 
 export interface RawTrade {
   timestamp: string
@@ -53,23 +51,14 @@ async function fetchRawTrades(tokenAddress: string, limit: number = 100): Promis
     }
   `
 
-  const response = await fetch(SUBGRAPH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query,
-      variables: {
-        token: tokenAddress.toLowerCase(),
-        limit,
-      },
-    }),
+  const { ok, json } = await fetchSubgraph(query, {
+    token: tokenAddress.toLowerCase(),
+    limit,
   })
 
-  if (!response.ok) {
+  if (!ok) {
     throw new Error("Subgraph request failed")
   }
-
-  const json = await response.json()
 
   // The subgraph may occasionally return partial data together with errors
   // (for example, if older entities have missing relations). We log the

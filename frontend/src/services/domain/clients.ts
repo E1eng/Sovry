@@ -1,34 +1,11 @@
 import { StoryClient } from "@story-protocol/core-sdk";
-import { createPublicClient, custom, http, type Address } from "viem";
+import { custom, http, type Address } from "viem";
 
 import { logger } from "@/lib/logger";
 import { STORY_RPC_URL } from "@/lib/env";
+export { getStoryPublicClient } from "@/services/viem/storyPublicClient";
 
 import type { PrimaryWalletLike } from "./types";
-
-type StoryPublicClient = ReturnType<typeof createPublicClient>;
-
-let publicClient: StoryPublicClient | null = null;
-
-export function getStoryPublicClient(): StoryPublicClient {
-  if (!publicClient) {
-    publicClient = createPublicClient({
-      chain: {
-        id: 1315,
-        name: "Story Aeneid Testnet",
-        nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
-        rpcUrls: {
-          default: { http: [STORY_RPC_URL] },
-        },
-        blockExplorers: {
-          default: { name: "StoryScan", url: "https://storyscan.xyz" },
-        },
-      },
-      transport: http(STORY_RPC_URL),
-    });
-  }
-  return publicClient;
-}
 
 export async function createStoryProtocolClient(primaryWallet?: PrimaryWalletLike): Promise<unknown> {
   if (!primaryWallet) {

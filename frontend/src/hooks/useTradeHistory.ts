@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { formatEther } from "viem"
-import { getSubgraphUrl } from "@/lib/env"
-
-const SUBGRAPH_URL = getSubgraphUrl()
+import { fetchSubgraph } from "@/services/subgraph"
 
 export type Timeframe = "1M" | "5M" | "15M" | "1H" | "1D" | "3D" | "7D"
 
@@ -121,24 +119,15 @@ async function fetchTradesFromSubgraph(
   // Page backwards until we've either hit the cutoff, run out of trades, or
   // reached the global MAX_TRADES limit.
   while (allTrades.length < MAX_TRADES) {
-    const response = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query,
-        variables: {
-          token: lowerToken,
-          before,
-          pageSize: PAGE_SIZE,
-        },
-      }),
+    const { ok, json } = await fetchSubgraph(query, {
+      token: lowerToken,
+      before,
+      pageSize: PAGE_SIZE,
     })
 
-    if (!response.ok) {
+    if (!ok) {
       throw new Error("Subgraph request failed")
     }
-
-    const json = await response.json()
 
     if (json.errors && json.errors.length > 0) {
       throw new Error(json.errors[0]?.message || "GraphQL error")

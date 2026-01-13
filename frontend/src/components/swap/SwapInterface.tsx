@@ -10,10 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowDownUp, Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
 import { parseEther, formatEther } from "viem"
-import { createPublicClient, http } from "viem"
 import toast from "react-hot-toast"
 import { cn } from "@/lib/utils"
-import { STORY_RPC_URL } from "@/lib/env"
+import { getStoryPublicClient } from "@/services/viem/storyPublicClient"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
 import {
   estimateBuyAmountForIp,
@@ -325,20 +324,7 @@ function SwapInterfaceComponent({
 
   // Create public client for balance checks (memoized)
   const publicClient = useMemo(
-    () =>
-      createPublicClient({
-        chain: {
-          id: 1315,
-          name: "Story Aeneid Testnet",
-          nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
-          rpcUrls: {
-            default: {
-              http: [STORY_RPC_URL],
-            },
-          },
-        },
-        transport: http(STORY_RPC_URL),
-      }),
+    () => getStoryPublicClient(),
     []
   )
 

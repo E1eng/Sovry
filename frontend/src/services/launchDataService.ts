@@ -1,21 +1,11 @@
-import { createPublicClient, http, Address, formatEther } from "viem";
+import { Address, formatEther } from "viem";
 import { erc20Abi } from "viem";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
-import { STORY_RPC_URL } from "@/lib/env";
+import { getStoryPublicClient } from "@/services/viem/storyPublicClient";
 
-const publicClient = createPublicClient({
-  chain: {
-    id: 1315,
-    name: "Story Aeneid Testnet",
-    nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
-    rpcUrls: {
-      default: { http: [STORY_RPC_URL] },
-    },
-  },
-  transport: http(STORY_RPC_URL),
-});
+const publicClient = getStoryPublicClient();
 
 // Cache for contract version detection
 const contractVersionCache = new Map<string, "new" | "old">();

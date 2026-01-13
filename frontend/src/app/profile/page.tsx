@@ -20,7 +20,7 @@ import {
 import UserProfile from "@/components/social/UserProfile";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
-import { getSubgraphUrl } from "@/lib/env";
+import { fetchSubgraph } from "@/services/subgraph";
 import {
   getTokenBalance,
   type TokenBalance,
@@ -49,8 +49,6 @@ interface WrapperToken {
   graduated: boolean;
 }
 
-const SUBGRAPH_URL = getSubgraphUrl();
-
 async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promise<WrapperToken[]> {
   try {
     const query = `
@@ -64,15 +62,9 @@ async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promis
       }
     `;
 
-    const res = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { first, skip } }),
-    });
+    const { ok, json } = await fetchSubgraph(query, { first, skip });
 
-    if (!res.ok) return [];
-
-    const json = await res.json();
+    if (!ok) return [];
     const raw = json?.data?.wrapperTokens || [];
 
     return raw.map((l: any) => ({

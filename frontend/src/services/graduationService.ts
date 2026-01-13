@@ -1,7 +1,5 @@
 import { logger } from "@/lib/logger";
-import { getSubgraphUrl } from "@/lib/env";
-
-const SUBGRAPH_URL = getSubgraphUrl();
+import { fetchSubgraph } from "@/services/subgraph";
 
 export interface GraduationInfo {
   timestamp: number
@@ -32,22 +30,13 @@ export async function getGraduationInfo(tokenAddress: string): Promise<Graduatio
       }
     `
 
-    const response = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query,
-        variables: {
-          token: tokenAddress.toLowerCase(),
-        },
-      }),
+    const { ok, json } = await fetchSubgraph(query, {
+      token: tokenAddress.toLowerCase(),
     })
 
-    if (!response.ok) {
+    if (!ok) {
       return null
     }
-
-    const json = await response.json()
     const graduations = json?.data?.graduations || []
 
     if (graduations.length === 0) {
@@ -112,22 +101,13 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
       }
     `
 
-    const response = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query,
-        variables: {
-          id: tokenAddress.toLowerCase(),
-        },
-      }),
+    const { ok, json } = await fetchSubgraph(query, {
+      id: tokenAddress.toLowerCase(),
     })
 
-    if (!response.ok) {
+    if (!ok) {
       return null
     }
-
-    const json = await response.json()
     const wrapper = json?.data?.wrapperToken
     if (!wrapper) {
       return null
@@ -208,21 +188,15 @@ export async function getLatestPremineClaim(
       }
     `
 
-    const response = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query,
-        variables: { wrapper: tokenAddress.toLowerCase() },
-      }),
+    const { ok, json } = await fetchSubgraph(query, {
+      wrapper: tokenAddress.toLowerCase(),
     })
 
-    if (!response.ok) {
+    if (!ok) {
       return null
     }
-
-    const json = await response.json()
     const claims = json?.data?.premineClaims || []
+
     if (claims.length === 0) {
       return null
     }
@@ -262,18 +236,13 @@ export async function getLatestGraduationThreshold(): Promise<ThresholdUpdateInf
       }
     `
 
-    const response = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    })
+    const { ok, json } = await fetchSubgraph(query)
 
-    if (!response.ok) {
+    if (!ok) {
       return null
     }
-
-    const json = await response.json()
     const updates = json?.data?.graduationThresholdUpdates || []
+
     if (updates.length === 0) {
       return null
     }

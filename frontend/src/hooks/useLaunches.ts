@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { logger } from "@/lib/logger"
-import { getSubgraphUrl } from "@/lib/env"
-
-const SUBGRAPH_URL = getSubgraphUrl()
+import { fetchSubgraph } from "@/services/subgraph"
 
 interface BasicLaunch {
   id: string
@@ -41,15 +39,9 @@ async function fetchLaunches(first: number, skip: number): Promise<BasicLaunch[]
       }
     `
 
-    const res = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { first, skip } }),
-    })
+    const { ok, json } = await fetchSubgraph(query, { first, skip })
 
-    if (!res.ok) return []
-
-    const json = await res.json()
+    if (!ok) return []
     const raw = json?.data?.wrapperTokens || []
 
     return raw.map((l: any) => ({

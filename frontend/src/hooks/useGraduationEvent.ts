@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { createPublicClient, http } from "viem"
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
-import { STORY_RPC_URL } from "@/lib/env"
+import { getStoryPublicClient } from "@/services/viem/storyPublicClient"
 
 // Graduated event ABI
 // Event signature: Graduated(address indexed wrapperToken, uint256 liquidity, address indexed poolAddress)
@@ -37,17 +36,7 @@ export function useGraduationEvent({
   onGraduation,
   enabled = true,
 }: UseGraduationEventOptions) {
-  const publicClient = createPublicClient({
-    chain: {
-      id: 1315,
-      name: "Story Aeneid Testnet",
-      nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
-      rpcUrls: {
-        default: { http: [STORY_RPC_URL] },
-      },
-    },
-    transport: http(STORY_RPC_URL),
-  })
+  const publicClient = getStoryPublicClient()
 
   const onGraduationRef = useRef(onGraduation)
   const isWatchingRef = useRef(false)

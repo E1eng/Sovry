@@ -9,9 +9,7 @@ import { formatEther, formatUnits } from "viem";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
 import { formatMarketCapIP } from "@/lib/utils";
 import { logger } from "@/lib/logger";
-import { getSubgraphUrl } from "@/lib/env";
-
-const SUBGRAPH_URL = getSubgraphUrl();
+import { fetchSubgraph } from "@/services/subgraph";
 
 interface ImmersiveHeroSampleLaunch {
   name?: string;
@@ -44,8 +42,6 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
   // Fetch aggregate launchpad stats (total trading volume) from Goldsky subgraph
   useEffect(() => {
     const fetchStats = async () => {
-      if (!SUBGRAPH_URL) return;
-
       try {
         const query = `
           query GetLaunchpadStats($id: ID!) {
@@ -56,18 +52,11 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
           }
         `;
 
-        const res = await fetch(SUBGRAPH_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query,
-            variables: { id: SOVRY_LAUNCHPAD_ADDRESS.toLowerCase() },
-          }),
+        const { ok, json } = await fetchSubgraph(query, {
+          id: SOVRY_LAUNCHPAD_ADDRESS.toLowerCase(),
         });
 
-        if (!res.ok) return;
-
-        const json = await res.json();
+        if (!ok) return;
         const raw = json?.data?.launchpad?.totalVolume as string | null | undefined;
         if (!raw) return;
 
@@ -135,8 +124,6 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
   // Fetch recent trades for hero ticker
   useEffect(() => {
     const fetchRecentTrades = async () => {
-      if (!SUBGRAPH_URL) return;
-
       try {
         const query = `
           query GetRecentTrades($first: Int!) {
@@ -151,15 +138,9 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
           }
         `;
 
-        const res = await fetch(SUBGRAPH_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query, variables: { first: 8 } }),
-        });
+        const { ok, json } = await fetchSubgraph(query, { first: 8 });
 
-        if (!res.ok) return;
-
-        const json = await res.json();
+        if (!ok) return;
         const raw = (json?.data?.trades || []) as any[];
 
         if (!Array.isArray(raw) || raw.length === 0) return;

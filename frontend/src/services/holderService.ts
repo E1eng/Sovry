@@ -1,7 +1,5 @@
 import { logger } from "@/lib/logger";
-import { getSubgraphUrl } from "@/lib/env";
-
-const SUBGRAPH_URL = getSubgraphUrl();
+import { fetchSubgraph } from "@/services/subgraph";
 
 export interface HolderBalance {
   address: string;
@@ -36,22 +34,13 @@ export async function getHolderDistribution(
     }
   `;
 
-  const response = await fetch(SUBGRAPH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query,
-      variables: {
-        wrapper: tokenAddress.toLowerCase(),
-      },
-    }),
+  const { ok, json } = await fetchSubgraph(query, {
+    wrapper: tokenAddress.toLowerCase(),
   });
 
-  if (!response.ok) {
+  if (!ok) {
     throw new Error("Failed to fetch holders from subgraph");
   }
-
-  const json = await response.json();
 
   if (json.errors && json.errors.length > 0) {
     // Surface GraphQL errors to the caller for easier debugging

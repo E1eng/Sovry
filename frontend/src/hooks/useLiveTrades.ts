@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { createPublicClient, http } from "viem"
 import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
-import { STORY_RPC_URL } from "@/lib/env"
+import { getStoryPublicClient, type StoryPublicClient } from "@/services/viem/storyPublicClient"
 import {
   Timeframe,
   RawTrade,
@@ -52,7 +51,7 @@ export function useLiveTrades(tokenAddress: string | null, timeframe: Timeframe)
   const [error, setError] = useState<Error | null>(null)
 
   const liveTradesRef = useRef<ProcessedTrade[]>([])
-  const clientRef = useRef<ReturnType<typeof createPublicClient> | null>(null)
+  const clientRef = useRef<StoryPublicClient | null>(null)
   const unwatchBuyRef = useRef<(() => void) | null>(null)
   const unwatchSellRef = useRef<(() => void) | null>(null)
 
@@ -64,19 +63,7 @@ export function useLiveTrades(tokenAddress: string | null, timeframe: Timeframe)
     const lowerToken = tokenAddress.toLowerCase()
 
     try {
-      const client =
-        clientRef.current ||
-        createPublicClient({
-          chain: {
-            id: 1315,
-            name: "Story Aeneid Testnet",
-            nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
-            rpcUrls: {
-              default: { http: [STORY_RPC_URL] },
-            },
-          },
-          transport: http(STORY_RPC_URL),
-        })
+      const client = clientRef.current || getStoryPublicClient()
 
       clientRef.current = client
       setIsLiveConnected(true)

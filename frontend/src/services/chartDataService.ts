@@ -1,8 +1,6 @@
 import { formatEther } from "viem";
 import { logger } from "@/lib/logger";
-import { getSubgraphUrl } from "@/lib/env";
-
-const SUBGRAPH_URL = getSubgraphUrl();
+import { fetchSubgraph } from "@/services/subgraph";
 
 // Raw shape aligned with current Trade entity in the subgraph
 interface RawTrade {
@@ -73,23 +71,14 @@ export async function fetchTrades(
       }
     `;
 
-    const response = await fetch(SUBGRAPH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query,
-        variables: {
-          token: tokenAddress.toLowerCase(),
-          from: from.toString(),
-        },
-      }),
+    const { ok, json } = await fetchSubgraph(query, {
+      token: tokenAddress.toLowerCase(),
+      from: from.toString(),
     });
 
-    if (!response.ok) {
+    if (!ok) {
       throw new Error("Subgraph request failed");
     }
-
-    const json = await response.json();
     const trades = (json?.data?.trades || []) as RawTrade[];
 
     return trades.map((t) => {

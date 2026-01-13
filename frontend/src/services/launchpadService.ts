@@ -1,9 +1,10 @@
-import { createPublicClient, http, Address, encodeFunctionData, parseEther } from "viem";
+import { Address, encodeFunctionData, parseEther } from "viem";
 
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
 import { logger } from "@/lib/logger";
-import { STORY_RPC_URL, TENDERLY_RPC_URL } from "@/lib/env";
+import { TENDERLY_RPC_URL } from "@/lib/env";
+import { getStoryPublicClient } from "@/services/viem/storyPublicClient";
 
 import {
   SOVRY_LAUNCHPAD_ADDRESS,
@@ -58,17 +59,7 @@ const launchpadAbi = [
   },
 ] as const;
 
-const publicClient = createPublicClient({
-  chain: {
-    id: 1315,
-    name: "Story Aeneid Testnet",
-    nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
-    rpcUrls: {
-      default: { http: [STORY_RPC_URL] },
-    },
-  },
-  transport: http(STORY_RPC_URL),
-});
+const publicClient = getStoryPublicClient();
 
 // Cache for contract version so we don't re-detect on every call
 const contractVersionCache = new Map<string, "new" | "old">();
