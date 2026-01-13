@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { DynamicUserProfile } from "@dynamic-labs/sdk-react-core";
-import { LayoutGrid, Coins, User, PlusCircle, Wallet } from "lucide-react";
+import { LayoutGrid, User, PlusCircle, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SovrySymbol } from "@/components/ui/SovrySymbol";
 import { supabase } from "@/lib/supabaseClient";
@@ -14,8 +14,6 @@ import { supabase } from "@/lib/supabaseClient";
 export const NAV_ITEMS = [
   { label: "Home", href: "/", icon: LayoutGrid },
   { label: "Create", href: "/create", icon: PlusCircle },
-  { label: "Register", href: "/register", icon: PlusCircle },
-  { label: "Bridge", href: "/bridge", icon: Coins },
   { label: "Profile", href: "/profile", icon: User },
 ];
 

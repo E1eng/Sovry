@@ -196,7 +196,7 @@ export default function CreatePage() {
 
     try {
       // Only transfer Royalty Tokens from the IP Account to the wallet.
-      // License and royalty vault are already configured in /register.
+      // License and royalty vault are already configured for this IP.
       const transferResult = await transferRoyaltyTokensFromIP(ipAsset.ipId, primaryWallet);
 
       if (transferResult.success) {
