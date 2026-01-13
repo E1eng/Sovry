@@ -130,12 +130,6 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
     return value.toFixed(4);
   };
 
-  const formatTradePrice = (value: number) => {
-    if (value >= 1) return value.toFixed(3);
-    if (value >= 0.01) return value.toFixed(4);
-    return value.toFixed(6);
-  };
-
   const shortenAddress = (addr: string | null | undefined) => {
     if (!addr || addr.length < 10) return addr || "";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;

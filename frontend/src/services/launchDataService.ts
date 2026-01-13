@@ -1,8 +1,6 @@
 import { createPublicClient, http, Address, formatEther } from "viem";
 import { erc20Abi } from "viem";
 import { SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
-import { getIPAssetMetadata } from "@/utils/ipMetadata";
-import { extractCategory } from "@/utils/ipMetadata";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
 
@@ -176,24 +174,6 @@ async function getRtAddressFromWrapper(
 }
 
 /**
- * Fetch IP metadata and extract category
- */
-async function fetchCategory(ipId: string | null): Promise<string> {
-  if (!ipId) return "IP Asset";
-  
-  try {
-    const metadata = await getIPAssetMetadata(ipId);
-    if (metadata) {
-      return extractCategory(metadata);
-    }
-  } catch (error) {
-    logger.error(`Error fetching category for IP ${ipId}:`, error);
-  }
-  
-  return "IP Asset";
-}
-
-/**
  * Fetch IP image URL
  *
  * We no longer rely on the legacy metadata API or Story Protocol staging
@@ -280,10 +260,7 @@ export async function enrichLaunchData(
     }
 
     // Fetch category and image (socials now come exclusively from Supabase)
-    const [category, imageUrl] = await Promise.all([
-      fetchCategory(ipId),
-      fetchImageUrl(ipId, rtAddress),
-    ]);
+    const imageUrl = await fetchImageUrl(ipId, rtAddress);
 
     const enrichedData: EnrichedLaunchData = {
       symbol: symbol || undefined,
@@ -292,7 +269,7 @@ export async function enrichLaunchData(
       imageUrl: imageUrl || undefined,
       marketCap: tokenState.marketCap || undefined,
       bondingProgress: bondingProgress || undefined,
-      category: category || undefined,
+      category: "IP Asset",
       currentPrice: tokenState.currentPrice || undefined,
       rtAddress: rtAddress || undefined,
       graduated: tokenState.graduated ?? undefined,

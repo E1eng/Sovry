@@ -71,19 +71,11 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   const wrapperMeta = details.wrapperMeta
   const isGraduated = (wrapperMeta?.graduated ?? details.launchInfo?.graduated) || false
   const creator = wrapperMeta?.creator || details.launchInfo?.creator
-  const totalRaised = details.launchInfo?.totalRaised
   const marketCap = details.marketCap
   const graduationLiquidity = details.graduationInfo?.totalLiquidity
   const imageUrl = details.imageUrl
   const ticker = details.symbol || "TOKEN"
   const name = details.name || ticker
-
-  // Format final raise amount
-  const formatFinalRaise = (amount: bigint | undefined) => {
-    if (!amount || amount <= 0n) return null
-    const formatted = (Number(amount) / 1e18).toFixed(3)
-    return `${formatted} IP`
-  }
 
   const formatLiquidity = (amount: bigint | undefined) => {
     if (!amount || amount <= 0n) return null
