@@ -626,7 +626,7 @@ export default function ProfilePage() {
                                 colSpan={6}
                                 className="py-4 px-3 text-center text-xs text-zinc-500"
                               >
-                                You haven't launched any tokens yet.
+                                {`You haven't launched any tokens yet.`}
                               </td>
                             </tr>
                           ) : (
@@ -757,7 +757,7 @@ export default function ProfilePage() {
                               colSpan={4}
                               className="py-4 px-3 text-center text-xs text-zinc-500"
                             >
-                              You don't hold any assets yet.
+                              {`You don't hold any assets yet.`}
                             </td>
                           </tr>
                         ) : (
