@@ -9,6 +9,12 @@ import { getStoryPublicClient } from "./clients";
 export const SOVRY_LAUNCHPAD_ADDRESS =
   process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS || "0xABddc4817c287cCc6F1a170Fa3C364e9df2464E6";
 
+export const SOVRY_ROUTER_ADDRESS =
+  process.env.NEXT_PUBLIC_ROUTER_ADDRESS || SOVRY_LAUNCHPAD_ADDRESS;
+
+export const SOVRY_EXCHANGE_ADDRESS =
+  process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS || SOVRY_LAUNCHPAD_ADDRESS;
+
 const DEFAULT_BASE_PRICE_WEI = BigInt(process.env.NEXT_PUBLIC_BASE_PRICE_WEI || "100000000000");
 const DEFAULT_PRICE_INCREMENT_WEI = BigInt(process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI || "2000000");
 
@@ -138,7 +144,7 @@ export async function launchOnBondingCurveDynamic(
     const approveData = encodeFunctionData({
       abi: erc20Abi,
       functionName: "approve",
-      args: [SOVRY_LAUNCHPAD_ADDRESS as Address, amountToLock],
+      args: [SOVRY_EXCHANGE_ADDRESS as Address, amountToLock],
     });
 
     logger.log("📤 Sending approve transaction for launch token via Dynamic...");
@@ -160,7 +166,7 @@ export async function launchOnBondingCurveDynamic(
 
     logger.log("📤 Calling SovryLaunchpad.launchToken...");
     const launchTxHash = await walletClient.sendTransaction({
-      to: SOVRY_LAUNCHPAD_ADDRESS as Address,
+      to: SOVRY_ROUTER_ADDRESS as Address,
       data: launchData,
     });
 
@@ -194,7 +200,7 @@ export async function launchOnBondingCurveDynamic(
     let wrapperAddress: string | undefined;
     try {
       const mapped = (await publicClient.readContract({
-        address: SOVRY_LAUNCHPAD_ADDRESS as Address,
+        address: SOVRY_EXCHANGE_ADDRESS as Address,
         abi: LAUNCHPAD_VIEW_ABI,
         functionName: "rtToWrapper",
         args: [actualToken as Address],

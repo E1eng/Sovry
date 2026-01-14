@@ -5,7 +5,12 @@ export type { RoyaltyLockInfo } from "./domain/royalty.service";
 
 export { getRoyaltyLockInfo } from "./domain/royalty.service";
 
-export { SOVRY_LAUNCHPAD_ADDRESS, launchOnBondingCurveDynamic } from "./domain/bondingCurve.service";
+export {
+  SOVRY_LAUNCHPAD_ADDRESS,
+  SOVRY_EXCHANGE_ADDRESS,
+  SOVRY_ROUTER_ADDRESS,
+  launchOnBondingCurveDynamic,
+} from "./domain/bondingCurve.service";
 
 export type { IPAsset } from "./domain/ipAsset.service";
 

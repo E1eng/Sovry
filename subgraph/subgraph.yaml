@@ -4,11 +4,11 @@ schema:
 
 dataSources:
   - kind: ethereum
-    name: SovryLaunchpad
+    name: SovryFactory
     network: story-aeneid
     source:
       address: "0x96Ca2E66d0ae229B16EE9aCbBA9B96470b28c8D4" # Aeneid launchpad (update for mainnet)
-      abi: SovryLaunchpad
+      abi: SovryFactory
       startBlock: 12093886
     mapping:
       kind: ethereum/events
@@ -21,26 +21,52 @@ dataSources:
         - Trade
         - Deposit
         - Harvest
-        - GraduationEvent
+        - Graduation
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
       abis:
-        - name: SovryLaunchpad
-          file: ./abis/SovryLaunchpad.json
+        - name: SovryFactory
+          file: ./abis/SovryFactory.json
       eventHandlers:
         - event: TokenLaunched(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleTokenLaunched
-        - event: TokensPurchased(indexed address,indexed address,uint256,uint256)
+      file: ./src/launchpad.ts
+
+  - kind: ethereum
+    name: SovryExchange
+    network: story-aeneid
+    source:
+      address: "0x96Ca2E66d0ae229B16EE9aCbBA9B96470b28c8D4" # Aeneid launchpad (update for mainnet)
+      abi: SovryExchange
+      startBlock: 12093886
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Launchpad
+        - WrapperToken
+        - User
+        - Trade
+        - Deposit
+        - Harvest
+        - Graduation
+        - Holder
+        - PremineClaim
+        - GraduationThresholdUpdate
+      abis:
+        - name: SovryExchange
+          file: ./abis/SovryExchange.json
+      eventHandlers:
+        - event: TokensPurchased(indexed address,indexed address,uint256,uint256,uint256,address)
           handler: handleTokensPurchased
-        - event: TokensSold(indexed address,indexed address,uint256,uint256)
+        - event: TokensSold(indexed address,indexed address,uint256,uint256,uint256,address)
           handler: handleTokensSold
         - event: RoyaltiesHarvested(indexed address,uint256)
           handler: handleRoyaltiesHarvested
         - event: Graduated(indexed address,uint256,indexed address)
           handler: handleGraduated
-        - event: CreatorPremineClaimed(indexed address,indexed address,uint256)
-          handler: handleCreatorPremineClaimed
         - event: GraduationThresholdUpdated(uint256)
           handler: handleGraduationThresholdUpdated
       file: ./src/launchpad.ts

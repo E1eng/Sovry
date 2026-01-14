@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PlusCircle, ArrowRight } from "lucide-react";
 import { formatEther, formatUnits } from "viem";
-import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
+import { SOVRY_EXCHANGE_ADDRESS } from "@/services/storyProtocolService";
 import { formatMarketCapIP } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import { fetchSubgraph } from "@/services/subgraph";
@@ -53,7 +53,7 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
         `;
 
         const { ok, json } = await fetchSubgraph(query, {
-          id: SOVRY_LAUNCHPAD_ADDRESS.toLowerCase(),
+          id: SOVRY_EXCHANGE_ADDRESS.toLowerCase(),
         });
 
         if (!ok) return;

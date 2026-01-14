@@ -14,7 +14,7 @@ export interface GraduationInfo {
 export async function getGraduationInfo(tokenAddress: string): Promise<GraduationInfo | null> {
   try {
     const query = `
-      query GetGraduation($token: Bytes!) {
+      query GetGraduation($token: String!) {
         graduations(
           where: { token: $token }
           orderBy: timestamp

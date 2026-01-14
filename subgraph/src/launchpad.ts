@@ -2,13 +2,17 @@ import { BigInt, Address } from "@graphprotocol/graph-ts";
 
 import {
   TokenLaunched as TokenLaunchedEvent,
+  SovryFactory as SovryFactoryContract,
+} from "../generated/SovryFactory/SovryFactory";
+
+import {
   TokensPurchased as TokensPurchasedEvent,
   TokensSold as TokensSoldEvent,
   RoyaltiesHarvested as RoyaltiesHarvestedEvent,
   Graduated as GraduatedEvent,
-  CreatorPremineClaimed as CreatorPremineClaimedEvent,
   GraduationThresholdUpdated as GraduationThresholdUpdatedEvent,
-} from "../generated/SovryLaunchpad/SovryLaunchpad";
+  SovryExchange as SovryExchangeContract,
+} from "../generated/SovryExchange/SovryExchange";
 
 import {
   Launchpad,
@@ -16,9 +20,8 @@ import {
   User,
   Trade,
   Harvest,
-  GraduationEvent,
+  Graduation,
   Candle,
-  PremineClaim,
   GraduationThresholdUpdate,
 } from "../generated/schema";
 import { WrapperToken as WrapperTemplate } from "../generated/templates";
@@ -123,6 +126,11 @@ function updateCandle(
 
 export function handleTokenLaunched(event: TokenLaunchedEvent): void {
   let launchpadId = event.address.toHex();
+  let factory = SovryFactoryContract.bind(event.address);
+  let exchangeResult = factory.try_exchange();
+  if (!exchangeResult.reverted) {
+    launchpadId = exchangeResult.value.toHex();
+  }
   let launchpad = getOrCreateLaunchpad(launchpadId);
 
   let wrapperId = event.params.wrapper.toHex();
@@ -141,6 +149,18 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
   wrapper.poolAddress = null;
   wrapper.createdAt = event.block.timestamp;
   wrapper.updatedAt = event.block.timestamp;
+
+  // Best-effort enrichment from Exchange state (does not revert indexing if call fails)
+  if (!exchangeResult.reverted) {
+    let exchange = SovryExchangeContract.bind(exchangeResult.value);
+    let tokenResult = exchange.try_launchedTokens(event.params.wrapper);
+    if (!tokenResult.reverted) {
+      // tuple layout matches SovryExchange.LaunchedToken public mapping getter
+      wrapper.totalRoyaltiesHarvested = tokenResult.value.value6;
+      wrapper.dexReserve = tokenResult.value.value8;
+      wrapper.initialCurveSupply = tokenResult.value.value9;
+    }
+  }
 
   wrapper.save();
 
@@ -171,16 +191,13 @@ export function handleTokensPurchased(event: TokensPurchasedEvent): void {
   trade.type = "BUY";
   trade.amount = event.params.amount;
   trade.value = event.params.cost;
-  // Approximate fee: 1% of base cost (TOTAL_FEE_BPS = 100)
-  let buyFee = event.params.cost.div(BigInt.fromI32(100));
+  let buyFee = event.params.feeAmount;
   trade.fee = buyFee;
   trade.txHash = event.transaction.hash;
   trade.timestamp = event.block.timestamp;
   trade.save();
 
-  let grossValue = event.params.cost.plus(
-    event.params.cost.div(BigInt.fromI32(100)),
-  );
+  let grossValue = event.params.cost.plus(event.params.feeAmount);
   let price = BigInt.zero();
   if (!event.params.amount.equals(BigInt.zero())) {
     price = grossValue.div(event.params.amount);
@@ -216,15 +233,13 @@ export function handleTokensSold(event: TokensSoldEvent): void {
   trade.type = "SELL";
   trade.amount = event.params.amount;
   trade.value = event.params.proceeds;
-  let sellFee = event.params.proceeds.div(BigInt.fromI32(100));
+  let sellFee = event.params.feeAmount;
   trade.fee = sellFee;
   trade.txHash = event.transaction.hash;
   trade.timestamp = event.block.timestamp;
   trade.save();
 
-  let grossProceeds = event.params.proceeds.plus(
-    event.params.proceeds.div(BigInt.fromI32(100)),
-  );
+  let grossProceeds = event.params.proceeds.plus(event.params.feeAmount);
   let price = BigInt.zero();
   if (!event.params.amount.equals(BigInt.zero())) {
     price = grossProceeds.div(event.params.amount);
@@ -280,37 +295,15 @@ export function handleGraduated(event: GraduatedEvent): void {
     .concat("-")
     .concat(event.logIndex.toString());
 
-  let grad = new GraduationEvent(gradId);
-  grad.wrapper = wrapper.id;
-  grad.liquidity = event.params.liquidity;
-  grad.poolAddress = event.params.poolAddress;
+  let grad = new Graduation(gradId);
+  grad.token = wrapper.id;
+  grad.totalLiquidity = event.params.liquidity;
+  grad.pool = event.params.poolAddress;
   grad.txHash = event.transaction.hash;
   grad.timestamp = event.block.timestamp;
   grad.save();
 
   launchpad.save();
-}
-
-export function handleCreatorPremineClaimed(
-  event: CreatorPremineClaimedEvent,
-): void {
-  let launchpadId = event.address.toHex();
-  let wrapper = getOrCreateWrapper(launchpadId, event.params.wrapperToken);
-  wrapper.updatedAt = event.block.timestamp;
-  wrapper.save();
-
-  let id = event.transaction.hash
-    .toHex()
-    .concat("-")
-    .concat(event.logIndex.toString());
-
-  let claim = new PremineClaim(id);
-  claim.wrapper = wrapper.id;
-  claim.creator = event.params.creator;
-  claim.amount = event.params.amount;
-  claim.txHash = event.transaction.hash;
-  claim.timestamp = event.block.timestamp;
-  claim.save();
 }
 
 export function handleGraduationThresholdUpdated(

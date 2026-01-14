@@ -384,20 +384,7 @@ export default function ProfilePage() {
     setPremineClaimingId(assetId);
 
     try {
-      const { launchpadService } = await import("@/services/launchpadService");
-      const result = await launchpadService.claimCreatorPremine(asset.id, primaryWallet);
-
-      if (!result.success) {
-        setPremineError(result.error || "Failed to claim premine");
-        return;
-      }
-
-      // We don't know the exact premine amount from the transaction without
-      // re-reading on-chain state or the subgraph; for now we simply rely on
-      // the next refresh of holdings to reflect the updated balance.
-    } catch (err: any) {
-      logger.error("Error claiming premine from profile page:", err);
-      setPremineError(err?.message || "Failed to claim premine");
+      setPremineError("Creator premine claims are not supported in the current contract architecture.");
     } finally {
       setPremineClaimingId(null);
     }

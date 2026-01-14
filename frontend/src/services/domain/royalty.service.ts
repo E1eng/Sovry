@@ -1,12 +1,12 @@
 import { WIP_TOKEN_ADDRESS } from "@story-protocol/core-sdk";
-import { encodeFunctionData, type Address } from "viem";
+import { type Address } from "viem";
 import { erc20Abi } from "viem";
 
 import { logger } from "@/lib/logger";
 
 import type { PrimaryWalletLike } from "./types";
 import { createStoryProtocolClient, getStoryPublicClient } from "./clients";
-import { SOVRY_LAUNCHPAD_ADDRESS } from "./bondingCurve.service";
+import { SOVRY_EXCHANGE_ADDRESS } from "./bondingCurve.service";
 
 const ERC20_ABI = [
   {
@@ -88,13 +88,9 @@ export async function claimRevenueToWalletAndPump(
     }
 
     const client = (await createStoryProtocolClient(primaryWallet)) as any;
-    const walletClient = (await primaryWallet.getWalletClient?.()) as any;
-    if (!walletClient) {
-      throw new Error("No wallet client available");
-    }
 
     const publicClient = getStoryPublicClient();
-    const launchpadAddress = SOVRY_LAUNCHPAD_ADDRESS as Address;
+    const launchpadAddress = SOVRY_EXCHANGE_ADDRESS as Address;
 
     await client.royalty.claimAllRevenue({
       ancestorIpId: ipId as Address,
@@ -138,22 +134,7 @@ export async function claimRevenueToWalletAndPump(
       hash: transferResponse.txHash as `0x${string}`,
     });
 
-    const { newLaunchpadAbi } = await import("../launchpadService");
-
-    const harvestData = encodeFunctionData({
-      abi: newLaunchpadAbi as any,
-      functionName: "harvest",
-      args: [wrapperToken as Address],
-    });
-
-    const harvestTxHash = await walletClient.sendTransaction({
-      to: launchpadAddress,
-      data: harvestData,
-    });
-
-    await publicClient.waitForTransactionReceipt({ hash: harvestTxHash });
-
-    return { success: true, txHash: harvestTxHash };
+    return { success: true, txHash: transferResponse.txHash };
   } catch (error) {
     logger.error("Error in claimRevenueToWalletAndPump:", error);
     return {

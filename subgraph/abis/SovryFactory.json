@@ -1,0 +1,21 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "rt", "type": "address" },
+      { "indexed": true, "name": "wrapper", "type": "address" },
+      { "indexed": true, "name": "creator", "type": "address" },
+      { "indexed": false, "name": "amount", "type": "uint256" },
+      { "indexed": false, "name": "launchTime", "type": "uint256" }
+    ],
+    "name": "TokenLaunched",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "exchange",
+    "outputs": [{ "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

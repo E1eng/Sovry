@@ -25,7 +25,7 @@ type WrapperToken @entity {
 
   trades: [Trade!]! @derivedFrom(field: "wrapper")
   harvests: [Harvest!]! @derivedFrom(field: "wrapper")
-  graduations: [GraduationEvent!]! @derivedFrom(field: "wrapper")
+  graduations: [Graduation!]! @derivedFrom(field: "token")
   holders: [Holder!]! @derivedFrom(field: "wrapper")
 }
 
@@ -69,11 +69,11 @@ type Harvest @entity {
   timestamp: BigInt!
 }
 
-type GraduationEvent @entity {
+type Graduation @entity {
   id: ID!
-  wrapper: WrapperToken!
-  liquidity: BigInt!
-  poolAddress: Bytes!
+  token: WrapperToken!
+  totalLiquidity: BigInt!
+  pool: Bytes!
   txHash: Bytes!
   timestamp: BigInt!
 }

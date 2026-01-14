@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
+import { SOVRY_EXCHANGE_ADDRESS } from "@/services/storyProtocolService"
 import { getStoryPublicClient } from "@/services/viem/storyPublicClient"
 
 // Graduated event ABI
@@ -52,7 +52,7 @@ export function useGraduationEvent({
     isWatchingRef.current = true
 
     const unwatch = publicClient.watchContractEvent({
-      address: SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`,
+      address: SOVRY_EXCHANGE_ADDRESS as `0x${string}`,
       abi: GRADUATED_EVENT_ABI,
       eventName: "Graduated",
       onLogs: (logs) => {

@@ -1,6 +1,6 @@
 import { Address, formatEther } from "viem";
 import { erc20Abi } from "viem";
-import { SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
+import { SOVRY_EXCHANGE_ADDRESS, SOVRY_LAUNCHPAD_ADDRESS } from "./storyProtocolService";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
 import { getStoryPublicClient } from "@/services/viem/storyPublicClient";
@@ -202,7 +202,7 @@ async function fetchImageUrl(ipId: string | null, rtAddress: string | null): Pro
  */
 export async function enrichLaunchData(
   wrapperToken: string,
-  launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS
+  launchpadAddress: string = SOVRY_EXCHANGE_ADDRESS || SOVRY_LAUNCHPAD_ADDRESS
 ): Promise<EnrichedLaunchData> {
   // Check cache
   const cached = tokenDataCache.get(wrapperToken);
@@ -282,7 +282,7 @@ export async function enrichLaunchData(
  */
 export async function enrichLaunchesData(
   wrapperTokens: string[],
-  launchpadAddress: string = SOVRY_LAUNCHPAD_ADDRESS
+  launchpadAddress: string = SOVRY_EXCHANGE_ADDRESS || SOVRY_LAUNCHPAD_ADDRESS
 ): Promise<Map<string, EnrichedLaunchData>> {
   const results = new Map<string, EnrichedLaunchData>();
   

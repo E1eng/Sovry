@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService"
+import { SOVRY_EXCHANGE_ADDRESS } from "@/services/storyProtocolService"
 import { getStoryPublicClient, type StoryPublicClient } from "@/services/viem/storyPublicClient"
 import {
   Timeframe,
@@ -22,6 +22,8 @@ const TRADE_EVENTS_ABI = [
       { indexed: true, internalType: "address", name: "wrapperToken", type: "address" },
       { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
       { indexed: false, internalType: "uint256", name: "cost", type: "uint256" },
+      { indexed: false, internalType: "uint256", name: "feeAmount", type: "uint256" },
+      { indexed: false, internalType: "address", name: "feeRecipient", type: "address" },
     ],
     name: "TokensPurchased",
     type: "event",
@@ -33,6 +35,8 @@ const TRADE_EVENTS_ABI = [
       { indexed: true, internalType: "address", name: "wrapperToken", type: "address" },
       { indexed: false, internalType: "uint256", name: "amount", type: "uint256" },
       { indexed: false, internalType: "uint256", name: "proceeds", type: "uint256" },
+      { indexed: false, internalType: "uint256", name: "feeAmount", type: "uint256" },
+      { indexed: false, internalType: "address", name: "feeRecipient", type: "address" },
     ],
     name: "TokensSold",
     type: "event",
@@ -88,14 +92,14 @@ export function useLiveTrades(tokenAddress: string | null, timeframe: Timeframe)
           const valueBase =
             type === "BUY" ? BigInt(args.cost ?? 0n) : BigInt(args.proceeds ?? 0n)
 
-          const feeApprox = valueBase / 100n
+          const fee = args.feeAmount != null ? BigInt(args.feeAmount as bigint) : valueBase / 100n
 
           const raw: RawTrade = {
             timestamp: String(Math.floor(Date.now() / 1000)),
             type,
             amount: amount.toString(),
             value: valueBase.toString(),
-            fee: feeApprox.toString(),
+            fee: fee.toString(),
             txHash: log.transactionHash as string,
           }
 
@@ -124,7 +128,7 @@ export function useLiveTrades(tokenAddress: string | null, timeframe: Timeframe)
       }
 
       const unwatchBuy = client.watchContractEvent({
-        address: SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`,
+        address: SOVRY_EXCHANGE_ADDRESS as `0x${string}`,
         abi: TRADE_EVENTS_ABI,
         eventName: "TokensPurchased",
         onLogs: (logs) => handleLogs(logs, "BUY"),
@@ -132,7 +136,7 @@ export function useLiveTrades(tokenAddress: string | null, timeframe: Timeframe)
       })
 
       const unwatchSell = client.watchContractEvent({
-        address: SOVRY_LAUNCHPAD_ADDRESS as `0x${string}`,
+        address: SOVRY_EXCHANGE_ADDRESS as `0x${string}`,
         abi: TRADE_EVENTS_ABI,
         eventName: "TokensSold",
         onLogs: (logs) => handleLogs(logs, "SELL"),
