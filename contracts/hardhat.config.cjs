@@ -23,8 +23,9 @@ const config = {
     },
   },
   paths: {
-    // files like SovryLaunchpad.sol at the project root are compiled.
-    sources: "./",
+    // Compile only the new architecture sources (Factory/Exchange/Router).
+    // Legacy/archived contracts live outside this folder and are intentionally not compiled.
+    sources: "./src",
   },
   mocha: {
     timeout: 120000, // 2 minutes for testnet tests
