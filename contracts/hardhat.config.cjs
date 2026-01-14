@@ -26,6 +26,9 @@ const config = {
     // Compile only the new architecture sources (Factory/Exchange/Router).
     // Legacy/archived contracts live outside this folder and are intentionally not compiled.
     sources: "./src",
+    tests: "./test",
+    artifacts: "./artifacts",
+    cache: "./cache",
   },
   mocha: {
     timeout: 120000, // 2 minutes for testnet tests

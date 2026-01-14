@@ -4,8 +4,15 @@ import { ethers } from "hardhat";
  * Simple script to inject ERC20 royalties into a Story IP Royalty Vault
  * using the RoyaltyTestHelper contract.
  *
- * This script DOES NOT call SovryLaunchpad.harvest.
- * You can trigger harvest later from the frontend / UI.
+ * This script DOES NOT call any Sovry contract harvest function.
+ *
+ * In the new architecture, harvest is performed by a keeper/bot via:
+ * - `SovryExchange.harvest(wrapperToken)` (KEEPER_ROLE gated)
+ *
+ * The frontend flow is:
+ * - claim Story revenue
+ * - transfer WIP to the Exchange
+ * The keeper then triggers `harvest` on the Exchange.
  */
 async function main() {
   // TODO: isi semua parameter ini sebelum run
