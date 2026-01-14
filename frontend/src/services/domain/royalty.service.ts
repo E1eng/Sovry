@@ -306,7 +306,7 @@ export async function getRoyaltyLockInfo(
         address: actualToken as Address,
         abi: erc20Abi,
         functionName: "balanceOf",
-        args: [SOVRY_LAUNCHPAD_ADDRESS as Address],
+        args: [SOVRY_EXCHANGE_ADDRESS as Address],
       }) as Promise<bigint>,
       publicClient.readContract({
         address: actualToken as Address,

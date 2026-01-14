@@ -161,59 +161,6 @@ export async function getWrapperTokenMeta(tokenAddress: string): Promise<Wrapper
   }
 }
 
-export interface PremineClaimInfo {
-  creator: string
-  amount: bigint
-  timestamp: number
-  txHash: string
-}
-
-export async function getLatestPremineClaim(
-  tokenAddress: string,
-): Promise<PremineClaimInfo | null> {
-  try {
-    const query = `
-      query GetPremineClaims($wrapper: String!) {
-        premineClaims(
-          where: { wrapper: $wrapper }
-          orderBy: timestamp
-          orderDirection: desc
-          first: 1
-        ) {
-          creator
-          amount
-          txHash
-          timestamp
-        }
-      }
-    `
-
-    const { ok, json } = await fetchSubgraph(query, {
-      wrapper: tokenAddress.toLowerCase(),
-    })
-
-    if (!ok) {
-      return null
-    }
-    const claims = json?.data?.premineClaims || []
-
-    if (claims.length === 0) {
-      return null
-    }
-
-    const claim = claims[0]
-    return {
-      creator: claim.creator as string,
-      amount: BigInt(claim.amount || "0"),
-      timestamp: Number(claim.timestamp ?? 0),
-      txHash: claim.txHash as string,
-    }
-  } catch (error) {
-    logger.error("Error fetching latest premine claim:", error)
-    return null
-  }
-}
-
 export interface ThresholdUpdateInfo {
   newThreshold: bigint
   timestamp: number

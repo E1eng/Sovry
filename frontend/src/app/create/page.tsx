@@ -32,7 +32,7 @@ import {
   IPAsset,
   getTokenBalance,
   TokenBalance,
-  SOVRY_LAUNCHPAD_ADDRESS,
+  SOVRY_EXCHANGE_ADDRESS,
 } from "@/services/storyProtocolService";
 import { transferRoyaltyTokensFromIP } from "@/services/storyProtocolRegistration";
 
@@ -357,7 +357,7 @@ export default function CreatePage() {
         `Launch Successful` +
           `\n• Approve Tx: ${result.approveTxHash}` +
           `\n• Launch Tx: ${result.launchTxHash}` +
-          `\n• Launchpad: ${SOVRY_LAUNCHPAD_ADDRESS.slice(0, 10)}...`
+          `\n• Exchange: ${SOVRY_EXCHANGE_ADDRESS.slice(0, 10)}...`
       );
 
       setTwitterUrl("");

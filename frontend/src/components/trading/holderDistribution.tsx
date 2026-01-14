@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { getHolderDistribution, type HolderDistribution } from "@/services/holderService";
-import { SOVRY_LAUNCHPAD_ADDRESS } from "@/services/storyProtocolService";
+import { SOVRY_EXCHANGE_ADDRESS } from "@/services/storyProtocolService";
 import { logger } from "@/lib/logger";
 
 const ADDRESS_EXPLORER_URL = "https://aeneid.storyscan.io/address/";
@@ -119,8 +119,8 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
             {distribution.holders.map((holder, index) => {
               const isLiquidity =
                 holder.address &&
-                SOVRY_LAUNCHPAD_ADDRESS &&
-                holder.address.toLowerCase() === SOVRY_LAUNCHPAD_ADDRESS.toLowerCase();
+                SOVRY_EXCHANGE_ADDRESS &&
+                holder.address.toLowerCase() === SOVRY_EXCHANGE_ADDRESS.toLowerCase();
               const isCreator =
                 !!creatorAddress && holder.address.toLowerCase() === creatorAddress.toLowerCase();
 

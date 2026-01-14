@@ -97,8 +97,6 @@ export default function ProfilePage() {
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [harvestingId, setHarvestingId] = useState<string | null>(null);
   const [harvestError, setHarvestError] = useState<string | null>(null);
-  const [premineClaimingId, setPremineClaimingId] = useState<string | null>(null);
-  const [premineError, setPremineError] = useState<string | null>(null);
   const [hasCopiedAddress, setHasCopiedAddress] = useState(false);
 
   const handleProfileUpdated = (update: {
@@ -371,25 +369,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleClaimPremine = async (assetId: string) => {
-    if (!primaryWallet) return;
-
-    const asset = launchedAssets.find((a) => a.id === assetId);
-    if (!asset) {
-      setPremineError("Unknown asset for premine claim");
-      return;
-    }
-
-    setPremineError(null);
-    setPremineClaimingId(assetId);
-
-    try {
-      setPremineError("Creator premine claims are not supported in the current contract architecture.");
-    } finally {
-      setPremineClaimingId(null);
-    }
-  };
-
   const displayAddress =
     walletAddress && walletAddress.length > 10
       ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
@@ -561,9 +540,6 @@ export default function ProfilePage() {
                 {harvestError && (
                   <p className="text-sm text-red-400">{harvestError}</p>
                 )}
-                {premineError && (
-                  <p className="text-sm text-red-400 mt-1">{premineError}</p>
-                )}
                 <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
                   <CardHeader>
                     <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
@@ -590,16 +566,13 @@ export default function ProfilePage() {
                             <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
                               Harvest
                             </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Premine
-                            </th>
                           </tr>
                         </thead>
                         <tbody>
                           {launchedAssets.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={6}
+                                colSpan={5}
                                 className="py-4 px-3 text-center text-xs text-zinc-500"
                               >
                                 {`You haven't launched any tokens yet.`}
@@ -666,19 +639,6 @@ export default function ProfilePage() {
                                     {harvestingId === asset.id
                                       ? "Harvesting..."
                                       : "Harvest"}
-                                  </Button>
-                                </td>
-                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
-                                    onClick={() => handleClaimPremine(asset.id)}
-                                    disabled={!primaryWallet || premineClaimingId === asset.id}
-                                  >
-                                    {premineClaimingId === asset.id
-                                      ? "Claiming..."
-                                      : "Claim premine"}
                                   </Button>
                                 </td>
                               </tr>
