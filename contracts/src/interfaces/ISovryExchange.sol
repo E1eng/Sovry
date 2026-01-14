@@ -20,6 +20,8 @@ interface ISovryExchange {
         address feeRecipient
     );
 
+    event PendingWithdrawal(address indexed beneficiary, uint256 amount);
+
     event RoyaltiesHarvested(address indexed wrapperToken, uint256 amount);
 
     event Graduated(address indexed wrapperToken, uint256 liquidity, address indexed poolAddress);
@@ -66,7 +68,11 @@ interface ISovryExchange {
         address seller
     ) external;
 
-    function harvest(address wrapperToken) external;
+    function depositRoyalties(address wrapperToken, uint256 wipAmount) external;
+
+    function pendingWithdrawals(address beneficiary) external view returns (uint256);
+
+    function withdrawPending(address payable to) external;
 
     function graduate(address wrapperToken) external;
 

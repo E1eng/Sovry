@@ -114,7 +114,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const buyAmount = RT_UNIT.mul(wrapPerRt);
 
     const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
-    const fee = baseCost.mul(20).div(10000);
+    const fee = baseCost.mul(20).add(10000 - 1).div(10000);
     const totalCost = baseCost.add(fee);
 
     const blockNum = await ethers.provider.getBlockNumber();
@@ -134,8 +134,8 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     expect(reserveAfter.sub(reserveBefore)).to.equal(baseCost);
   });
 
-  it("Royalty Bot: keeper can call Exchange.harvest, random user cannot", async function () {
-    const { factory, exchange, router, wip, rt, creator, keeper, trader } = await deployProtocolFixture();
+  it("Royalty Bot: keeper can call Exchange.depositRoyalties, random user cannot", async function () {
+    const { factory, exchange, wip, rt, creator, keeper, trader } = await deployProtocolFixture();
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
@@ -158,23 +158,94 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const receipt = await launchTx.wait();
     const wrapperAddress = receipt.events!.find((e) => e.event === "TokenLaunched")!.args!.wrapper;
 
-    // Fund WIP contract with ETH and move WIP to Exchange
+    // Fund WIP contract with ETH and move WIP to keeper for explicit deposit
     await wip.connect(creator).deposit({ value: ethers.utils.parseEther("1") });
-    await wip.connect(creator).transfer(exchange.address, ethers.utils.parseEther("1"));
+    await wip.connect(creator).transfer(keeper.address, ethers.utils.parseEther("1"));
+    await wip.connect(keeper).approve(exchange.address, ethers.utils.parseEther("1"));
 
     const curveBefore = await exchange.bondingCurves(wrapperAddress);
     const reserveBefore = curveBefore.reserveBalance;
 
-    await expect(exchange.connect(keeper).harvest(wrapperAddress)).to.emit(exchange, "RoyaltiesHarvested");
+    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"))).to.emit(
+      exchange,
+      "RoyaltiesHarvested"
+    );
 
     const curveAfter = await exchange.bondingCurves(wrapperAddress);
     const reserveAfter = curveAfter.reserveBalance;
 
     expect(reserveAfter.sub(reserveBefore)).to.equal(ethers.utils.parseEther("1"));
 
-    await expect(exchange.connect(trader).harvest(wrapperAddress)).to.be.revertedWithCustomError(
+    await expect(exchange.connect(trader).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"))).to.be
+      .revertedWithCustomError(
       exchange,
       "NotAuthorized"
+    );
+  });
+
+  it("DoS regression: creator that rejects ETH cannot break trading; fees become withdrawable", async function () {
+    const { trader, keeper, exchange, factory, wip, rt } = await deployProtocolFixture();
+
+    const Reject = await ethers.getContractFactory("RejectETHCreator");
+    const rejectCreator = await Reject.deploy();
+
+    const RT_UNIT = ethers.BigNumber.from("1000000");
+    const amountToLock = RT_UNIT.mul(100);
+    await rt.mint(rejectCreator.address, amountToLock);
+
+    const basePrice = ethers.utils.parseEther("0.000000000000000001");
+    const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
+
+    const wrapperAddress = await rejectCreator.callStatic.launch(
+      factory.address,
+      exchange.address,
+      rt.address,
+      amountToLock,
+      "Wrapper",
+      "WRP",
+      basePrice,
+      priceIncrement,
+      { value: ethers.utils.parseEther("1") }
+    );
+
+    await rejectCreator.launch(
+      factory.address,
+      exchange.address,
+      rt.address,
+      amountToLock,
+      "Wrapper",
+      "WRP",
+      basePrice,
+      priceIncrement,
+      { value: ethers.utils.parseEther("1") }
+    );
+
+    const wrapPerRt = await exchange.WRAP_PER_RT();
+    const buyAmount = RT_UNIT.mul(wrapPerRt);
+    const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+    const fee = baseCost.mul(20).add(10000 - 1).div(10000);
+    const totalCost = baseCost.add(fee);
+
+    const blockNum = await ethers.provider.getBlockNumber();
+    const blockData = await ethers.provider.getBlock(blockNum);
+    const deadline = blockData.timestamp + 3600;
+
+    await expect(exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost }))
+      .to.emit(exchange, "TokensPurchased");
+
+    const pending = await exchange.pendingWithdrawals(rejectCreator.address);
+    expect(pending).to.be.gt(0);
+
+    const traderBalBefore = await ethers.provider.getBalance(trader.address);
+    await expect(rejectCreator.claimPending(exchange.address, trader.address)).to.not.be.reverted;
+    const traderBalAfter = await ethers.provider.getBalance(trader.address);
+
+    expect(traderBalAfter.sub(traderBalBefore)).to.equal(pending);
+    expect(await exchange.pendingWithdrawals(rejectCreator.address)).to.equal(0);
+
+    await expect(exchange.connect(trader).withdrawPending(trader.address)).to.be.revertedWithCustomError(
+      exchange,
+      "InvalidAmount"
     );
   });
 });

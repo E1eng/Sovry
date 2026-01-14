@@ -130,6 +130,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     mapping(address => address) public rtToWrapper;
     mapping(address => address) public wrapperToRt;
 
+    mapping(address => uint256) public pendingWithdrawals;
+
     constructor(
         address _treasury,
         address _piperXRouter,
@@ -205,10 +207,9 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         rtToWrapper[rtAddress] = wrapperAddress;
         wrapperToRt[wrapperAddress] = rtAddress;
-
-        uint256 premineRt = (amount * 500) / BPS_DENOMINATOR;
         uint256 dexReserveRt = (amount * 20) / 100;
-        uint256 curveSupplyRt = amount - dexReserveRt - premineRt;
+
+        uint256 curveSupplyRt = amount - dexReserveRt;
         uint256 curveSupplyWrapped = curveSupplyRt * WRAP_PER_RT;
 
         if (curveSupplyWrapped > type(uint128).max) revert ParamsTooLarge();
@@ -309,7 +310,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (uint256(curve.currentSupply) < amount) revert InsufficientSupply();
 
         uint256 baseCost = calculateBuyPrice(wrapperToken, amount);
-        uint256 feeAmount = (baseCost * TRADE_FEE_BPS) / BPS_DENOMINATOR;
+        uint256 feeAmount = Math.mulDiv(baseCost, TRADE_FEE_BPS, BPS_DENOMINATOR);
+        if (mulmod(baseCost, TRADE_FEE_BPS, BPS_DENOMINATOR) > 0) feeAmount += 1;
         uint256 totalCost = baseCost + feeAmount;
 
         if (totalCost > maxEthCost) revert SlippageExceeded();
@@ -327,13 +329,11 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         IERC20(wrapperToken).safeTransfer(recipient, amount);
 
         if (feeAmount > 0) {
-            (bool ok, ) = payable(token.creator).call{value: feeAmount}("");
-            if (!ok) revert TransferFailed();
+            _safeTransferETH(payable(token.creator), feeAmount);
         }
 
         if (msg.value > totalCost) {
-            (bool refundOk, ) = payable(recipient).call{value: msg.value - totalCost}("");
-            if (!refundOk) revert TransferFailed();
+            _safeTransferETH(payable(recipient), msg.value - totalCost);
         }
 
         emit TokensPurchased(recipient, wrapperToken, amount, baseCost, feeAmount, token.creator);
@@ -367,7 +367,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 baseProceeds = calculateSellPrice(wrapperToken, amount);
         if (address(this).balance < baseProceeds) revert InsufficientReserves();
 
-        uint256 feeAmount = (baseProceeds * TRADE_FEE_BPS) / BPS_DENOMINATOR;
+        uint256 feeAmount = Math.mulDiv(baseProceeds, TRADE_FEE_BPS, BPS_DENOMINATOR);
+        if (mulmod(baseProceeds, TRADE_FEE_BPS, BPS_DENOMINATOR) > 0) feeAmount += 1;
         uint256 netProceeds = baseProceeds - feeAmount;
 
         if (netProceeds < minEthProceeds) revert SlippageExceeded();
@@ -383,12 +384,10 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         curve.reserveBalance = uint128(reserveBal - baseProceeds);
         totalCurveReserves -= baseProceeds;
 
-        (bool ok, ) = payable(seller).call{value: netProceeds}("");
-        if (!ok) revert TransferFailed();
+        _safeTransferETH(payable(seller), netProceeds);
 
         if (feeAmount > 0) {
-            (bool feeOk, ) = payable(token.creator).call{value: feeAmount}("");
-            if (!feeOk) revert TransferFailed();
+            _safeTransferETH(payable(token.creator), feeAmount);
         }
 
         emit TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, token.creator);
@@ -515,38 +514,14 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 treasuryCut = feeTotal - creatorCut;
 
         if (creatorCut > 0) {
-            (bool ok, ) = payable(token.creator).call{value: creatorCut}("");
-            if (!ok) revert TransferFailed();
+            _safeTransferETH(payable(token.creator), creatorCut);
         }
         if (treasuryCut > 0) {
-            (bool ok2, ) = payable(treasury).call{value: treasuryCut}("");
-            if (!ok2) revert TransferFailed();
+            _safeTransferETH(payable(treasury), treasuryCut);
         }
 
         uint256 nativeAfterFee = nativeLiquidity - feeTotal;
         if (nativeAfterFee == 0) revert InvalidAmount();
-
-        uint256 soldRaw = token.initialCurveSupply > uint256(curve.currentSupply)
-            ? (token.initialCurveSupply - uint256(curve.currentSupply))
-            : 0;
-        uint256 soldUnits = soldRaw / WRAP_UNIT;
-
-        uint256 spotPrice = uint256(curve.basePrice) + Math.mulDiv(uint256(curve.priceIncrement), soldUnits, 1);
-
-        uint256 requiredETH = Math.mulDiv(spotPrice, tokenLiquidity, WRAP_UNIT);
-
-        if (requiredETH > nativeAfterFee) {
-            uint256 newTokenLiquidity = Math.mulDiv(nativeAfterFee, WRAP_UNIT, spotPrice);
-            if (newTokenLiquidity > tokenLiquidity) revert ParamsTooLarge();
-            uint256 excessTokens = tokenLiquidity - newTokenLiquidity;
-            if (excessTokens > 0) {
-                IERC20(wrapperToken).safeTransfer(address(0x000000000000000000000000000000000000dEaD), excessTokens);
-            }
-            tokenLiquidity = newTokenLiquidity;
-            requiredETH = nativeAfterFee;
-        }
-
-        uint256 excessETH = nativeAfterFee - requiredETH;
 
         IPiperXRouter router_ = IPiperXRouter(piperXRouter);
         address factory_ = router_.factory();
@@ -554,46 +529,62 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         IERC20(wrapperToken).forceApprove(piperXRouter, tokenLiquidity);
 
-        uint256 minTokenLiquidity = (tokenLiquidity * 9500) / BPS_DENOMINATOR;
-        uint256 minNativeLiquidity = (requiredETH * 9500) / BPS_DENOMINATOR;
+        uint256 amountToken;
+        uint256 amountETH;
+        uint256 liquidity;
 
-        try router_.addLiquidityETH{value: requiredETH}(
+        try router_.addLiquidityETH{value: nativeAfterFee}(
             wrapperToken,
             tokenLiquidity,
-            minTokenLiquidity,
-            minNativeLiquidity,
+            0,
+            0,
             address(0x000000000000000000000000000000000000dEaD),
             block.timestamp + 300
-        ) returns (uint256, uint256, uint256 liquidity) {
+        ) returns (uint256 _amountToken, uint256 _amountETH, uint256 _liquidity) {
+            amountToken = _amountToken;
+            amountETH = _amountETH;
+            liquidity = _liquidity;
             address poolAddress = IPiperXFactory(factory_).getPair(wrapperToken, weth);
             emit Graduated(wrapperToken, liquidity, poolAddress);
         } catch {
             revert DexLiquidityFailed();
         }
 
-        if (excessETH > 0) {
-            _buybackAndBurn(wrapperToken, excessETH);
+        uint256 dustTokens = tokenLiquidity > amountToken ? (tokenLiquidity - amountToken) : 0;
+        uint256 dustETH = nativeAfterFee > amountETH ? (nativeAfterFee - amountETH) : 0;
+
+        if (dustTokens > 0) {
+            uint256 creatorTokens = dustTokens / 2;
+            uint256 treasuryTokens = dustTokens - creatorTokens;
+            if (creatorTokens > 0) IERC20(wrapperToken).safeTransfer(token.creator, creatorTokens);
+            if (treasuryTokens > 0) IERC20(wrapperToken).safeTransfer(treasury, treasuryTokens);
+        }
+
+        if (dustETH > 0) {
+            uint256 creatorDust = dustETH / 2;
+            uint256 treasuryDust = dustETH - creatorDust;
+            if (creatorDust > 0) _safeTransferETH(payable(token.creator), creatorDust);
+            if (treasuryDust > 0) _safeTransferETH(payable(treasury), treasuryDust);
         }
 
         SovryToken(wrapperToken).renounceOwnership();
     }
 
-    function harvest(address wrapperToken) external nonReentrant {
+    function depositRoyalties(address wrapperToken, uint256 wipAmount) external nonReentrant {
         if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
         if (wrapperToken == address(0)) revert InvalidAddress();
+        if (wipAmount == 0) revert InvalidAmount();
+
         LaunchedToken storage token = launchedTokens[wrapperToken];
         if (token.wrapperAddress == address(0)) revert UnknownToken();
+        if (wipAmount < 0.001 ether) revert RoyaltyTooSmall();
 
-        uint256 wipBalance = IWIP(wipToken).balanceOf(address(this));
-        if (wipBalance == 0) revert NoRoyalties();
+        IERC20(wipToken).safeTransferFrom(msg.sender, address(this), wipAmount);
 
         uint256 nativeBefore = address(this).balance;
-        IWIP(wipToken).withdraw(wipBalance);
-        uint256 nativeAfter = address(this).balance;
-
-        uint256 claimedAmount = nativeAfter > nativeBefore ? nativeAfter - nativeBefore : 0;
+        IWIP(wipToken).withdraw(wipAmount);
+        uint256 claimedAmount = address(this).balance - nativeBefore;
         if (claimedAmount == 0) revert NoRoyalties();
-        if (claimedAmount < 0.001 ether) revert RoyaltyTooSmall();
 
         token.totalRoyaltiesHarvested += claimedAmount;
         emit RoyaltiesHarvested(wrapperToken, claimedAmount);
@@ -603,6 +594,30 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             _checkGraduation(wrapperToken);
         } else {
             _buybackAndBurn(wrapperToken, claimedAmount);
+        }
+    }
+
+    function withdrawPending(address payable to) external nonReentrant {
+        if (to == address(0)) revert InvalidAddress();
+
+        uint256 amount = pendingWithdrawals[msg.sender];
+        if (amount == 0) revert InvalidAmount();
+
+        pendingWithdrawals[msg.sender] = 0;
+        (bool ok, ) = to.call{value: amount}("");
+        if (!ok) {
+            pendingWithdrawals[msg.sender] = amount;
+            revert TransferFailed();
+        }
+    }
+
+    function _safeTransferETH(address payable to, uint256 amount) internal {
+        if (amount == 0) return;
+
+        (bool ok, ) = to.call{value: amount}("");
+        if (!ok) {
+            pendingWithdrawals[to] += amount;
+            emit PendingWithdrawal(to, amount);
         }
     }
 
@@ -688,13 +703,14 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     function _buybackAndBurn(address wrapperToken, uint256 wipAmount) internal {
         IPiperXRouter router_ = IPiperXRouter(piperXRouter);
         address factory_ = router_.factory();
-        address pair = IPiperXFactory(factory_).getPair(wipToken, wrapperToken);
+        address weth = router_.WETH();
+        address pair = IPiperXFactory(factory_).getPair(weth, wrapperToken);
         if (pair == address(0)) {
             return;
         }
 
         address[] memory path = new address[](2);
-        path[0] = wipToken;
+        path[0] = weth;
         path[1] = wrapperToken;
 
         router_.swapExactETHForTokens{value: wipAmount}(
