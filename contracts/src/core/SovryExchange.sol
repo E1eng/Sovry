@@ -79,8 +79,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     uint256 public constant MAX_BASE_PRICE = 1e18;
     uint256 public constant MAX_PRICE_INCREMENT = 1e18;
 
-    uint256 public constant GRADUATION_DELAY = 15 minutes;
-
     address public immutable piperXRouter;
     address public immutable royaltyWorkflows;
     address public immutable wipToken;
@@ -427,12 +425,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (token.wrapperAddress != address(0)) {
             if (token.launchTime > 0 && block.timestamp >= token.launchTime) {
                 secondsSinceLaunch = block.timestamp - token.launchTime;
-
-                if (secondsSinceLaunch >= GRADUATION_DELAY) {
-                    secondsToGraduationDelay = 0;
-                } else {
-                    secondsToGraduationDelay = GRADUATION_DELAY - secondsSinceLaunch;
-                }
             }
 
             if (isActive) {
@@ -445,7 +437,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
             marketCap = getMarketCap(wrapperToken);
 
-            if (!token.graduated && isActive && marketCap >= graduationThreshold && secondsSinceLaunch >= GRADUATION_DELAY) {
+            if (!token.graduated && isActive && marketCap >= graduationThreshold) {
                 canGraduate = true;
             }
         }
@@ -472,8 +464,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 marketCap = getMarketCap(wrapperToken);
         if (marketCap < graduationThreshold) revert InvalidThreshold();
 
-        if (block.timestamp < token.launchTime + GRADUATION_DELAY) revert ExpiredDeadline();
-
         _graduate(wrapperToken);
     }
 
@@ -485,9 +475,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         uint256 marketCap = getMarketCap(wrapperToken);
         if (marketCap >= graduationThreshold) {
-            if (block.timestamp >= token.launchTime + GRADUATION_DELAY) {
-                _graduate(wrapperToken);
-            }
+            _graduate(wrapperToken);
         }
     }
 
