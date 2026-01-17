@@ -40,8 +40,7 @@ contract SovryFactory is AccessControl, ISovryFactory {
         if (treasury == address(0)) revert InvalidAddress();
 
         if (fee > 0) {
-            (bool ok, ) = payable(treasury).call{value: fee}("");
-            if (!ok) revert TransferFailed();
+            exchange.queueLaunchFee{value: fee}(treasury);
         }
 
         if (msg.value > fee) {

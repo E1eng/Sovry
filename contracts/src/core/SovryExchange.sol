@@ -557,7 +557,14 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         SovryToken(wrapperToken).renounceOwnership();
     }
 
-    function depositRoyalties(address wrapperToken, uint256 wipAmount) external nonReentrant {
+    function queueLaunchFee(address beneficiary) external payable nonReentrant {
+        if (beneficiary == address(0)) revert InvalidAddress();
+        if (msg.value == 0) revert InvalidAmount();
+
+        _enqueuePendingWithdrawal(beneficiary, msg.value);
+    }
+
+    function depositRoyalties(address wrapperToken, uint256 wipAmount, uint256 amountOutMin) external nonReentrant {
         if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
         if (wrapperToken == address(0)) revert InvalidAddress();
         if (wipAmount == 0) revert InvalidAmount();
@@ -578,9 +585,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         if (!token.graduated && bondingCurveActive[wrapperToken]) {
             _applyRoyaltiesToBondingCurve(wrapperToken, claimedAmount);
-            _checkGraduation(wrapperToken);
         } else {
-            _buybackAndBurn(wrapperToken, claimedAmount);
+            _buybackAndBurn(wrapperToken, claimedAmount, amountOutMin);
         }
     }
 
@@ -695,7 +701,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         IERC20(wrapperToken).safeTransfer(address(0x000000000000000000000000000000000000dEaD), amount);
     }
 
-    function _buybackAndBurn(address wrapperToken, uint256 wipAmount) internal {
+    function _buybackAndBurn(address wrapperToken, uint256 wipAmount, uint256 amountOutMin) internal {
         IPiperXRouter router_ = IPiperXRouter(piperXRouter);
         address factory_ = router_.factory();
         address weth = router_.WETH();
@@ -704,12 +710,14 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             return;
         }
 
+        if (amountOutMin == 0) revert InvalidAmount();
+
         address[] memory path = new address[](2);
         path[0] = weth;
         path[1] = wrapperToken;
 
         router_.swapExactETHForTokens{value: wipAmount}(
-            1,
+            amountOutMin,
             path,
             address(0x000000000000000000000000000000000000dEaD),
             block.timestamp + 300

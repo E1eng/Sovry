@@ -166,7 +166,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const curveBefore = await exchange.bondingCurves(wrapperAddress);
     const reserveBefore = curveBefore.reserveBalance;
 
-    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"))).to.emit(
+    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 1)).to.emit(
       exchange,
       "RoyaltiesHarvested"
     );
@@ -176,7 +176,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
 
     expect(reserveAfter.sub(reserveBefore)).to.equal(ethers.utils.parseEther("1"));
 
-    await expect(exchange.connect(trader).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"))).to.be
+    await expect(exchange.connect(trader).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 1)).to.be
       .revertedWithCustomError(
       exchange,
       "NotAuthorized"

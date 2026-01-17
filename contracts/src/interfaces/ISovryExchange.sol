@@ -68,7 +68,9 @@ interface ISovryExchange {
         address seller
     ) external;
 
-    function depositRoyalties(address wrapperToken, uint256 wipAmount) external;
+    function queueLaunchFee(address beneficiary) external payable;
+
+    function depositRoyalties(address wrapperToken, uint256 wipAmount, uint256 amountOutMin) external;
 
     function pendingWithdrawals(address beneficiary) external view returns (uint256);
 

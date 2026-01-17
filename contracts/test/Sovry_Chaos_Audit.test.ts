@@ -239,9 +239,9 @@ describe("Sovry Protocol - Chaos Audit", function () {
     await expect(exchange.graduate(wrapperAddress)).to.be.revertedWithCustomError(exchange, "DexLiquidityFailed");
   });
 
-  it("MEV surface: post-graduation buyback uses amountOutMin=1 (no slippage protection)", async function () {
-    // WHY: amountOutMin=1 allows sandwich/price manipulation against royalty buybacks.
-    // An attacker can make the swap execute at a terrible rate, extracting the royalty value.
+  it("MEV surface: post-graduation buyback amountOutMin must be keeper-controlled (slippage protection)", async function () {
+    // WHY: if amountOutMin is too low, sandwich/price manipulation can drain value from royalty buybacks.
+    // This test verifies the keeper can set a non-trivial amountOutMin (not hardcoded to 1).
     const { factory, exchange, piperXRouter, wip, rt, creator, keeper, trader, owner } = await deployFixture();
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
@@ -272,19 +272,19 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     // MockPiperXRouter emits:
     // SwapExactETHForTokensCalled(uint256 amountOutMin, address[] path, address to, uint256 amountIn)
-    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1")))
+    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 123))
       .to.emit(piperXRouter, "SwapExactETHForTokensCalled")
       .withArgs(
-        1,
+        123,
         anyValue,
         "0x000000000000000000000000000000000000dEaD",
         ethers.utils.parseEther("1")
       );
   });
 
-  it("Admin misconfig DoS: if treasury cannot receive ETH, Factory.launchToken is blocked", async function () {
-    // WHY: SovryFactory hard-pushes ETH to treasury and reverts on failure.
-    // If treasury is accidentally set to a contract that rejects ETH, launches are permanently blocked.
+  it("Admin misconfig: if treasury rejects ETH, launch fee is queued (no launch bricking)", async function () {
+    // WHY: Previously, Factory hard-pushed launchFee to treasury and would revert if treasury rejected ETH.
+    // This test ensures launch is NOT bricked and the fee is queued to pendingWithdrawals instead.
     const Reject = await ethers.getContractFactory("RejectETHCreator");
     const rejectTreasury = await Reject.deploy();
 
@@ -299,10 +299,16 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const basePrice = ethers.utils.parseEther("0.000000000000000001");
     const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
 
-    await expect(
-      factory.connect(creator).launchToken(rt.address, amountToLock, "Wrapper", "WRP", basePrice, priceIncrement, {
-        value: ethers.utils.parseEther("1"),
-      })
-    ).to.be.revertedWithCustomError(factory, "TransferFailed");
+    const launchFee = await factory.launchFee();
+
+    const tx = await factory
+      .connect(creator)
+      .launchToken(rt.address, amountToLock, "Wrapper", "WRP", basePrice, priceIncrement, {
+        value: launchFee,
+      });
+    const receipt = await tx.wait();
+    expect(receipt.status).to.equal(1);
+
+    expect(await exchange.pendingWithdrawals(rejectTreasury.address)).to.equal(launchFee);
   });
 });
