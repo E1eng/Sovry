@@ -12,7 +12,7 @@ import {
   Graduated as GraduatedEvent,
   GraduationThresholdUpdated as GraduationThresholdUpdatedEvent,
   SovryExchange as SovryExchangeContract,
-} from "../generated/SovryExchange/SovryExchange";
+} from "../generated/templates/SovryExchange/SovryExchange";
 
 import {
   Launchpad,
