@@ -45,11 +45,8 @@ graph TD;
     COST --> FEE["Ceil fee = baseCost * TRADE_FEE_BPS / 10000"];
     XB --> STATE["Update curve supply & reserveBalance"];
     STATE --> SEND["Transfer wrapper tokens to recipient"];
-    XB --> PAYC["_safeTransferETH to creator"];
-    PAYC --> FAIL_OR_OK["ETH send succeeds?"];
-    FAIL_OR_OK -->|Yes| EV["emit TokensPurchased"];
-    FAIL_OR_OK -->|No| PEND["pendingWithdrawals[creator] += fee"];
-    PEND --> EV;
+    XB --> ENQ["Queue fee via pendingWithdrawals"];
+    ENQ --> EV["emit TokensPurchased"];
 ```
 
 ## 4. Sell Flow (Trader sells wrapper for ETH)
@@ -63,11 +60,8 @@ graph TD;
     PRO --> FEE["Ceil fee = baseProceeds * TRADE_FEE_BPS / 10000"];
     XS --> STATE["Update curve supply & reserveBalance"];
     STATE --> PAYS["_safeTransferETH to seller (net)"];
-    XS --> PAYC["_safeTransferETH to creator (fee)"];
-    PAYC --> CREATOR_ETH["Creator receives or pending?"];
-    CREATOR_ETH -->|Success| EV["emit TokensSold"];
-    CREATOR_ETH -->|Failure| PEND["pendingWithdrawals[creator] += fee"];
-    PEND --> EV;
+    XS --> ENQ["Queue creator fee via pendingWithdrawals"];
+    ENQ --> EV["emit TokensSold"];
 ```
 
 ## 5. Royalty Deposit Flow (Keeper-driven per wrapper)
