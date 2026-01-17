@@ -327,7 +327,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         IERC20(wrapperToken).safeTransfer(recipient, amount);
 
         if (feeAmount > 0) {
-            _safeTransferETH(payable(token.creator), feeAmount);
+            _enqueuePendingWithdrawal(token.creator, feeAmount);
         }
 
         if (msg.value > totalCost) {
@@ -597,6 +597,14 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             pendingWithdrawals[msg.sender] = amount;
             revert TransferFailed();
         }
+    }
+
+    function _enqueuePendingWithdrawal(address beneficiary, uint256 amount) internal {
+        if (beneficiary == address(0)) revert InvalidAddress();
+        if (amount == 0) return;
+
+        pendingWithdrawals[beneficiary] += amount;
+        emit PendingWithdrawal(beneficiary, amount);
     }
 
     function _safeTransferETH(address payable to, uint256 amount) internal {
