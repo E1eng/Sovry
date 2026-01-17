@@ -20,86 +20,98 @@ graph LR;
 ## 2. Launch Flow
 ```mermaid
 graph TD;
-    C["Creator"] -->|Approve RT to Exchange| RTAPP["RT approve exchange amount"];
-    C -->|Router.launchToken (launch fee)| RL["SovryRouter.launchToken"];
+    C["Creator"] --> A1["Approve RT to Exchange"];
+    A1 --> RL["SovryRouter.launchToken (pays launch fee)"];
     RL --> FL["SovryFactory.launchToken"];
-    FL -->|Forward launch fee ETH| TREAS["Treasury receives fee"];
-    FL -->|Invoke| XLF["SovryExchange.launchTokenFromFactory"];
-    XLF -->|transferFrom creator| XRT["Exchange receives RT"];
-    XLF -->|Deploy wrapper| WNEW["New SovryToken wrapper"];
-    XLF -->|Mint totalWrapped to Exchange| WMINT["Wrapper mints to Exchange"];
-    XLF -->|Init bonding curve| CURVE["BondingCurve + LaunchedToken stored"];
+    FL --> A2["Forward launch fee ETH to treasury"];
+    A2 --> TREAS["Treasury receives fee"];
+    FL --> A3["Call SovryExchange.launchTokenFromFactory"];
+    A3 --> XLF["SovryExchange.launchTokenFromFactory"];
+    XLF --> XRT["Exchange receives RT (transferFrom creator)"];
+    XLF --> WNEW["Deploy SovryToken wrapper"];
+    XLF --> WMINT["Wrapper mints total supply to Exchange"];
+    XLF --> CURVE["Store BondingCurve + LaunchedToken state"];
     CURVE --> DONE["Token launched"];
 ```
 
 ## 3. Buy Flow (Trader purchases wrapper with ETH)
 ```mermaid
 graph TD;
-    T["Trader"] -->|Router.buyETH (msg.value)| RB["SovryRouter.buyETH"];
+    T["Trader"] --> A_BUY["Call Router.buyETH with msg.value"];
+    A_BUY --> RB["SovryRouter.buyETH"];
     RB --> XB["SovryExchange.buy"];
-    XB -->|Validate deadline & reserves| CHK["Parameter checks"];
+    XB --> CHK["Validate deadline & reserves"];
     CHK --> COST["BondingCurveLib.calculateBuyPrice"];
-    COST --> FEE["Fee = ceil(baseCost * TRADE_FEE_BPS / 10000)"];
+    COST --> FEE["Ceil fee = baseCost * TRADE_FEE_BPS / 10000"];
     XB --> STATE["Update curve supply & reserveBalance"];
     STATE --> SEND["Transfer wrapper tokens to recipient"];
     XB --> PAYC["_safeTransferETH to creator"];
-    PAYC -->|If ETH send fails| PEND["pendingWithdrawals[creator] += fee"];
-    XB --> EV["emit TokensPurchased"];
+    PAYC --> FAIL_OR_OK["ETH send succeeds?"];
+    FAIL_OR_OK -->|Yes| EV["emit TokensPurchased"];
+    FAIL_OR_OK -->|No| PEND["pendingWithdrawals[creator] += fee"];
+    PEND --> EV;
 ```
 
 ## 4. Sell Flow (Trader sells wrapper for ETH)
 ```mermaid
 graph TD;
-    T["Trader"] -->|Router.sell| RS["SovryRouter.sell"];
+    T["Trader"] --> A_SELL["Call Router.sell"];
+    A_SELL --> RS["SovryRouter.sell"];
     RS --> XS["SovryExchange.sell"];
     XS --> CHK["Validate deadline & holdings"];
     CHK --> PRO["BondingCurveLib.calculateSellPrice"];
-    PRO --> FEE["Fee = ceil(baseProceeds * TRADE_FEE_BPS / 10000)"];
+    PRO --> FEE["Ceil fee = baseProceeds * TRADE_FEE_BPS / 10000"];
     XS --> STATE["Update curve supply & reserveBalance"];
     STATE --> PAYS["_safeTransferETH to seller (net)"];
     XS --> PAYC["_safeTransferETH to creator (fee)"];
-    PAYC -->|If ETH send fails| PEND["pendingWithdrawals[creator] += fee"];
-    XS --> EV["emit TokensSold"];
+    PAYC --> CREATOR_ETH["Creator receives or pending?"];
+    CREATOR_ETH -->|Success| EV["emit TokensSold"];
+    CREATOR_ETH -->|Failure| PEND["pendingWithdrawals[creator] += fee"];
+    PEND --> EV;
 ```
 
 ## 5. Royalty Deposit Flow (Keeper-driven per wrapper)
 ```mermaid
 graph TD;
-    K["Keeper"] -->|depositRoyalties(wrapper, wipAmount)| XDR["SovryExchange.depositRoyalties"];
+    K["Keeper"] --> A_ROYALTY["Call depositRoyalties(wrapper, wipAmount)"];
+    A_ROYALTY --> XDR["SovryExchange.depositRoyalties"];
     XDR --> WIPIN["Transfer WIP from keeper"];
-    WIPIN --> UNWRAP["IWIP.withdraw -> native ETH"];
+    WIPIN --> UNWRAP["IWIP.withdraw to native ETH"];
     UNWRAP --> CLAIM["claimedAmount computed"];
-    CLAIM -->|Curve active & not graduated| PATH1["_applyRoyaltiesToBondingCurve"];
-    CLAIM -->|Else| PATH2["_buybackAndBurn"];
+    CLAIM --> DECIDE_ACTIVE{"Curve active and not graduated?"};
+    DECIDE_ACTIVE -->|Yes| PATH1["_applyRoyaltiesToBondingCurve"];
     PATH1 --> RES["Increase reserveBalance"];
     RES --> CHK["_checkGraduation"];
-    CHK -->|MarketCap >= threshold| GRAD["_graduate"];
+    CHK --> GRAD["Graduate if threshold met"];
+    DECIDE_ACTIVE -->|No| PATH2["_buybackAndBurn"];
     XDR --> EV["emit RoyaltiesHarvested"];
 ```
 
 ## 6. Graduation Flow (PiperX V2 addLiquidity + burn LP)
 ```mermaid
 graph TD;
-    GRAD["_graduate(wrapper)"] --> FLAG["token.graduated = true; curve inactive"];
+    GRAD["_graduate(wrapper)"] --> FLAG["Mark token graduated + disable curve"];
     FLAG --> NAT["nativeLiquidity = reserveBalance"];
     NAT --> FEES["feeTotal = 10% split creator / treasury"];
     FEES --> PAY["_safeTransferETH push-or-pull"];
-    PAY --> APPR["ERC20 approve PiperX router for tokenLiquidity"];
-    APPR --> ADD["router.addLiquidityETH{value:nativeAfterFee}(..., to=0x000...dEaD)"];
-    ADD --> LP["LP tokens minted directly to 0xdead"];
+    PAY --> APPR["Approve PiperX router for tokenLiquidity"];
+    APPR --> ADD["router.addLiquidityETH ... to 0x000...dEaD"];
+    ADD --> LP["LP tokens minted to 0xdead"];
     ADD --> EVT["emit Graduated(wrapper, liquidity, pair)"];
-    ADD --> DUST["dust tokens & ETH split creator / treasury"];
-    DUST --> REN["SovryToken(wrapper).renounceOwnership()"];
+    ADD --> DUST["Dust tokens & ETH split creator / treasury"];
+    DUST --> REN["SovryToken(wrapper) renounces ownership"];
 ```
 
 ## 7. Pending Withdrawal Flow (pull-based ETH claims)
 ```mermaid
 graph TD;
-    B["Beneficiary"] --> WP["SovryExchange.withdrawPending(to)"];
-    WP --> READ["amount = pendingWithdrawals[msg.sender]"];
-    READ -->|amount == 0| REVERT["revert InvalidAmount"];
-    READ -->|amount > 0| ZERO["Set pending to 0"];
-    ZERO --> CALL["to.call{value: amount}"];
-    CALL -->|Call failed| RESTORE["Restore pending; revert TransferFailed"];
-    CALL -->|Success| DONE["ETH received"];
+    B["Beneficiary"] --> WP["Call withdrawPending(to)"];
+    WP --> READ["Load pendingWithdrawals[msg.sender]"];
+    READ --> DECIDE_PENDING{"Amount > 0?"};
+    DECIDE_PENDING -->|No| REVERT["Revert InvalidAmount"];
+    DECIDE_PENDING -->|Yes| ZERO["Set pending to 0"];
+    ZERO --> CALL["Attempt to send ETH to 'to'"];
+    CALL --> DECIDE_CALL{"Call succeeded?"};
+    DECIDE_CALL -->|No| RESTORE["Restore pending & revert TransferFailed"];
+    DECIDE_CALL -->|Yes| DONE["ETH received"];
 ```
