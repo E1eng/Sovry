@@ -24,7 +24,10 @@ import {
   Candle,
   GraduationThresholdUpdate,
 } from "../generated/schema";
-import { WrapperToken as WrapperTemplate } from "../generated/templates";
+import {
+  SovryExchange as SovryExchangeTemplate,
+  WrapperToken as WrapperTemplate,
+} from "../generated/templates";
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -131,6 +134,12 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
   if (!exchangeResult.reverted) {
     launchpadId = exchangeResult.value.toHex();
   }
+
+  let existingLaunchpad = Launchpad.load(launchpadId);
+  if (existingLaunchpad == null && !exchangeResult.reverted) {
+    SovryExchangeTemplate.create(exchangeResult.value);
+  }
+
   let launchpad = getOrCreateLaunchpad(launchpadId);
 
   let wrapperId = event.params.wrapper.toHex();

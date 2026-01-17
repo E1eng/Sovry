@@ -33,13 +33,12 @@ dataSources:
           handler: handleTokenLaunched
       file: ./src/launchpad.ts
 
+templates:
   - kind: ethereum
     name: SovryExchange
     network: story-aeneid
     source:
-      address: "0x96Ca2E66d0ae229B16EE9aCbBA9B96470b28c8D4" # Aeneid launchpad (update for mainnet)
       abi: SovryExchange
-      startBlock: 12093886
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -71,7 +70,6 @@ dataSources:
           handler: handleGraduationThresholdUpdated
       file: ./src/launchpad.ts
 
-templates:
   - kind: ethereum
     name: WrapperToken
     network: story-aeneid

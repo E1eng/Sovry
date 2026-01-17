@@ -54,6 +54,7 @@ lerna-debug.log*
 .idea/
 .vscode/
 .Cursor/
+.windsurf/
 *.swp
 *.swo
 *~

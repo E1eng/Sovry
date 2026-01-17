@@ -1,5 +1,7 @@
 import { ethers } from "hardhat";
 import hre from "hardhat";
+import fs from "fs";
+import path from "path";
 
 async function main() {
   console.log("🚀 Deploying Sovry Protocol to", hre.network.name);
@@ -52,11 +54,13 @@ async function main() {
     deployer.address
   );
   await exchange.deployed();
+  const exchangeReceipt = await exchange.deployTransaction.wait();
   console.log("✅ SovryExchange deployed at:", exchange.address);
 
   const SovryFactory = await ethers.getContractFactory("SovryFactory");
   const factory = await SovryFactory.deploy(exchange.address);
   await factory.deployed();
+  const factoryReceipt = await factory.deployTransaction.wait();
   console.log("✅ SovryFactory deployed at:", factory.address);
 
   const piperRouter = new ethers.Contract(
@@ -70,6 +74,7 @@ async function main() {
   const SovryRouter = await ethers.getContractFactory("SovryRouter");
   const router = await SovryRouter.deploy(factory.address, exchange.address, weth);
   await router.deployed();
+  const routerReceipt = await router.deployTransaction.wait();
   console.log("✅ SovryRouter deployed at:", router.address);
 
   console.log("🔐 Wiring permissions...");
@@ -85,6 +90,41 @@ async function main() {
   console.log("SovryExchange  :", exchange.address);
   console.log("SovryFactory   :", factory.address);
   console.log("SovryRouter    :", router.address);
+
+  const deploymentsDir = path.join(__dirname, "..", "deployments");
+  fs.mkdirSync(deploymentsDir, { recursive: true });
+
+  const deployment = {
+    network: hre.network.name,
+    chainId: hre.network.config.chainId,
+    deployer: deployer.address,
+    config: {
+      treasury,
+      piperXRouter,
+      royaltyWorkflows,
+      wipToken,
+      weth,
+      graduationThreshold: graduationThreshold.toString(),
+      keeper: keeperAddress,
+    },
+    contracts: {
+      BondingCurveLib: bondingCurveLib.address,
+      SovryExchange: exchange.address,
+      SovryFactory: factory.address,
+      SovryRouter: router.address,
+    },
+    blocks: {
+      BondingCurveLib: bondingCurveLib.deployTransaction.blockNumber,
+      SovryExchange: exchangeReceipt.blockNumber,
+      SovryFactory: factoryReceipt.blockNumber,
+      SovryRouter: routerReceipt.blockNumber,
+      subgraphStartBlock: factoryReceipt.blockNumber,
+    },
+  };
+
+  const outPath = path.join(deploymentsDir, `${hre.network.name}.json`);
+  fs.writeFileSync(outPath, JSON.stringify(deployment, null, 2));
+  console.log("📝 Saved deployment file:", outPath);
 }
 
 main()
