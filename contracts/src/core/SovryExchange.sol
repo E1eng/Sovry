@@ -335,8 +335,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         }
 
         emit TokensPurchased(recipient, wrapperToken, amount, baseCost, feeAmount, token.creator);
-
-        _checkGraduation(wrapperToken);
     }
 
     function sell(
@@ -385,7 +383,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         _safeTransferETH(payable(seller), netProceeds);
 
         if (feeAmount > 0) {
-            _safeTransferETH(payable(token.creator), feeAmount);
+            _enqueuePendingWithdrawal(token.creator, feeAmount);
         }
 
         emit TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, token.creator);
@@ -455,7 +453,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     }
 
     function graduate(address wrapperToken) external nonReentrant {
-        _checkGraduation(wrapperToken);
         LaunchedToken storage token = launchedTokens[wrapperToken];
         if (token.wrapperAddress == address(0)) revert UnknownToken();
         if (token.graduated) revert TokenGraduated();
@@ -502,10 +499,12 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 treasuryCut = feeTotal - creatorCut;
 
         if (creatorCut > 0) {
-            _safeTransferETH(payable(token.creator), creatorCut);
+            (bool ok, ) = payable(token.creator).call{value: creatorCut}("");
+            if (!ok) revert TransferFailed();
         }
         if (treasuryCut > 0) {
-            _safeTransferETH(payable(treasury), treasuryCut);
+            (bool ok2, ) = payable(treasury).call{value: treasuryCut}("");
+            if (!ok2) revert TransferFailed();
         }
 
         uint256 nativeAfterFee = nativeLiquidity - feeTotal;
