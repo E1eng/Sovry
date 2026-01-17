@@ -558,6 +558,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     }
 
     function queueLaunchFee(address beneficiary) external payable nonReentrant {
+        if (msg.sender != factory) revert NotAuthorized();
         if (beneficiary == address(0)) revert InvalidAddress();
         if (msg.value == 0) revert InvalidAmount();
 
