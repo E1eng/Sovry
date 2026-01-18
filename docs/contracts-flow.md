@@ -23,13 +23,13 @@ graph TD;
     C["Creator"] --> A1["Approve RT to Exchange"];
     A1 --> RL["SovryRouter.launchToken (pays launch fee)"];
     RL --> FL["SovryFactory.launchToken"];
-    FL --> A2["Forward launch fee ETH to treasury"];
-    A2 --> TREAS["Treasury receives fee"];
+    FL --> A2["Call Exchange.queueLaunchFee(treasury)"];
+    A2 --> TREAS["Fee becomes withdrawable via pendingWithdrawals"];
     FL --> A3["Call SovryExchange.launchTokenFromFactory"];
     A3 --> XLF["SovryExchange.launchTokenFromFactory"];
     XLF --> XRT["Exchange receives RT (transferFrom creator)"];
     XLF --> WNEW["Deploy SovryToken wrapper"];
-    XLF --> WMINT["Wrapper mints total supply to Exchange"];
+    XLF --> WMINT["Wrapper mints fixed supply (18 decimals) to Exchange"];
     XLF --> CURVE["Store BondingCurve + LaunchedToken state"];
     CURVE --> DONE["Token launched"];
 ```
@@ -94,6 +94,10 @@ graph TD;
     ADD --> EVT["emit Graduated(wrapper, liquidity, pair)"];
     ADD --> DUST["Dust tokens & ETH split creator / treasury"];
     DUST --> REN["SovryToken(wrapper) renounces ownership"];
+    ADD --> FAIL{"addLiquidityETH reverts?"};
+    FAIL -->|Yes| FB["Fallback: send wrapper + ETH to treasury"];
+    FB --> EVT2["emit Graduated(wrapper, 0, address(0))"];
+    EVT2 --> REN2["SovryToken(wrapper) renounces ownership"];
 ```
 
 ## 7. Pending Withdrawal Flow (pull-based ETH claims)
@@ -108,4 +112,17 @@ graph TD;
     CALL --> DECIDE_CALL{"Call succeeded?"};
     DECIDE_CALL -->|No| RESTORE["Restore pending & revert TransferFailed"];
     DECIDE_CALL -->|Yes| DONE["ETH received"];
+```
+
+## 8. Redeem Flow (Burn wrapper for pro-rata RT)
+```mermaid
+graph TD;
+    U["Wrapper holder"] --> R1["Approve wrapper to Exchange"];
+    R1 --> R2["Call Exchange.redeem(wrapper, amount, recipient)"];
+    R2 --> S1["Compute rtAmount = amount * totalLocked / totalSupply"];
+    S1 --> B1["Transfer wrapper to Exchange"];
+    B1 --> B2["Burn wrapperAmount"];
+    B2 --> T1["Decrease totalLocked"];
+    T1 --> T2["Transfer rtAmount to recipient"];
+    T2 --> EV["emit TokensRedeemed"];
 ```

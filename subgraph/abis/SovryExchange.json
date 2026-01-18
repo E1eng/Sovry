@@ -28,6 +28,18 @@
   {
     "anonymous": false,
     "inputs": [
+      { "indexed": true, "name": "redeemer", "type": "address" },
+      { "indexed": true, "name": "wrapperToken", "type": "address" },
+      { "indexed": false, "name": "wrapperAmount", "type": "uint256" },
+      { "indexed": false, "name": "rtAmount", "type": "uint256" },
+      { "indexed": true, "name": "recipient", "type": "address" }
+    ],
+    "name": "TokensRedeemed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
       { "indexed": true, "name": "wrapperToken", "type": "address" },
       { "indexed": false, "name": "amount", "type": "uint256" }
     ],
@@ -57,6 +69,7 @@
       { "name": "rtAddress", "type": "address" },
       { "name": "wrapperAddress", "type": "address" },
       { "name": "creator", "type": "address" },
+      { "name": "ipAsset", "type": "address" },
       { "name": "launchTime", "type": "uint256" },
       { "name": "totalLocked", "type": "uint256" },
       { "name": "graduated", "type": "bool" },

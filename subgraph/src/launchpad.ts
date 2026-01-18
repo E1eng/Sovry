@@ -8,6 +8,7 @@ import {
 import {
   TokensPurchased as TokensPurchasedEvent,
   TokensSold as TokensSoldEvent,
+  TokensRedeemed as TokensRedeemedEvent,
   RoyaltiesHarvested as RoyaltiesHarvestedEvent,
   Graduated as GraduatedEvent,
   GraduationThresholdUpdated as GraduationThresholdUpdatedEvent,
@@ -21,6 +22,7 @@ import {
   Trade,
   Harvest,
   Graduation,
+  Redemption,
   Candle,
   GraduationThresholdUpdate,
 } from "../generated/schema";
@@ -63,6 +65,7 @@ function getOrCreateWrapper(
     wrapper = new WrapperToken(id);
     wrapper.launchpad = launchpadId;
     wrapper.rt = Address.zero();
+    wrapper.ipAsset = Address.zero();
     wrapper.creator = Address.zero();
     wrapper.launchTime = BigInt.zero();
     wrapper.totalLocked = BigInt.zero();
@@ -147,6 +150,7 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
 
   wrapper.launchpad = launchpadId;
   wrapper.rt = event.params.rt;
+  wrapper.ipAsset = Address.zero();
   wrapper.creator = event.params.creator;
   wrapper.launchTime = event.params.launchTime;
   wrapper.totalLocked = event.params.amount;
@@ -165,9 +169,12 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
     let tokenResult = exchange.try_launchedTokens(event.params.wrapper);
     if (!tokenResult.reverted) {
       // tuple layout matches SovryExchange.LaunchedToken public mapping getter
-      wrapper.totalRoyaltiesHarvested = tokenResult.value.value6;
-      wrapper.dexReserve = tokenResult.value.value8;
-      wrapper.initialCurveSupply = tokenResult.value.value9;
+      wrapper.ipAsset = tokenResult.value.value3;
+      wrapper.totalLocked = tokenResult.value.value5;
+      wrapper.graduated = tokenResult.value.value6;
+      wrapper.totalRoyaltiesHarvested = tokenResult.value.value7;
+      wrapper.dexReserve = tokenResult.value.value9;
+      wrapper.initialCurveSupply = tokenResult.value.value10;
     }
   }
 
@@ -178,6 +185,37 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
 
   launchpad.totalTokens += 1;
   launchpad.save();
+}
+
+export function handleTokensRedeemed(event: TokensRedeemedEvent): void {
+  let launchpadId = event.address.toHex();
+  getOrCreateLaunchpad(launchpadId).save();
+
+  let wrapper = getOrCreateWrapper(launchpadId, event.params.wrapperToken);
+  if (wrapper.totalLocked >= event.params.rtAmount) {
+    wrapper.totalLocked = wrapper.totalLocked.minus(event.params.rtAmount);
+  } else {
+    wrapper.totalLocked = BigInt.zero();
+  }
+  wrapper.updatedAt = event.block.timestamp;
+  wrapper.save();
+
+  let redeemer = getOrCreateUser(event.params.redeemer.toHex());
+
+  let redemptionId = event.transaction.hash
+    .toHex()
+    .concat("-")
+    .concat(event.logIndex.toString());
+
+  let redemption = new Redemption(redemptionId);
+  redemption.wrapper = wrapper.id;
+  redemption.redeemer = redeemer.id;
+  redemption.wrapperAmount = event.params.wrapperAmount;
+  redemption.rtAmount = event.params.rtAmount;
+  redemption.recipient = event.params.recipient;
+  redemption.txHash = event.transaction.hash;
+  redemption.timestamp = event.block.timestamp;
+  redemption.save();
 }
 
 export function handleTokensPurchased(event: TokensPurchasedEvent): void {

@@ -282,6 +282,138 @@ describe("Sovry Protocol - Chaos Audit", function () {
       );
   });
 
+  it("Redeem: burns wrapper and releases pro-rata RT", async function () {
+    const { factory, exchange, rt, creator, trader } = await deployFixture();
+
+    const RT_UNIT = ethers.BigNumber.from("1000000");
+    const amountToLock = RT_UNIT.mul(100);
+
+    const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
+
+    const wrapPerRt = await exchange.WRAP_PER_RT();
+    const buyAmount = RT_UNIT.mul(wrapPerRt);
+
+    const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+    const fee = baseCost.mul(await exchange.TRADE_FEE_BPS()).add(10000 - 1).div(10000);
+    const totalCost = baseCost.add(fee);
+
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = block.timestamp + 3600;
+    await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
+
+    const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
+
+    const tokenBefore = await exchange.launchedTokens(wrapperAddress);
+    const supplyBefore = await wrapper.totalSupply();
+    const traderRtBefore = await rt.balanceOf(trader.address);
+
+    const redeemAmount = ethers.utils.parseUnits("1000", 18);
+    const expectedRt = redeemAmount.mul(tokenBefore.totalLocked).div(supplyBefore);
+
+    await wrapper.connect(trader).approve(exchange.address, redeemAmount);
+
+    await expect(exchange.connect(trader).redeem(wrapperAddress, redeemAmount, trader.address))
+      .to.emit(exchange, "TokensRedeemed")
+      .withArgs(trader.address, wrapperAddress, redeemAmount, expectedRt, trader.address);
+
+    const tokenAfter = await exchange.launchedTokens(wrapperAddress);
+    const supplyAfter = await wrapper.totalSupply();
+    const traderRtAfter = await rt.balanceOf(trader.address);
+
+    expect(supplyAfter).to.equal(supplyBefore.sub(redeemAmount));
+    expect(tokenAfter.totalLocked).to.equal(tokenBefore.totalLocked.sub(expectedRt));
+    expect(traderRtAfter.sub(traderRtBefore)).to.equal(expectedRt);
+  });
+
+  it("Redeem: tiny wrapperAmount that rounds to 0 RT reverts", async function () {
+    const { factory, exchange, rt, creator } = await deployFixture();
+
+    const RT_UNIT = ethers.BigNumber.from("1000000");
+    const amountToLock = RT_UNIT.mul(100);
+
+    const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
+
+    await expect(exchange.redeem(wrapperAddress, 1, creator.address)).to.be.revertedWithCustomError(exchange, "InvalidAmount");
+  });
+
+  it("Graduation fallback: if addLiquidityETH reverts, wrapper liquidity goes to treasury and wrapper ownership is renounced", async function () {
+    const { factory, exchange, rt, creator, trader, treasury } = await deployFixture({
+      graduationThresholdWei: "0.000000000000000001",
+      revertAddLiquidity: true,
+      basePriceWei: "0.000000000000000010",
+      priceIncrementWei: "0.000000000000000001",
+    });
+
+    const RT_UNIT = ethers.BigNumber.from("1000000");
+    const amountToLock = RT_UNIT.mul(100);
+
+    const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
+
+    const wrapPerRt = await exchange.WRAP_PER_RT();
+    const buyAmount = RT_UNIT.mul(wrapPerRt);
+    const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+    const fee = baseCost.mul(await exchange.TRADE_FEE_BPS()).add(10000 - 1).div(10000);
+    const totalCost = baseCost.add(fee);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = block.timestamp + 3600;
+    await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
+
+    const tokenBefore = await exchange.launchedTokens(wrapperAddress);
+    const curveBefore = await exchange.bondingCurves(wrapperAddress);
+    const tokenLiquidity = tokenBefore.dexReserve.mul(wrapPerRt).add(curveBefore.currentSupply);
+
+    const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
+    const treasuryWrapperBefore = await wrapper.balanceOf(treasury.address);
+
+    await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
+
+    const treasuryWrapperAfter = await wrapper.balanceOf(treasury.address);
+    expect(treasuryWrapperAfter.sub(treasuryWrapperBefore)).to.equal(tokenLiquidity);
+
+    const curveAfter = await exchange.bondingCurves(wrapperAddress);
+    expect(curveAfter.currentSupply).to.equal(0);
+
+    expect(await wrapper.owner()).to.equal(ethers.constants.AddressZero);
+  });
+
+  it("Devil advocate: redeem() remains enabled after graduation (potential RT drain)", async function () {
+    const { factory, exchange, rt, creator, trader, owner } = await deployFixture();
+
+    const RT_UNIT = ethers.BigNumber.from("1000000");
+    const amountToLock = RT_UNIT.mul(100);
+
+    const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
+
+    // Force graduation quickly.
+    await exchange.connect(owner).updateGraduationThreshold(1);
+
+    // Seed curve reserve then graduate.
+    const wrapPerRt = await exchange.WRAP_PER_RT();
+    const buyAmount = RT_UNIT.mul(wrapPerRt);
+    const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+    const fee = baseCost.mul(await exchange.TRADE_FEE_BPS()).add(10000 - 1).div(10000);
+    const totalCost = baseCost.add(fee);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = block.timestamp + 3600;
+    await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
+
+    await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
+
+    const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
+    const supplyBefore = await wrapper.totalSupply();
+    const tokenBefore = await exchange.launchedTokens(wrapperAddress);
+
+    // Redeem after graduation still works today.
+    const redeemAmount = ethers.utils.parseUnits("1", 18);
+    await wrapper.connect(trader).approve(exchange.address, redeemAmount);
+    await expect(exchange.connect(trader).redeem(wrapperAddress, redeemAmount, trader.address)).to.emit(exchange, "TokensRedeemed");
+
+    const supplyAfter = await wrapper.totalSupply();
+    const tokenAfter = await exchange.launchedTokens(wrapperAddress);
+    expect(supplyAfter).to.equal(supplyBefore.sub(redeemAmount));
+    expect(tokenAfter.totalLocked.lt(tokenBefore.totalLocked)).to.equal(true);
+  });
+
   it("Admin misconfig: if treasury rejects ETH, launch fee is queued (no launch bricking)", async function () {
     // WHY: Previously, Factory hard-pushed launchFee to treasury and would revert if treasury rejected ETH.
     // This test ensures launch is NOT bricked and the fee is queued to pendingWithdrawals instead.

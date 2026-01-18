@@ -51,9 +51,11 @@ templates:
         - Deposit
         - Harvest
         - Graduation
+        - Redemption
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
+        - Candle
       abis:
         - name: SovryExchange
           file: ./abis/SovryExchange.json
@@ -62,6 +64,8 @@ templates:
           handler: handleTokensPurchased
         - event: TokensSold(indexed address,indexed address,uint256,uint256,uint256,address)
           handler: handleTokensSold
+        - event: TokensRedeemed(indexed address,indexed address,uint256,uint256,indexed address)
+          handler: handleTokensRedeemed
         - event: RoyaltiesHarvested(indexed address,uint256)
           handler: handleRoyaltiesHarvested
         - event: Graduated(indexed address,uint256,indexed address)

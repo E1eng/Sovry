@@ -11,6 +11,7 @@ type WrapperToken @entity {
   id: ID!                    # wrapper address
   launchpad: Launchpad!
   rt: Bytes!
+  ipAsset: Bytes!
   creator: Bytes!
   launchTime: BigInt!
   totalLocked: BigInt!
@@ -27,12 +28,25 @@ type WrapperToken @entity {
   harvests: [Harvest!]! @derivedFrom(field: "wrapper")
   graduations: [Graduation!]! @derivedFrom(field: "token")
   holders: [Holder!]! @derivedFrom(field: "wrapper")
+  redemptions: [Redemption!]! @derivedFrom(field: "wrapper")
+}
+
+type Redemption @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  redeemer: User
+  wrapperAmount: BigInt!
+  rtAmount: BigInt!
+  recipient: Bytes!
+  txHash: Bytes!
+  timestamp: BigInt!
 }
 
 type User @entity {
   id: ID!                    # user address
   trades: [Trade!]! @derivedFrom(field: "user")
   deposits: [Deposit!]! @derivedFrom(field: "user")
+  redemptions: [Redemption!]! @derivedFrom(field: "redeemer")
 }
 
 enum TradeType {
@@ -47,7 +61,7 @@ type Trade @entity {
   type: TradeType!
   amount: BigInt!            # wrapper units (smallest units)
   value: BigInt!             # base cost / proceeds
-  fee: BigInt!               # approximate 1% fee (for analytics)
+  fee: BigInt!               # fee amount (as emitted)
   txHash: Bytes!
   timestamp: BigInt!
 }
