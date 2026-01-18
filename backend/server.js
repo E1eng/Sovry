@@ -3,26 +3,23 @@ console.log('Express version:', require('express/package.json').version);
 
 const express = require('express');
 const cors = require('cors');
+const config = require('./config/env');
 
 // Note: Worker should be run separately on VPS
 // This server only handles API routes
 const apiRoutes = require('./routes');
 
 console.log('Dependencies loaded successfully');
-console.log('Using routes.js with 8 pools');
+console.log('Using routes.js with worker-backed pricing cache');
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = config.port;
 
 console.log('App created, port:', port);
 
 // Middleware
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || "http://localhost:3000",
-    "http://localhost:3010",
-    "http://localhost:3000"
-  ],
+  origin: config.frontendOrigins,
   credentials: true
 }));
 
@@ -35,7 +32,7 @@ app.get("/health", (req, res) => {
     status: "ok", 
     timestamp: new Date().toISOString(),
     version: "1.0.0",
-    environment: process.env.NODE_ENV || "development"
+    environment: config.nodeEnv
   });
 });
 
@@ -49,9 +46,9 @@ app.get("/", (req, res) => {
     endpoints: {
       health: "GET /health",
       pools: "GET /api/pools",
-      poolChart: "GET /api/pools/:address/chart",
-      assetRevenue: "GET /api/assets/:ipId/revenue",
-      assetMetadata: "GET /api/assets/:ipId/metadata"
+      ipPrice: "GET /api/ip-price",
+      refreshPrice: "POST /api/refresh-price",
+      workerStatus: "GET /api/worker/status"
     }
   });
 });
@@ -67,9 +64,9 @@ app.use((req, res) => {
     availableEndpoints: [
       "GET /health",
       "GET /api/pools",
-      "GET /api/pools/:address/chart",
-      "GET /api/assets/:ipId/revenue",
-      "GET /api/assets/:ipId/metadata"
+      "GET /api/ip-price",
+      "POST /api/refresh-price",
+      "GET /api/worker/status"
     ]
   });
 });
@@ -92,6 +89,6 @@ app.listen(port, () => {
   console.log(`🚀 Sovry DEX API Server running on port ${port}`);
   console.log(`📊 Health check: http://localhost:${port}/health`);
   console.log(`🔗 API endpoints: http://localhost:${port}/api`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`🌍 Environment: ${config.nodeEnv}`);
   console.log(`⏰ Started at: ${new Date().toISOString()}`);
 });

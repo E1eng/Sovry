@@ -1,10 +1,10 @@
 const axios = require('axios');
+const config = require('../config/env');
 
 class StoryscanService {
   constructor() {
-    this.baseURL = 'https://aeneid.storyscan.io';
-    this.apiKey = process.env.STORYSCAN_API_KEY;
-    
+    this.baseURL = config.storyscanApi.baseUrl;
+    this.apiKey = config.storyscanApi.apiKey;
     if (!this.apiKey) {
       console.warn('⚠️ STORYSCAN_API_KEY not found in environment variables');
     }
@@ -73,12 +73,14 @@ class StoryscanService {
       return price;
     }
 
-    // Fallback price for testnet (since IP token has no real market value on testnet)
-    // This simulates a realistic price for demonstration purposes
-    const fallbackPrice = 0.50; // $0.50 IP token price for testnet demo
-    console.warn(`⚠️ Using fallback IP price for testnet demo: $${fallbackPrice}`);
-    console.log('💡 Note: On testnet, IP tokens have no real value. This is a demo price.');
-    return fallbackPrice;
+    const rawFallback = config.pricing && config.pricing.ipPriceFallbackUsd ? config.pricing.ipPriceFallbackUsd : '';
+    const fallbackPrice = rawFallback ? parseFloat(rawFallback) : NaN;
+    if (Number.isFinite(fallbackPrice) && fallbackPrice > 0) {
+      console.warn(`⚠️ Using configured IP_PRICE_FALLBACK_USD: $${fallbackPrice}`);
+      return fallbackPrice;
+    }
+
+    return null;
   }
 
   /**

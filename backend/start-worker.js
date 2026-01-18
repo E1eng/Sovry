@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 // Start worker for VPS deployment
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
+const config = require('./config/env');
 const worker = require('./worker');
 
 console.log('🚀 Starting Sovry Worker on VPS...');
 console.log('📋 Worker Configuration:');
-console.log('   - StoryScan API: https://aeneid.storyscan.io/api/v2/stats');
-console.log('   - Update Interval: Every 1 minute');
+console.log(`   - StoryScan Base: ${config.storyscanApi.baseUrl}`);
+console.log(`   - Update Interval: Every ${Math.floor(config.scheduler.priceIntervalMs / 1000)}s`);
+console.log(`   - Harvest Interval: Every ${Math.floor(config.scheduler.harvestIntervalMs / 1000)}s`);
 console.log('   - Cache: In-memory');
 
 // Start the worker

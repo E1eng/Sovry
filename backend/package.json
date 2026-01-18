@@ -6,6 +6,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",
+    "start": "node server.js",
     "start:api": "node server.js",
     "start:worker": "node start-worker.js",
     "dev:worker": "nodemon start-worker.js"
@@ -19,5 +20,8 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
