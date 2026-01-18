@@ -41,6 +41,7 @@ interface IPiperXFactory {
 error InvalidAddress();
 error InvalidAmount();
 error InvalidPrice();
+error CurveParamsLocked();
 error InvalidThreshold();
 error CurveInactive();
 error TokenAlreadyLaunched();
@@ -58,6 +59,7 @@ error InvalidStep();
 error ParamsTooLarge();
 error UnknownToken();
 error MinListingRequired();
+error InvalidLaunchAmount();
 error DexLiquidityFailed();
 
 contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
@@ -72,12 +74,18 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     uint256 public constant RT_UNIT = 10 ** RT_DECIMALS;
     uint256 public constant MIN_LISTING_AMOUNT = 100 * RT_UNIT;
 
-    uint8 public constant WRAPPER_DECIMALS = 6;
+    uint8 public constant WRAPPER_DECIMALS = 18;
     uint256 public constant WRAP_UNIT = 10 ** WRAPPER_DECIMALS;
-    uint256 public constant WRAP_PER_RT = 1_000_000;
+    uint256 public constant WRAP_PER_RT = (10_000 * WRAP_UNIT) / RT_UNIT;
+    uint256 public constant LAUNCH_RT_AMOUNT = 100 * RT_UNIT;
+    uint256 public constant LAUNCH_WRAPPER_SUPPLY = 1_000_000 * WRAP_UNIT;
 
     uint256 public constant MAX_BASE_PRICE = 1e18;
     uint256 public constant MAX_PRICE_INCREMENT = 1e18;
+
+    uint128 public globalBasePrice;
+    uint128 public globalPriceIncrement;
+    bool public curveParamsLocked;
 
     address public immutable piperXRouter;
     address public immutable royaltyWorkflows;
@@ -102,6 +110,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         address rtAddress;
         address wrapperAddress;
         address creator;
+        address ipAsset;
         uint256 launchTime;
         uint256 totalLocked;
         bool graduated;
@@ -175,23 +184,36 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         emit GraduationThresholdUpdated(newThreshold);
     }
 
+    function setCurveParams(uint256 basePrice, uint256 priceIncrement) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (curveParamsLocked) revert CurveParamsLocked();
+        if (basePrice == 0 || basePrice > MAX_BASE_PRICE) revert InvalidPrice();
+        if (priceIncrement == 0 || priceIncrement > MAX_PRICE_INCREMENT) revert InvalidPrice();
+        globalBasePrice = uint128(basePrice);
+        globalPriceIncrement = uint128(priceIncrement);
+    }
+
     function launchTokenFromFactory(
         address rtAddress,
         uint256 amount,
+        address ipAsset,
         string calldata name,
         string calldata symbol,
-        uint256 basePrice,
-        uint256 priceIncrement,
         address creator
     ) external nonReentrant returns (address wrapperAddress) {
         if (msg.sender != factory) revert NotAuthorized();
         if (rtAddress == address(0)) revert InvalidAddress();
+        if (ipAsset == address(0)) revert InvalidAddress();
         if (creator == address(0)) revert InvalidAddress();
-        if (amount == 0) revert InvalidAmount();
-        if (basePrice == 0 || basePrice > MAX_BASE_PRICE) revert InvalidPrice();
-        if (priceIncrement == 0 || priceIncrement > MAX_PRICE_INCREMENT) revert InvalidPrice();
+        if (amount != LAUNCH_RT_AMOUNT) revert InvalidLaunchAmount();
+        uint256 basePrice = uint256(globalBasePrice);
+        uint256 priceIncrement = uint256(globalPriceIncrement);
+        if (basePrice == 0 || priceIncrement == 0) revert InvalidPrice();
         if (rtToWrapper[rtAddress] != address(0)) revert TokenAlreadyLaunched();
         if (amount < MIN_LISTING_AMOUNT) revert MinListingRequired();
+
+        if (!curveParamsLocked) {
+            curveParamsLocked = true;
+        }
 
         IERC20 rt = IERC20(rtAddress);
         uint256 userBalance = rt.balanceOf(creator);
@@ -224,6 +246,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             rtAddress: rtAddress,
             wrapperAddress: wrapperAddress,
             creator: creator,
+            ipAsset: ipAsset,
             launchTime: block.timestamp,
             totalLocked: amount,
             graduated: false,
@@ -389,6 +412,34 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         emit TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, token.creator);
     }
 
+    function redeem(
+        address wrapperToken,
+        uint256 wrapperAmount,
+        address recipient
+    ) external nonReentrant returns (uint256 rtAmount) {
+        if (wrapperToken == address(0)) revert InvalidAddress();
+        if (recipient == address(0)) revert InvalidAddress();
+        if (wrapperAmount == 0) revert InvalidAmount();
+
+        LaunchedToken storage token = launchedTokens[wrapperToken];
+        if (token.wrapperAddress == address(0)) revert UnknownToken();
+
+        uint256 supplyBefore = IERC20(wrapperToken).totalSupply();
+        if (supplyBefore == 0) revert InvalidAmount();
+
+        rtAmount = Math.mulDiv(wrapperAmount, token.totalLocked, supplyBefore);
+        if (rtAmount == 0) revert InvalidAmount();
+        if (rtAmount > token.totalLocked) revert InsufficientBalance();
+
+        IERC20(wrapperToken).safeTransferFrom(msg.sender, address(this), wrapperAmount);
+        SovryToken(wrapperToken).burn(wrapperAmount);
+
+        token.totalLocked -= rtAmount;
+        IERC20(token.rtAddress).safeTransfer(recipient, rtAmount);
+
+        emit TokensRedeemed(msg.sender, wrapperToken, wrapperAmount, rtAmount, recipient);
+    }
+
     function getMarketCap(address wrapperToken) public view returns (uint256) {
         if (!bondingCurveActive[wrapperToken]) return 0;
         LaunchedToken memory token = launchedTokens[wrapperToken];
@@ -499,12 +550,10 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 treasuryCut = feeTotal - creatorCut;
 
         if (creatorCut > 0) {
-            (bool ok, ) = payable(token.creator).call{value: creatorCut}("");
-            if (!ok) revert TransferFailed();
+            _safeTransferETH(payable(token.creator), creatorCut);
         }
         if (treasuryCut > 0) {
-            (bool ok2, ) = payable(treasury).call{value: treasuryCut}("");
-            if (!ok2) revert TransferFailed();
+            _safeTransferETH(payable(treasury), treasuryCut);
         }
 
         uint256 nativeAfterFee = nativeLiquidity - feeTotal;
@@ -534,7 +583,12 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             address poolAddress = IPiperXFactory(factory_).getPair(wrapperToken, weth);
             emit Graduated(wrapperToken, liquidity, poolAddress);
         } catch {
-            revert DexLiquidityFailed();
+            curve.currentSupply = 0;
+            IERC20(wrapperToken).safeTransfer(treasury, tokenLiquidity);
+            _safeTransferETH(payable(treasury), nativeAfterFee);
+            emit Graduated(wrapperToken, 0, address(0));
+            SovryToken(wrapperToken).renounceOwnership();
+            return;
         }
 
         uint256 dustTokens = tokenLiquidity > amountToken ? (tokenLiquidity - amountToken) : 0;
@@ -640,8 +694,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 soldRaw = initialCurveSupply > supply ? (initialCurveSupply - supply) : 0;
         uint256 soldUnits = soldRaw / WRAP_UNIT;
 
-        uint256 maxUnits = supply / WRAP_UNIT;
-        if (maxUnits == 0) {
+        uint256 remainingUnits = supply / WRAP_UNIT;
+        if (remainingUnits == 0) {
             uint256 newReserve2 = uint256(curve.reserveBalance) + claimedAmount;
             if (newReserve2 > type(uint128).max) revert ParamsTooLarge();
             curve.reserveBalance = uint128(newReserve2);
@@ -652,54 +706,26 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 basePrice = uint256(curve.basePrice);
         uint256 priceIncrement = uint256(curve.priceIncrement);
 
-        uint256 unitsToBuy;
+        uint256 unitsToBuy = BondingCurveLib.maxBuyUnits(
+            basePrice,
+            priceIncrement,
+            soldUnits,
+            claimedAmount,
+            remainingUnits
+        );
 
-        if (priceIncrement == 0) {
-            uint256 currentPricePerUnit = basePrice;
-            if (currentPricePerUnit == 0) {
-                uint256 newReserve3 = uint256(curve.reserveBalance) + claimedAmount;
-                if (newReserve3 > type(uint128).max) revert ParamsTooLarge();
-                curve.reserveBalance = uint128(newReserve3);
-                totalCurveReserves += claimedAmount;
-                return;
-            }
-            unitsToBuy = claimedAmount / currentPricePerUnit;
-        } else {
-            uint256 B = basePrice + (priceIncrement * soldUnits);
-            uint256 twoAC = 2 * priceIncrement * claimedAmount;
-            uint256 D = (B * B) + twoAC;
-            uint256 sqrtD = Math.sqrt(D);
-            if (sqrtD <= B) {
-                uint256 newReserve4 = uint256(curve.reserveBalance) + claimedAmount;
-                if (newReserve4 > type(uint128).max) revert ParamsTooLarge();
-                curve.reserveBalance = uint128(newReserve4);
-                totalCurveReserves += claimedAmount;
-                return;
-            }
-            unitsToBuy = (sqrtD - B) / priceIncrement;
+        if (unitsToBuy > 0) {
+            uint256 wrapperToBurn = unitsToBuy * WRAP_UNIT;
+            uint256 newSupply = supply - wrapperToBurn;
+            if (newSupply > type(uint128).max) revert ParamsTooLarge();
+            curve.currentSupply = uint128(newSupply);
+            SovryToken(wrapperToken).burn(wrapperToBurn);
         }
 
-        if (unitsToBuy > maxUnits) unitsToBuy = maxUnits;
-        if (unitsToBuy == 0) {
-            uint256 newReserve5 = uint256(curve.reserveBalance) + claimedAmount;
-            if (newReserve5 > type(uint128).max) revert ParamsTooLarge();
-            curve.reserveBalance = uint128(newReserve5);
-            totalCurveReserves += claimedAmount;
-            return;
-        }
-
-        uint256 amount = unitsToBuy * WRAP_UNIT;
-
-        uint256 newSupply = supply - amount;
-        if (newSupply > type(uint128).max) revert ParamsTooLarge();
-        curve.currentSupply = uint128(newSupply);
-
-        uint256 newReserve6 = uint256(curve.reserveBalance) + claimedAmount;
-        if (newReserve6 > type(uint128).max) revert ParamsTooLarge();
-        curve.reserveBalance = uint128(newReserve6);
+        uint256 newReserve3 = uint256(curve.reserveBalance) + claimedAmount;
+        if (newReserve3 > type(uint128).max) revert ParamsTooLarge();
+        curve.reserveBalance = uint128(newReserve3);
         totalCurveReserves += claimedAmount;
-
-        IERC20(wrapperToken).safeTransfer(address(0x000000000000000000000000000000000000dEaD), amount);
     }
 
     function _buybackAndBurn(address wrapperToken, uint256 wipAmount, uint256 amountOutMin) internal {

@@ -20,6 +20,14 @@ interface ISovryExchange {
         address feeRecipient
     );
 
+    event TokensRedeemed(
+        address indexed redeemer,
+        address indexed wrapperToken,
+        uint256 wrapperAmount,
+        uint256 rtAmount,
+        address indexed recipient
+    );
+
     event PendingWithdrawal(address indexed beneficiary, uint256 amount);
 
     event RoyaltiesHarvested(address indexed wrapperToken, uint256 amount);
@@ -41,10 +49,9 @@ interface ISovryExchange {
     function launchTokenFromFactory(
         address rtAddress,
         uint256 amount,
+        address ipAsset,
         string calldata name,
         string calldata symbol,
-        uint256 basePrice,
-        uint256 priceIncrement,
         address creator
     ) external returns (address wrapperAddress);
 
@@ -67,6 +74,8 @@ interface ISovryExchange {
         uint256 deadline,
         address seller
     ) external;
+
+    function redeem(address wrapperToken, uint256 wrapperAmount, address recipient) external returns (uint256 rtAmount);
 
     function queueLaunchFee(address beneficiary) external payable;
 

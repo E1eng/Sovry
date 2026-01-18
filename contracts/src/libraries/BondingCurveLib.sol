@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import "@openzeppelin/contracts/utils/math/Math.sol";
+
 /**
  * @title BondingCurveLib
  * @notice Library for bonding curve calculations
@@ -34,23 +36,10 @@ library BondingCurveLib {
         uint256 amount,
         uint256 wrapUnit
     ) internal pure returns (uint256 totalCost) {
-        // Calculate sold tokens
-        uint256 soldRaw = initialCurveSupply > currentSupply
-            ? (initialCurveSupply - currentSupply)
-            : 0;
-        
+        uint256 soldRaw = initialCurveSupply > currentSupply ? (initialCurveSupply - currentSupply) : 0;
         uint256 soldUnits = soldRaw / wrapUnit;
         uint256 amountUnits = amount / wrapUnit;
-
-        // Base cost: basePrice * amountUnits
-        uint256 baseCost = basePrice * amountUnits;
-
-        // Increment cost: priceIncrement * (soldUnits * amountUnits + amountUnits^2 / 2)
-        uint256 term1 = priceIncrement * soldUnits * amountUnits;
-        uint256 term2 = (priceIncrement * amountUnits * amountUnits) / 2;
-
-        uint256 incrementCost = term1 + term2;
-        totalCost = baseCost + incrementCost;
+        return buyCost(basePrice, priceIncrement, soldUnits, amountUnits);
     }
 
     /**
@@ -71,23 +60,10 @@ library BondingCurveLib {
         uint256 amount,
         uint256 wrapUnit
     ) internal pure returns (uint256 totalProceeds) {
-        // Calculate sold tokens
-        uint256 soldRaw = initialCurveSupply > currentSupply
-            ? (initialCurveSupply - currentSupply)
-            : 0;
-        
+        uint256 soldRaw = initialCurveSupply > currentSupply ? (initialCurveSupply - currentSupply) : 0;
         uint256 soldUnits = soldRaw / wrapUnit;
         uint256 amountUnits = amount / wrapUnit;
-
-        // Base proceeds: basePrice * amountUnits
-        uint256 baseProceeds = basePrice * amountUnits;
-
-        // Increment proceeds: priceIncrement * (soldUnits * amountUnits - amountUnits^2 / 2)
-        uint256 term1 = priceIncrement * soldUnits * amountUnits;
-        uint256 term2 = (priceIncrement * amountUnits * amountUnits) / 2;
-
-        uint256 incrementProceeds = term1 - term2;
-        totalProceeds = baseProceeds + incrementProceeds;
+        return sellProceeds(basePrice, priceIncrement, soldUnits, amountUnits);
     }
 
     /**
@@ -105,11 +81,70 @@ library BondingCurveLib {
      * @param wrapUnit Wrapper unit for normalization
      * @return price Current price per token
      */
-    function getCurrentPrice(
-        Curve memory curve,
-        uint256 wrapUnit
-    ) internal pure returns (uint256 price) {
+    function getCurrentPrice(Curve memory curve, uint256 wrapUnit) internal pure returns (uint256 price) {
         uint256 soldUnits = curve.currentSupply / wrapUnit;
         price = curve.basePrice + (soldUnits * curve.priceIncrement);
+    }
+
+    function buyCost(
+        uint256 basePriceWei,
+        uint256 priceIncrementWei,
+        uint256 soldUnits,
+        uint256 buyUnits
+    ) internal pure returns (uint256) {
+        if (buyUnits == 0) return 0;
+        uint256 baseCost = basePriceWei * buyUnits;
+        uint256 incrementCost = priceIncrementWei * ((soldUnits * buyUnits) + ((buyUnits * (buyUnits - 1)) / 2));
+        return baseCost + incrementCost;
+    }
+
+    function sellProceeds(
+        uint256 basePriceWei,
+        uint256 priceIncrementWei,
+        uint256 soldUnits,
+        uint256 sellUnits
+    ) internal pure returns (uint256) {
+        if (sellUnits == 0) return 0;
+        uint256 baseProceeds = basePriceWei * sellUnits;
+        uint256 incrementProceeds = priceIncrementWei * ((sellUnits * (soldUnits - 1)) - ((sellUnits * (sellUnits - 1)) / 2));
+        return baseProceeds + incrementProceeds;
+    }
+
+    function maxBuyUnits(
+        uint256 basePriceWei,
+        uint256 priceIncrementWei,
+        uint256 soldUnits,
+        uint256 ethIn,
+        uint256 remainingUnits
+    ) internal pure returns (uint256) {
+        if (ethIn == 0 || remainingUnits == 0) return 0;
+
+        if (priceIncrementWei == 0) {
+            if (basePriceWei == 0) return 0;
+            uint256 n0 = ethIn / basePriceWei;
+            return n0 > remainingUnits ? remainingUnits : n0;
+        }
+
+        uint256 B = basePriceWei + (priceIncrementWei * soldUnits);
+        uint256 D = (B * B) + (2 * priceIncrementWei * ethIn);
+        uint256 sqrtD = Math.sqrt(D);
+        if (sqrtD <= B) return 0;
+
+        uint256 n = (sqrtD - B) / priceIncrementWei;
+        if (n > remainingUnits) n = remainingUnits;
+
+        while (n > 0 && buyCost(basePriceWei, priceIncrementWei, soldUnits, n) > ethIn) {
+            unchecked {
+                n -= 1;
+            }
+        }
+
+        while (n < remainingUnits && buyCost(basePriceWei, priceIncrementWei, soldUnits, n + 1) <= ethIn) {
+            unchecked {
+                n += 1;
+            }
+        }
+
+        return n;
     }
 }

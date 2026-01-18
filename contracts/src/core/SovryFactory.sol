@@ -28,13 +28,14 @@ contract SovryFactory is AccessControl, ISovryFactory {
     function launchToken(
         address rtAddress,
         uint256 amount,
+        address ipAsset,
         string calldata name,
-        string calldata symbol,
-        uint256 basePrice,
-        uint256 priceIncrement
+        string calldata symbol
     ) external payable returns (address wrapperAddress) {
         uint256 fee = launchFee;
         if (msg.value < fee) revert LaunchFeeTooLow();
+
+        if (ipAsset == address(0)) revert InvalidAddress();
 
         address treasury = exchange.treasury();
         if (treasury == address(0)) revert InvalidAddress();
@@ -51,10 +52,9 @@ contract SovryFactory is AccessControl, ISovryFactory {
         wrapperAddress = exchange.launchTokenFromFactory(
             rtAddress,
             amount,
+            ipAsset,
             name,
             symbol,
-            basePrice,
-            priceIncrement,
             msg.sender
         );
 

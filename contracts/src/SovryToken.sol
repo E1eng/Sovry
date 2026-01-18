@@ -66,7 +66,7 @@ contract SovryToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
     }
 
     function decimals() public pure override returns (uint8) {
-        return 6;
+        return 18;
     }
 
     /**

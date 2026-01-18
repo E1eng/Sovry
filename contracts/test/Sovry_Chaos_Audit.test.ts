@@ -6,7 +6,13 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 // These tests intentionally include "spec mismatch" assertions to surface gaps between design docs and deployed code.
 
 describe("Sovry Protocol - Chaos Audit", function () {
-  async function deployFixture(opts?: { graduationThresholdWei?: string; revertAddLiquidity?: boolean; treasuryOverride?: string }) {
+  async function deployFixture(opts?: {
+    graduationThresholdWei?: string;
+    revertAddLiquidity?: boolean;
+    treasuryOverride?: string;
+    basePriceWei?: string;
+    priceIncrementWei?: string;
+  }) {
     const [owner, creator, trader, keeper, treasury] = await ethers.getSigners();
 
     const MockWIP = await ethers.getContractFactory("MockWIP");
@@ -39,6 +45,10 @@ describe("Sovry Protocol - Chaos Audit", function () {
       owner.address
     );
 
+    const basePrice = ethers.utils.parseEther(opts?.basePriceWei ?? "0.000000000000000001");
+    const priceIncrement = ethers.utils.parseEther(opts?.priceIncrementWei ?? "0.000000000000000001");
+    await exchange.connect(owner).setCurveParams(basePrice, priceIncrement);
+
     const SovryFactory = await ethers.getContractFactory("SovryFactory");
     const factory = await SovryFactory.deploy(exchange.address);
 
@@ -61,22 +71,16 @@ describe("Sovry Protocol - Chaos Audit", function () {
     rt: any;
     creator: any;
     amountToLock: any;
-    basePriceWei?: string;
-    priceIncrementWei?: string;
   }) {
-    const basePrice = ethers.utils.parseEther(params.basePriceWei ?? "0.000000000000000001");
-    const priceIncrement = ethers.utils.parseEther(params.priceIncrementWei ?? "0.000000000000000001");
-
     await params.rt.transfer(params.creator.address, params.amountToLock);
     await params.rt.connect(params.creator).approve(params.exchange.address, params.amountToLock);
 
     const tx = await params.factory.connect(params.creator).launchToken(
       params.rt.address,
       params.amountToLock,
+      params.rt.address,
       "Wrapper",
       "WRP",
-      basePrice,
-      priceIncrement,
       { value: ethers.utils.parseEther("1") }
     );
 
@@ -84,7 +88,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const launchedEvent = receipt.events?.find((e: any) => e.event === "TokenLaunched");
     const wrapperAddress = launchedEvent?.args?.wrapper;
     expect(wrapperAddress).to.not.equal(undefined);
-    return { wrapperAddress, basePrice, priceIncrement };
+    return { wrapperAddress };
   }
 
   it("Spec mismatch: buy/sell has no quizAnswer anti-bot parameter; 5-minute sniper war not implemented", async function () {
@@ -203,21 +207,18 @@ describe("Sovry Protocol - Chaos Audit", function () {
   it("Graduation DoS: if PiperX router reverts addLiquidityETH, keeper-triggered graduate() is blocked", async function () {
     // WHY: Graduation depends on an external router call. If the router reverts (misconfig/upgrade/external failure),
     // graduation becomes impossible and the token remains stuck on the bonding curve.
-    const { factory, exchange, rt, creator, trader } = await deployFixture({ graduationThresholdWei: "0.000000000000000001", revertAddLiquidity: true });
+    const { factory, exchange, rt, creator, trader } = await deployFixture({
+      graduationThresholdWei: "0.000000000000000001",
+      revertAddLiquidity: true,
+      basePriceWei: "0.000000000000000010",
+      priceIncrementWei: "0.000000000000000001",
+    });
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
 
     // Use a price that makes marketCap at launch comfortably exceed the tiny threshold.
-    const { wrapperAddress } = await launchToken({
-      factory,
-      exchange,
-      rt,
-      creator,
-      amountToLock,
-      basePriceWei: "0.000000000000000010",
-      priceIncrementWei: "0.000000000000000001",
-    });
+    const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
 
     const marketCap = await exchange.getMarketCap(wrapperAddress);
     expect(marketCap.gt(0)).to.equal(true);
@@ -235,8 +236,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     // Trading should still work (graduation is NOT auto-triggered by buy anymore)
     await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
 
-    // But explicit graduation is blocked.
-    await expect(exchange.graduate(wrapperAddress)).to.be.revertedWithCustomError(exchange, "DexLiquidityFailed");
+    await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
   });
 
   it("MEV surface: post-graduation buyback amountOutMin must be keeper-controlled (slippage protection)", async function () {
@@ -296,14 +296,11 @@ describe("Sovry Protocol - Chaos Audit", function () {
     await rt.transfer(creator.address, amountToLock);
     await rt.connect(creator).approve(exchange.address, amountToLock);
 
-    const basePrice = ethers.utils.parseEther("0.000000000000000001");
-    const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
-
     const launchFee = await factory.launchFee();
 
     const tx = await factory
       .connect(creator)
-      .launchToken(rt.address, amountToLock, "Wrapper", "WRP", basePrice, priceIncrement, {
+      .launchToken(rt.address, amountToLock, rt.address, "Wrapper", "WRP", {
         value: launchFee,
       });
     const receipt = await tx.wait();

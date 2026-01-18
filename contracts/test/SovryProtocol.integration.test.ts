@@ -28,6 +28,10 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
       owner.address
     );
 
+    const basePrice = ethers.utils.parseEther("0.000000000000000001");
+    const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
+    await exchange.connect(owner).setCurveParams(basePrice, priceIncrement);
+
     const SovryFactory = await ethers.getContractFactory("SovryFactory");
     const factory = await SovryFactory.deploy(exchange.address);
 
@@ -66,17 +70,13 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     await rt.transfer(creator.address, amountToLock);
     await rt.connect(creator).approve(exchange.address, amountToLock);
 
-    const basePrice = ethers.utils.parseEther("0.000000000000000001");
-    const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
-
     await expect(
       factory.connect(creator).launchToken(
         rt.address,
         amountToLock,
+        rt.address,
         "Wrapper",
         "WRP",
-        basePrice,
-        priceIncrement,
         { value: ethers.utils.parseEther("1") }
       )
     ).to.emit(factory, "TokenLaunched");
@@ -91,16 +91,12 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     await rt.transfer(creator.address, amountToLock);
     await rt.connect(creator).approve(exchange.address, amountToLock);
 
-    const basePrice = ethers.utils.parseEther("0.000000000000000001");
-    const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
-
     const launchTx = await factory.connect(creator).launchToken(
       rt.address,
       amountToLock,
+      rt.address,
       "Wrapper",
       "WRP",
-      basePrice,
-      priceIncrement,
       { value: ethers.utils.parseEther("1") }
     );
     const receipt = await launchTx.wait();
@@ -143,16 +139,12 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     await rt.transfer(creator.address, amountToLock);
     await rt.connect(creator).approve(exchange.address, amountToLock);
 
-    const basePrice = ethers.utils.parseEther("0.000000000000000001");
-    const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
-
     const launchTx = await factory.connect(creator).launchToken(
       rt.address,
       amountToLock,
+      rt.address,
       "Wrapper",
       "WRP",
-      basePrice,
-      priceIncrement,
       { value: ethers.utils.parseEther("1") }
     );
     const receipt = await launchTx.wait();
@@ -193,18 +185,14 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const amountToLock = RT_UNIT.mul(100);
     await rt.mint(rejectCreator.address, amountToLock);
 
-    const basePrice = ethers.utils.parseEther("0.000000000000000001");
-    const priceIncrement = ethers.utils.parseEther("0.000000000000000001");
-
     const wrapperAddress = await rejectCreator.callStatic.launch(
       factory.address,
       exchange.address,
       rt.address,
       amountToLock,
+      rt.address,
       "Wrapper",
       "WRP",
-      basePrice,
-      priceIncrement,
       { value: ethers.utils.parseEther("1") }
     );
 
@@ -213,10 +201,9 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
       exchange.address,
       rt.address,
       amountToLock,
+      rt.address,
       "Wrapper",
       "WRP",
-      basePrice,
-      priceIncrement,
       { value: ethers.utils.parseEther("1") }
     );
 

@@ -11,10 +11,9 @@ interface ISovryRouter {
     function launchToken(
         address rtAddress,
         uint256 amount,
+        address ipAsset,
         string calldata name,
-        string calldata symbol,
-        uint256 basePrice,
-        uint256 priceIncrement
+        string calldata symbol
     ) external payable returns (address wrapperAddress);
 
     function buyETH(
