@@ -13,6 +13,8 @@ async function getPoolsFromGoldsky() {
         dexReserve
         initialCurveSupply
         totalRoyaltiesHarvested
+        poolAddress
+        lpTokenId
       }
     }
   `;
