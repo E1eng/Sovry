@@ -6,8 +6,10 @@ const KEEPER_PRIVATE_KEY = process.env.HARVESTER_PRIVATE_KEY || process.env.KEEP
 
 const EXCHANGE_ABI = [
   'function collectDexFees(address wrapperToken, uint256 amountOutMin) external',
+  'function processRevenue(address wrapperToken) external',
   'function lpTokenIds(address wrapperToken) view returns (uint256)',
   'function launchedTokens(address wrapper) view returns (address rt,address wrapperAddress,address creator,address ipAsset,uint256 launchTime,uint256 totalLocked,bool graduated,uint256 totalRoyaltiesHarvested,address vaultAddress,uint256 dexReserve,uint256 initialCurveSupply)',
+  'function accumulatedRoyaltyNative(address wrapperToken) view returns (uint256)',
 ];
 
 let provider;
@@ -68,8 +70,8 @@ async function runRoyaltyHarvestCycle() {
   try {
     const wrappers = await fetchGraduatedWrappers();
     if (!wrappers || wrappers.length === 0) {
-      console.log('[HARVEST] No graduated wrappers with LP NFT found; skipping collectDexFees');
-      return { success: true, processed: 0, harvested: 0, skipped: 0 };
+      console.log('[HARVEST] No graduated wrappers with LP NFT found; skipping keeper cycle');
+      return { success: true, processed: 0, harvested: 0, skipped: 0, revenues: 0 };
     }
 
     const ex = getExchange();
@@ -79,6 +81,7 @@ async function runRoyaltyHarvestCycle() {
     let processed = 0;
     let harvested = 0;
     let skipped = 0;
+    let revenuesProcessed = 0;
 
     for (const wrapper of wrappers) {
       processed += 1;
@@ -102,13 +105,35 @@ async function runRoyaltyHarvestCycle() {
           error && error.message ? error.message : error,
         );
       }
+
+      try {
+        const pendingRoyalty = await ex.accumulatedRoyaltyNative(wrapper);
+        if (pendingRoyalty.gt(0)) {
+          console.log(`[HARVEST] processRevenue on ${wrapper} (queued ${pendingRoyalty.toString()} wei)`);
+          const gasEstimate = await ex.estimateGas.processRevenue(wrapper);
+          const tx = await ex.processRevenue(wrapper, {
+            gasLimit: gasEstimate.mul(120).div(100),
+            gasPrice,
+          });
+          const receipt = await tx.wait();
+          console.log(
+            `[HARVEST] processRevenue confirmed for ${wrapper}: status=${receipt.status}, gasUsed=${receipt.gasUsed.toString()}`,
+          );
+          revenuesProcessed += 1;
+        }
+      } catch (error) {
+        console.warn(
+          `[HARVEST] processRevenue failed for ${wrapper}:`,
+          error && error.message ? error.message : error,
+        );
+      }
     }
 
     console.log(
-      `[HARVEST] collectDexFees cycle completed. processed=${processed}, harvested=${harvested}, skipped=${skipped}`,
+      `[HARVEST] keeper cycle completed. processed=${processed}, harvested=${harvested}, skipped=${skipped}, revenues=${revenuesProcessed}`,
     );
 
-    return { success: true, processed, harvested, skipped };
+    return { success: true, processed, harvested, skipped, revenues: revenuesProcessed };
   } catch (error) {
     console.error('[HARVEST] Error in collectDexFees cycle:', error);
     return {
