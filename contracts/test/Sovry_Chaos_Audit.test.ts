@@ -311,6 +311,49 @@ describe("Sovry Protocol - Chaos Audit", function () {
     expect(ipAssetWipAfter.sub(ipAssetWipBefore)).to.equal(wipAmount.sub(half));
   });
 
+  it("processRevenue: keeper wraps queued native fees into WIP via royalty module", async function () {
+    const { factory, exchange, rt, creator, trader, keeper, royaltyWorkflows, wip } = await deployFixture();
+
+    const RT_UNIT = ethers.BigNumber.from("1000000");
+    const amountToLock = RT_UNIT.mul(100);
+
+    const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
+
+    const wrapPerRt = await exchange.WRAP_PER_RT();
+    const buyAmount = RT_UNIT.mul(wrapPerRt);
+    const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+    const fee = baseCost.mul(await exchange.TRADE_FEE_BPS()).add(10000 - 1).div(10000);
+    const treasuryShare = fee.div(2);
+    const ipaShare = fee.sub(treasuryShare);
+    const totalCost = baseCost.add(fee);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = block.timestamp + 3600;
+
+    await exchange
+      .connect(trader)
+      .buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
+
+    expect(await exchange.accumulatedRoyaltyNative(wrapperAddress)).to.equal(ipaShare);
+
+    const ipAsset = (await exchange.launchedTokens(wrapperAddress)).ipAsset;
+    const wipBefore = await wip.balanceOf(ipAsset);
+
+    await expect(exchange.connect(keeper).processRevenue(wrapperAddress))
+      .to.emit(exchange, "RoyaltyRevenueProcessed")
+      .withArgs(wrapperAddress, ipaShare, ipAsset);
+
+    expect(await exchange.accumulatedRoyaltyNative(wrapperAddress)).to.equal(0);
+
+    const wipAfter = await wip.balanceOf(ipAsset);
+    expect(wipAfter.sub(wipBefore)).to.equal(ipaShare);
+
+    expect(await royaltyWorkflows.lastChildIpId()).to.equal(ipAsset);
+    expect(await royaltyWorkflows.lastPayer()).to.equal(exchange.address);
+    expect(await royaltyWorkflows.lastCurrencyToken()).to.equal(wip.address);
+    expect(await royaltyWorkflows.lastAmount()).to.equal(ipaShare);
+    expect(await royaltyWorkflows.totalRoyaltyPaid()).to.equal(ipaShare);
+  });
+
   it("Redeem: burns wrapper and releases pro-rata RT", async function () {
     const { factory, exchange, rt, creator, trader } = await deployFixture();
 
