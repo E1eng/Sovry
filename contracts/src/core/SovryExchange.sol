@@ -46,9 +46,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     bytes32 public constant KEEPER_ROLE = keccak256("KEEPER_ROLE");
 
-    event RoyaltyRevenueQueued(address indexed wrapperToken, uint256 amount);
-    event RoyaltyRevenueProcessed(address indexed wrapperToken, uint256 amount, address indexed ipAsset);
-
     uint256 public constant TRADE_FEE_BPS = 100;
     uint256 public constant BPS_DENOMINATOR = 10000;
 
