@@ -58,14 +58,17 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     uint256 public constant WRAP_UNIT = 10 ** WRAPPER_DECIMALS;
     uint256 public constant WRAP_PER_RT = (10_000 * WRAP_UNIT) / RT_UNIT;
     uint256 public constant LAUNCH_RT_AMOUNT = 100 * RT_UNIT;
-    uint256 public constant LAUNCH_WRAPPER_SUPPLY = 1_000_000 * WRAP_UNIT;
 
     uint256 public constant MAX_BASE_PRICE = 1e18;
     uint256 public constant MAX_PRICE_INCREMENT = 1e18;
 
-    uint128 public globalBasePrice;
-    uint128 public globalPriceIncrement;
-    bool public curveParamsLocked;
+    struct CurveDefaults {
+        uint128 basePrice;
+        uint128 priceIncrement;
+        bool finalized;
+    }
+
+    CurveDefaults public curveDefaults;
 
     address public immutable piperXV3Factory;
     address public immutable piperXV3SwapRouter;
@@ -177,11 +180,14 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     }
 
     function setCurveParams(uint256 basePrice, uint256 priceIncrement) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (curveParamsLocked) revert CurveParamsLocked();
+        if (curveDefaults.finalized) revert CurveParamsLocked();
         if (basePrice == 0 || basePrice > MAX_BASE_PRICE) revert InvalidPrice();
         if (priceIncrement == 0 || priceIncrement > MAX_PRICE_INCREMENT) revert InvalidPrice();
-        globalBasePrice = uint128(basePrice);
-        globalPriceIncrement = uint128(priceIncrement);
+        curveDefaults = CurveDefaults({
+            basePrice: uint128(basePrice),
+            priceIncrement: uint128(priceIncrement),
+            finalized: true
+        });
     }
 
     function launchTokenFromFactory(
@@ -197,14 +203,12 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (ipAsset == address(0)) revert InvalidAddress();
         if (creator == address(0)) revert InvalidAddress();
         if (amount != LAUNCH_RT_AMOUNT) revert InvalidLaunchAmount();
-        uint256 basePrice = uint256(globalBasePrice);
-        uint256 priceIncrement = uint256(globalPriceIncrement);
+        CurveDefaults memory defaults = curveDefaults;
+        uint256 basePrice = uint256(defaults.basePrice);
+        uint256 priceIncrement = uint256(defaults.priceIncrement);
         if (basePrice == 0 || priceIncrement == 0) revert InvalidPrice();
         if (rtToWrapper[rtAddress] != address(0)) revert TokenAlreadyLaunched();
-
-        if (!curveParamsLocked) {
-            curveParamsLocked = true;
-        }
+        if (!defaults.finalized) revert CurveParamsLocked();
 
         IERC20 rt = IERC20(rtAddress);
         uint256 userBalance = rt.balanceOf(creator);

@@ -22,6 +22,8 @@ async function main() {
   const wipToken = process.env.WIP_ADDRESS || process.env.WIP_ADDRESS_AENEID;
   const keeperAddress = process.env.KEEPER_ADDRESS || deployer.address;
   const shouldVerify = !!process.env.STORYSCAN_API_KEY && process.env.SKIP_AUTO_VERIFY !== "true";
+  const curveBasePriceWei = process.env.CURVE_BASE_PRICE_WEI || "1000000000000"; // 1e12 wei default
+  const curvePriceIncrementWei = process.env.CURVE_PRICE_INCREMENT_WEI || "1000000000"; // 1e9 wei default
 
   if (!treasury || !piperXV3Factory || !piperXV3SwapRouter || !piperXV3PositionManager || !royaltyWorkflows || !wipToken) {
     throw new Error(
@@ -43,6 +45,8 @@ async function main() {
   console.log("  graduationThreshold (ETH):", graduationThresholdEth);
   console.log("  keeper:", keeperAddress);
   console.log("  initialOwner:", deployer.address);
+  console.log("  curveBasePriceWei:", curveBasePriceWei);
+  console.log("  curvePriceIncrementWei:", curvePriceIncrementWei);
 
   // Optional: deploy BondingCurveLib (most calls are internal/pure and won't require linking)
   const BondingCurveLib = await ethers.getContractFactory("BondingCurveLib");
@@ -88,9 +92,18 @@ async function main() {
   await (await exchange.grantRole(keeperRole, keeperAddress)).wait();
   console.log("✅ Granted KEEPER_ROLE to:", keeperAddress);
 
+  console.log("⚙️ Setting global curve params...");
+  await (
+    await exchange.setCurveParams(
+      ethers.BigNumber.from(curveBasePriceWei),
+      ethers.BigNumber.from(curvePriceIncrementWei)
+    )
+  ).wait();
+  console.log("✅ Curve parameters finalized");
+
   if (shouldVerify) {
     console.log("🔍 STORYSCAN verification enabled (STORYSCAN_API_KEY detected)");
-    await verifyContract("BondingCurveLib", bondingCurveLib.address, []);
+    await verifyContract("BondingCurveLib", bondingCurveLib.address, [], "src/libraries/BondingCurveLib.sol:BondingCurveLib");
     await verifyContract("SovryExchange", exchange.address, [
       treasury,
       piperXV3Factory,
@@ -151,12 +164,13 @@ async function main() {
   console.log("📝 Saved deployment file:", outPath);
 }
 
-async function verifyContract(label: string, address: string, constructorArgs: any[]) {
+async function verifyContract(label: string, address: string, constructorArgs: any[], contractPath?: string) {
   try {
     console.log(`🧾 Verifying ${label} @ ${address}`);
     await hre.run("verify:verify", {
       address,
       constructorArguments: constructorArgs,
+      contract: contractPath,
     });
     console.log(`✅ ${label} verified`);
   } catch (error: any) {

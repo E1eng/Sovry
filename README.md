@@ -284,9 +284,21 @@ npm test
 npm run deploy:launchpad
 ```
 
----
+### Deploy (Contracts)
 
-## 🗺️ Project Roadmap
+```bash
+cd contracts
+npm run deploy:launchpad -- --network aeneid
+```
+
+- If `STORYSCAN_API_KEY` is set (and `SKIP_AUTO_VERIFY` != `true`), `scripts/deploy-launchpad.ts` will automatically call Hardhat's `verify:verify` against Storyscan for BondingCurveLib, SovryExchange, SovryFactory, and SovryRouter.
+- To manually verify any contract:
+
+```bash
+npx hardhat verify --network <network> <address> <constructor_args>
+```
+
+- Curve defaults (`CURVE_BASE_PRICE_WEI`, `CURVE_PRICE_INCREMENT_WEI`) are read from the environment and finalized automatically during deployment (one-time). Adjust these env vars before running `npm run deploy:launchpad` if you need different bonding curve pricing.
 
 Below is the development roadmap for Sovry, focused on pivoting from a standard AMM to a Bonding Curve Launchpad model.
 
