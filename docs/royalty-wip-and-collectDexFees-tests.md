@@ -30,12 +30,15 @@ Sovry mengikuti pattern di atas:
 
 1. **Trade fee (1% total)**
    - 50% ke **treasury** (melalui `pendingWithdrawals[treasury]`).
-   - 50% dibayar sebagai **native IP/ETH** langsung ke **`ipAsset`**.
-   - Semua ini terjadi **dalam native**.
+   - 50% ke **`accumulatedRoyaltyNative[wrapperToken]`** sebagai antrian revenue untuk IP Asset (tidak langsung dikirim agar tidak DOS jika IP tidak bisa menerima ETH).
+   - Keeper memproses antrian ini melalui `processRevenue(wrapperToken)` → kontrak me-*wrap* native menjadi `WIP` dan memanggil `payRoyaltyOnBehalf(ipAsset, address(this), wipToken, amount)` sehingga IP menerima ERC20 WIP.
 
-2. **Royalties (`WIP`)**
-   - `depositRoyalties(wrapperToken, wipAmount, amountOutMin)` menerima `WIP` (ERC20) dari keeper.
-   - `wipAmount` diperlakukan sebagai jumlah revenue/royalty yang “claimed” oleh keeper, dan dicatat melalui event `RoyaltiesHarvested(wrapper, wipAmount)`.
+2. **Royalties**
+    - Keeper calls:
+    - `Exchange.collectDexFees(wrapperToken, 0)` – collects V3 LP fees dan langsung split sesuai tokennya
+    - `Exchange.depositRoyalties(wrapperToken, wipAmount, amountOutMin)` – splits WIP 50/50 treasury/IP Asset (keeper sudah mengklaim WIP dari Story)
+    - `Exchange.processRevenue(wrapperToken)` – wrap native queue menjadi WIP dan panggil `payRoyaltyOnBehalf`
+  - Emits: `RoyaltiesHarvested`, `RoyaltyRevenueQueued`, `RoyaltyRevenueProcessed`
    - 50% `WIP` dikirim ke **treasury**.
    - 50% `WIP` dikirim ke **`ipAsset`**.
 
@@ -59,6 +62,7 @@ File utama: `contracts/src/core/SovryExchange.sol`
   - `wipFees` (ERC20 `WIP`) → dibagi 50/50:
     - 50% `WIP` ke `treasury`
     - 50% `WIP` ke `ipAsset`
+  - Jika terdapat sisa native pada proses graduation (dust), bagian IPA juga di-antrikan ke `accumulatedRoyaltyNative` dan diselesaikan via `processRevenue`.
 
 Catatan penting: `amountOutMin` dipertahankan di signature untuk kompatibilitas, tapi **tidak digunakan** (karena tidak ada swap/buyback di kontrak).
 
@@ -106,6 +110,9 @@ Lokasi: `contracts/test/Sovry_Chaos_Audit.test.ts` → `describe("collectDexFees
 
 8. **allows any amountOutMin value (unused) and does not revert**
    - Test memastikan `amountOutMin` memang **unused** (kompatibilitas signature), jadi nilai apapun tidak mengubah behavior dan tidak menyebabkan revert.
+
+9. **processRevenue enforces keeper-only WIP conversion** *(Ditambahkan di suite terpisah)*
+   - Menguji: `accumulatedRoyaltyNative` hanya dapat diproses oleh keeper, balance berkurang ke 0, dan Story Royalty Module menerima `payRoyaltyOnBehalf` call.
 
 ## 5) Kesimpulan
 

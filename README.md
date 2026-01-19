@@ -45,11 +45,13 @@ Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** int
 - **Exchange – `SovryExchange`**
   - Holds locked **Royalty Tokens (RT)** and mints the wrapper supply
   - Runs a **linear bonding curve** (buy/sell)
-  - **Trade fee**: **1% total (100 bps)** → **0.5% treasury / 0.5% IP Asset** (fee emitted per trade)
+  - **Trade fee**: **1% total (100 bps)** → **0.5% treasury / 0.5% IP Asset**
+    - Treasury share is queued to `pendingWithdrawals`
+    - IP Asset share is **queued in `accumulatedRoyaltyNative`** and only delivered once the keeper wraps to WIP via `processRevenue`
   - Graduation (PiperX V3):
-    - Extracts **10%** of native reserve pre-LP; split **50% treasury / 50% IP Asset**
+    - Extracts **10%** of native reserve pre-LP; split **50% treasury / 50% IP Asset** (IPA portion is also queued as native royalty revenue)
     - Mints V3 LP position; stores LP NFT tokenId; marks wrapper graduated; unlocks transfers; renounces wrapper ownership
-  - **Royalties + DEX fees**: WIP/ERC20 tokens split **50% treasury / 50% IP Asset** via keeper-only `depositRoyalties` / `collectDexFees`
+  - **Royalties + DEX fees**: all ERC20 tokens (WIP / wrapper) split **50% treasury / 50% IP Asset** via keeper-only `depositRoyalties`, `collectDexFees`, and the new `processRevenue` (native → WIP + `payRoyaltyOnBehalf`)
 
 - **Router – `SovryRouter`**
   - Convenience gateway for UI:
@@ -88,11 +90,14 @@ Key on‑chain behaviours:
   - `calculateBuyPrice` / `calculateSellPrice` are exposed as view helpers
 
 - **Harvest (Royalties / DEX fees)**
-  - Royalties are WIP/ERC20 (Story whitelisted); trade fees are native IP/ETH
+  - Royalties are WIP/ERC20 (Story whitelisted); trade fees originate as native IP/ETH but IP shares accumulate until processed
   - Keeper calls:
-    - `Exchange.depositRoyalties(wrapperToken, wipAmount, amountOutMin)` – splits WIP 50/50 treasury/IP Asset
     - `Exchange.collectDexFees(wrapperToken, 0)` – collects V3 LP fees and splits 50/50 in the collected token(s)
-  - Emits `RoyaltiesHarvested(wrapperToken, amount)` for royalty deposits
+    - `Exchange.depositRoyalties(wrapperToken, wipAmount, amountOutMin)` – splits WIP 50/50 treasury/IP Asset (keeper supplies WIP already claimed from Story)
+    - `Exchange.processRevenue(wrapperToken)` – wraps queued native IPA fees into WIP and calls Story `payRoyaltyOnBehalf` so the IP Asset receives ERC20 revenue safely
+  - Emits:
+    - `RoyaltiesHarvested(wrapperToken, amount)` whenever WIP is deposited
+    - `RoyaltyRevenueQueued` + `RoyaltyRevenueProcessed` for native fee queueing/settlement
 
 - **Redeem (Burn wrapper → withdraw RT)**
   - Users can call `Exchange.redeem(wrapperToken, wrapperAmount, recipient)`
