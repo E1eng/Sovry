@@ -14,16 +14,17 @@ async function main() {
 
   // Read constructor arguments from environment
   const treasury = process.env.TREASURY_ADDRESS;
-  const piperXV3Factory = process.env.PIPERX_V3_FACTORY_AENEID;
-  const piperXV3SwapRouter = process.env.PIPERX_V3_SWAP_ROUTER_AENEID;
-  const piperXV3PositionManager = process.env.PIPERX_V3_POSITION_MANAGER_AENEID;
-  const royaltyWorkflows = process.env.ROYALTY_WORKFLOWS_AENEID;
-  const wipToken = process.env.WIP_ADDRESS_AENEID;
+  const piperXV3Factory = process.env.PIPERX_V3_FACTORY || process.env.PIPERX_V3_FACTORY_AENEID;
+  const piperXV3SwapRouter = process.env.PIPERX_V3_SWAP_ROUTER || process.env.PIPERX_V3_SWAP_ROUTER_AENEID;
+  const piperXV3PositionManager =
+    process.env.PIPERX_V3_POSITION_MANAGER || process.env.PIPERX_V3_POSITION_MANAGER_AENEID;
+  const royaltyWorkflows = process.env.ROYALTY_WORKFLOWS || process.env.ROYALTY_WORKFLOWS_AENEID;
+  const wipToken = process.env.WIP_ADDRESS || process.env.WIP_ADDRESS_AENEID;
   const keeperAddress = process.env.KEEPER_ADDRESS || deployer.address;
 
   if (!treasury || !piperXV3Factory || !piperXV3SwapRouter || !piperXV3PositionManager || !royaltyWorkflows || !wipToken) {
     throw new Error(
-      "Missing one or more required env vars: TREASURY_ADDRESS, PIPERX_V3_FACTORY_AENEID, PIPERX_V3_SWAP_ROUTER_AENEID, PIPERX_V3_POSITION_MANAGER_AENEID, ROYALTY_WORKFLOWS_AENEID, WIP_ADDRESS_AENEID"
+      "Missing one or more required env vars: TREASURY_ADDRESS, PIPERX_V3_FACTORY, PIPERX_V3_SWAP_ROUTER, PIPERX_V3_POSITION_MANAGER, ROYALTY_WORKFLOWS, WIP_ADDRESS"
     );
   }
 
