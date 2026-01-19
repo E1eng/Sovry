@@ -23,6 +23,8 @@ contract SovryToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
 
     bool public publicWrappingEnabled;
 
+    bool public transfersLocked = true;
+
     /// @notice Event emitted when tokens are minted
     /// @param to The address that received the minted tokens
     /// @param amount The amount of tokens minted
@@ -63,6 +65,20 @@ contract SovryToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
         if (_underlyingToken != address(0)) {
             publicWrappingEnabled = true;
         }
+    }
+
+    function unlockTransfers() external onlyOwner {
+        transfersLocked = false;
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        if (transfersLocked) {
+            if (from != address(0) && to != address(0)) {
+                address owner_ = owner();
+                require(from == owner_ || to == owner_, "SovryToken: transfers locked");
+            }
+        }
+        super._update(from, to, value);
     }
 
     function decimals() public pure override returns (uint8) {

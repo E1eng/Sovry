@@ -11,8 +11,14 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const MockERC206 = await ethers.getContractFactory("MockERC20_6");
     const rt = await MockERC206.deploy("My Song Royalty", "RT-SONG");
 
-    const MockPiperX = await ethers.getContractFactory("MockPiperXRouter");
-    const piperXRouter = await MockPiperX.deploy();
+    const MockPiperXV3Factory = await ethers.getContractFactory("MockPiperXV3Factory");
+    const piperXV3Factory = await MockPiperXV3Factory.deploy();
+
+    const MockPiperXV3PositionManager = await ethers.getContractFactory("MockPiperXV3PositionManager");
+    const piperXV3PositionManager = await MockPiperXV3PositionManager.deploy(piperXV3Factory.address);
+
+    const MockPiperXV3Router = await ethers.getContractFactory("MockPiperXV3Router");
+    const piperXV3Router = await MockPiperXV3Router.deploy();
 
     const MockRoyalty = await ethers.getContractFactory("MockRoyaltyWorkflows");
     const royaltyWorkflows = await MockRoyalty.deploy();
@@ -21,7 +27,9 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const graduationThreshold = ethers.utils.parseEther("1000000");
     const exchange = await SovryExchange.deploy(
       treasury.address,
-      piperXRouter.address,
+      piperXV3Factory.address,
+      piperXV3Router.address,
+      piperXV3PositionManager.address,
       royaltyWorkflows.address,
       wip.address,
       graduationThreshold,
@@ -35,7 +43,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const SovryFactory = await ethers.getContractFactory("SovryFactory");
     const factory = await SovryFactory.deploy(exchange.address);
 
-    const weth = await piperXRouter.WETH();
+    const weth = wip.address;
     const SovryRouter = await ethers.getContractFactory("SovryRouter");
     const router = await SovryRouter.deploy(factory.address, exchange.address, weth);
 
@@ -53,7 +61,9 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
       treasury,
       wip,
       rt,
-      piperXRouter,
+      piperXV3Factory,
+      piperXV3PositionManager,
+      piperXV3Router,
       royaltyWorkflows,
       exchange,
       factory,
@@ -94,7 +104,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const launchTx = await factory.connect(creator).launchToken(
       rt.address,
       amountToLock,
-      rt.address,
+      creator.address,
       "Wrapper",
       "WRP",
       { value: ethers.utils.parseEther("1") }
@@ -110,7 +120,8 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const buyAmount = RT_UNIT.mul(wrapPerRt);
 
     const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
-    const fee = baseCost.mul(20).add(10000 - 1).div(10000);
+    const feeBps = await exchange.TRADE_FEE_BPS();
+    const fee = baseCost.mul(feeBps).add(10000 - 1).div(10000);
     const totalCost = baseCost.add(fee);
 
     const blockNum = await ethers.provider.getBlockNumber();
@@ -155,18 +166,21 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     await wip.connect(creator).transfer(keeper.address, ethers.utils.parseEther("1"));
     await wip.connect(keeper).approve(exchange.address, ethers.utils.parseEther("1"));
 
-    const curveBefore = await exchange.bondingCurves(wrapperAddress);
-    const reserveBefore = curveBefore.reserveBalance;
+    const treasuryWipBefore = await wip.balanceOf((await exchange.treasury()).toString());
+    const ipAsset = (await exchange.launchedTokens(wrapperAddress)).ipAsset;
+    const ipAssetWipBefore = await wip.balanceOf(ipAsset);
 
     await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 1)).to.emit(
       exchange,
       "RoyaltiesHarvested"
     );
 
-    const curveAfter = await exchange.bondingCurves(wrapperAddress);
-    const reserveAfter = curveAfter.reserveBalance;
+    const treasuryWipAfter = await wip.balanceOf((await exchange.treasury()).toString());
+    const ipAssetWipAfter = await wip.balanceOf(ipAsset);
 
-    expect(reserveAfter.sub(reserveBefore)).to.equal(ethers.utils.parseEther("1"));
+    const half = ethers.utils.parseEther("1").div(2);
+    expect(treasuryWipAfter.sub(treasuryWipBefore)).to.equal(half);
+    expect(ipAssetWipAfter.sub(ipAssetWipBefore)).to.equal(ethers.utils.parseEther("1").sub(half));
 
     await expect(exchange.connect(trader).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 1)).to.be
       .revertedWithCustomError(
@@ -176,10 +190,13 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
   });
 
   it("DoS regression: creator that rejects ETH cannot break trading; fees become withdrawable", async function () {
-    const { trader, keeper, exchange, factory, wip, rt } = await deployProtocolFixture();
+    const { owner, trader, exchange, factory, rt } = await deployProtocolFixture();
 
     const Reject = await ethers.getContractFactory("RejectETHCreator");
     const rejectCreator = await Reject.deploy();
+    const rejectTreasury = await Reject.deploy();
+
+    await exchange.connect(owner).setTreasury(rejectTreasury.address);
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
@@ -210,7 +227,8 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const wrapPerRt = await exchange.WRAP_PER_RT();
     const buyAmount = RT_UNIT.mul(wrapPerRt);
     const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
-    const fee = baseCost.mul(20).add(10000 - 1).div(10000);
+    const feeBps = await exchange.TRADE_FEE_BPS();
+    const fee = baseCost.mul(feeBps).add(10000 - 1).div(10000);
     const totalCost = baseCost.add(fee);
 
     const blockNum = await ethers.provider.getBlockNumber();
@@ -220,11 +238,11 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     await expect(exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost }))
       .to.emit(exchange, "TokensPurchased");
 
-    const pending = await exchange.pendingWithdrawals(rejectCreator.address);
+    const pending = await exchange.pendingWithdrawals(rejectTreasury.address);
     expect(pending).to.be.gt(0);
 
     const traderBalBefore = await ethers.provider.getBalance(trader.address);
-    await expect(rejectCreator.claimPending(exchange.address, trader.address)).to.not.be.reverted;
+    await expect(rejectTreasury.claimPending(exchange.address, trader.address)).to.not.be.reverted;
     const traderBalAfter = await ethers.provider.getBalance(trader.address);
 
     expect(traderBalAfter.sub(traderBalBefore)).to.equal(pending);

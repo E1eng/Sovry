@@ -8,7 +8,7 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 describe("Sovry Protocol - Chaos Audit", function () {
   async function deployFixture(opts?: {
     graduationThresholdWei?: string;
-    revertAddLiquidity?: boolean;
+    revertMint?: boolean;
     treasuryOverride?: string;
     basePriceWei?: string;
     priceIncrementWei?: string;
@@ -21,11 +21,17 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const MockERC206 = await ethers.getContractFactory("MockERC20_6");
     const rt = await MockERC206.deploy("My Song Royalty", "RT-SONG");
 
-    const MockPiperX = await ethers.getContractFactory("MockPiperXRouter");
-    const piperXRouter = await MockPiperX.deploy();
+    const MockPiperXV3Factory = await ethers.getContractFactory("MockPiperXV3Factory");
+    const piperXV3Factory = await MockPiperXV3Factory.deploy();
 
-    if (opts?.revertAddLiquidity !== undefined) {
-      await piperXRouter.setRevertAddLiquidity(opts.revertAddLiquidity);
+    const MockPiperXV3PositionManager = await ethers.getContractFactory("MockPiperXV3PositionManager");
+    const piperXV3PositionManager = await MockPiperXV3PositionManager.deploy(piperXV3Factory.address);
+
+    const MockPiperXV3Router = await ethers.getContractFactory("MockPiperXV3Router");
+    const piperXV3Router = await MockPiperXV3Router.deploy();
+
+    if (opts?.revertMint !== undefined) {
+      await piperXV3PositionManager.setRevertMint(opts.revertMint);
     }
 
     const MockRoyalty = await ethers.getContractFactory("MockRoyaltyWorkflows");
@@ -38,7 +44,9 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     const exchange = await SovryExchange.deploy(
       treasuryAddr,
-      piperXRouter.address,
+      piperXV3Factory.address,
+      piperXV3Router.address,
+      piperXV3PositionManager.address,
       royaltyWorkflows.address,
       wip.address,
       graduationThreshold,
@@ -52,7 +60,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const SovryFactory = await ethers.getContractFactory("SovryFactory");
     const factory = await SovryFactory.deploy(exchange.address);
 
-    const weth = await piperXRouter.WETH();
+    const weth = wip.address;
     const SovryRouter = await ethers.getContractFactory("SovryRouter");
     const router = await SovryRouter.deploy(factory.address, exchange.address, weth);
 
@@ -62,7 +70,22 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const keeperRole = await exchange.KEEPER_ROLE();
     await exchange.connect(owner).grantRole(keeperRole, keeper.address);
 
-    return { owner, creator, trader, keeper, treasury, wip, rt, piperXRouter, royaltyWorkflows, exchange, factory, router };
+    return {
+      owner,
+      creator,
+      trader,
+      keeper,
+      treasury,
+      wip,
+      rt,
+      piperXV3Factory,
+      piperXV3PositionManager,
+      piperXV3Router,
+      royaltyWorkflows,
+      exchange,
+      factory,
+      router,
+    };
   }
 
   async function launchToken(params: {
@@ -71,6 +94,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     rt: any;
     creator: any;
     amountToLock: any;
+    ipAsset?: string;
   }) {
     await params.rt.transfer(params.creator.address, params.amountToLock);
     await params.rt.connect(params.creator).approve(params.exchange.address, params.amountToLock);
@@ -78,7 +102,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const tx = await params.factory.connect(params.creator).launchToken(
       params.rt.address,
       params.amountToLock,
-      params.rt.address,
+      params.ipAsset ?? params.rt.address,
       "Wrapper",
       "WRP",
       { value: ethers.utils.parseEther("1") }
@@ -142,8 +166,6 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     const curveAfter = await exchange.bondingCurves(wrapperAddress);
 
-    // If fee were injected, reserve would increase by baseCost + fee.
-    // Current behavior: reserve increases by baseCost only.
     expect(curveAfter.reserveBalance.sub(curveBefore.reserveBalance)).to.equal(baseCost);
   });
 
@@ -209,7 +231,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     // graduation becomes impossible and the token remains stuck on the bonding curve.
     const { factory, exchange, rt, creator, trader } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
-      revertAddLiquidity: true,
+      revertMint: true,
       basePriceWei: "0.000000000000000010",
       priceIncrementWei: "0.000000000000000001",
     });
@@ -242,7 +264,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
   it("MEV surface: post-graduation buyback amountOutMin must be keeper-controlled (slippage protection)", async function () {
     // WHY: if amountOutMin is too low, sandwich/price manipulation can drain value from royalty buybacks.
     // This test verifies the keeper can set a non-trivial amountOutMin (not hardcoded to 1).
-    const { factory, exchange, piperXRouter, wip, rt, creator, keeper, trader, owner } = await deployFixture();
+    const { factory, exchange, piperXV3Router, wip, rt, creator, keeper, trader, owner } = await deployFixture();
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
@@ -265,21 +287,28 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     await exchange.graduate(wrapperAddress);
 
-    // Fund WIP and deposit royalties after graduation to force _buybackAndBurn.
+    // Fund WIP and deposit royalties after graduation.
     await wip.connect(creator).deposit({ value: ethers.utils.parseEther("1") });
     await wip.connect(creator).transfer(keeper.address, ethers.utils.parseEther("1") );
     await wip.connect(keeper).approve(exchange.address, ethers.utils.parseEther("1") );
 
-    // MockPiperXRouter emits:
-    // SwapExactETHForTokensCalled(uint256 amountOutMin, address[] path, address to, uint256 amountIn)
-    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 123))
-      .to.emit(piperXRouter, "SwapExactETHForTokensCalled")
-      .withArgs(
-        123,
-        anyValue,
-        "0x000000000000000000000000000000000000dEaD",
-        ethers.utils.parseEther("1")
-      );
+    const wipAmount = ethers.utils.parseEther("1");
+
+    const treasuryAddr = await exchange.treasury();
+    const ipAsset = (await exchange.launchedTokens(wrapperAddress)).ipAsset;
+    const treasuryWipBefore = await wip.balanceOf(treasuryAddr);
+    const ipAssetWipBefore = await wip.balanceOf(ipAsset);
+
+    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, wipAmount, 123)).to.emit(
+      exchange,
+      "RoyaltiesHarvested"
+    );
+
+    const half = wipAmount.div(2);
+    const treasuryWipAfter = await wip.balanceOf(treasuryAddr);
+    const ipAssetWipAfter = await wip.balanceOf(ipAsset);
+    expect(treasuryWipAfter.sub(treasuryWipBefore)).to.equal(half);
+    expect(ipAssetWipAfter.sub(ipAssetWipBefore)).to.equal(wipAmount.sub(half));
   });
 
   it("Redeem: burns wrapper and releases pro-rata RT", async function () {
@@ -339,7 +368,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
   it("Graduation fallback: if addLiquidityETH reverts, wrapper liquidity goes to treasury and wrapper ownership is renounced", async function () {
     const { factory, exchange, rt, creator, trader, treasury } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
-      revertAddLiquidity: true,
+      revertMint: true,
       basePriceWei: "0.000000000000000010",
       priceIncrementWei: "0.000000000000000001",
     });
@@ -439,5 +468,181 @@ describe("Sovry Protocol - Chaos Audit", function () {
     expect(receipt.status).to.equal(1);
 
     expect(await exchange.pendingWithdrawals(rejectTreasury.address)).to.equal(launchFee);
+  });
+
+  describe("collectDexFees", function () {
+    function getTokenOrdering(wrapperAddress: string, wipAddress: string) {
+      const wrapperIsToken0 = wrapperAddress.toLowerCase() < wipAddress.toLowerCase();
+      return { wrapperIsToken0 };
+    }
+
+    async function launchAndGraduate(opts?: { revertMint?: boolean; ipAsset?: string }) {
+      const { factory, exchange, rt, creator, trader, owner, keeper, wip, piperXV3PositionManager, piperXV3Router } =
+        await deployFixture({ revertMint: opts?.revertMint });
+
+      const RT_UNIT = ethers.BigNumber.from("1000000");
+      const amountToLock = RT_UNIT.mul(100);
+
+      const { wrapperAddress } = await launchToken({
+        factory,
+        exchange,
+        rt,
+        creator,
+        amountToLock,
+        ipAsset: opts?.ipAsset,
+      });
+
+      await exchange.connect(owner).updateGraduationThreshold(1);
+
+      const wrapPerRt = await exchange.WRAP_PER_RT();
+      const buyAmount = RT_UNIT.mul(wrapPerRt);
+      const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+      const fee = baseCost.mul(await exchange.TRADE_FEE_BPS()).add(10000 - 1).div(10000);
+      const totalCost = baseCost.add(fee);
+      const block = await ethers.provider.getBlock("latest");
+      const deadline = block.timestamp + 3600;
+      await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
+
+      await exchange.graduate(wrapperAddress);
+
+      const tokenId = await exchange.lpTokenIds(wrapperAddress);
+      return {
+        factory,
+        exchange,
+        rt,
+        creator,
+        trader,
+        owner,
+        keeper,
+        wip,
+        wrapperAddress,
+        tokenId,
+        piperXV3PositionManager,
+        piperXV3Router,
+      };
+    }
+
+    it("reverts when caller is not keeper", async function () {
+      const { exchange, wrapperAddress, trader } = await launchAndGraduate();
+      await expect(exchange.connect(trader).collectDexFees(wrapperAddress, 1)).to.be.revertedWithCustomError(
+        exchange,
+        "NotAuthorized"
+      );
+    });
+
+    it("reverts when token is not graduated", async function () {
+      const { factory, exchange, rt, creator, keeper } = await deployFixture();
+
+      const RT_UNIT = ethers.BigNumber.from("1000000");
+      const amountToLock = RT_UNIT.mul(100);
+      const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
+
+      await expect(exchange.connect(keeper).collectDexFees(wrapperAddress, 1)).to.be.revertedWithCustomError(
+        exchange,
+        "TokenGraduated"
+      );
+    });
+
+    it("reverts when graduated via fallback (tokenId=0)", async function () {
+      const { exchange, wrapperAddress, keeper, tokenId } = await launchAndGraduate({ revertMint: true });
+      expect(tokenId).to.equal(0);
+      await expect(exchange.connect(keeper).collectDexFees(wrapperAddress, 1)).to.be.revertedWithCustomError(
+        exchange,
+        "InvalidAmount"
+      );
+    });
+
+    it("distributes wrapper fees 50/50 to treasury and ipAsset", async function () {
+      const { exchange, wrapperAddress, keeper, tokenId, piperXV3PositionManager } = await launchAndGraduate({ ipAsset: ethers.Wallet.createRandom().address });
+      const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
+
+      const pmWrapperBal = await wrapper.balanceOf(piperXV3PositionManager.address);
+      const wrapperFees = pmWrapperBal.div(1000);
+      const { wrapperIsToken0 } = getTokenOrdering(wrapperAddress, (await exchange.wipToken()).toString());
+      const amount0 = wrapperIsToken0 ? wrapperFees : 0;
+      const amount1 = wrapperIsToken0 ? 0 : wrapperFees;
+      await piperXV3PositionManager.setFees(tokenId, amount0, amount1);
+
+      const treasuryAddr = await exchange.treasury();
+      const ipAsset = (await exchange.launchedTokens(wrapperAddress)).ipAsset;
+      const treasuryBefore = await wrapper.balanceOf(treasuryAddr);
+      const ipBefore = await wrapper.balanceOf(ipAsset);
+
+      await expect(exchange.connect(keeper).collectDexFees(wrapperAddress, 0)).to.not.be.reverted;
+
+      const half = wrapperFees.div(2);
+      const treasuryAfter = await wrapper.balanceOf(treasuryAddr);
+      const ipAfter = await wrapper.balanceOf(ipAsset);
+      expect(treasuryAfter.sub(treasuryBefore)).to.equal(half);
+      expect(ipAfter.sub(ipBefore)).to.equal(wrapperFees.sub(half));
+    });
+
+    it("distributes WIP fees 50/50 to treasury and ipAsset", async function () {
+      const ipAsset = ethers.Wallet.createRandom().address;
+      const { exchange, wrapperAddress, keeper, tokenId, piperXV3PositionManager, wip } = await launchAndGraduate({ ipAsset });
+
+      const pmWipBal = await wip.balanceOf(piperXV3PositionManager.address);
+      const wipFees = pmWipBal.div(1000);
+      const { wrapperIsToken0 } = getTokenOrdering(wrapperAddress, wip.address);
+      const amount0 = wrapperIsToken0 ? 0 : wipFees;
+      const amount1 = wrapperIsToken0 ? wipFees : 0;
+      await piperXV3PositionManager.setFees(tokenId, amount0, amount1);
+
+      const treasuryAddr = await exchange.treasury();
+      const treasuryBefore = await wip.balanceOf(treasuryAddr);
+      const ipBefore = await wip.balanceOf(ipAsset);
+
+      await expect(exchange.connect(keeper).collectDexFees(wrapperAddress, 0)).to.not.be.reverted;
+
+      const half = wipFees.div(2);
+      const treasuryAfter = await wip.balanceOf(treasuryAddr);
+      const ipAfter = await wip.balanceOf(ipAsset);
+      expect(treasuryAfter.sub(treasuryBefore)).to.equal(half);
+      expect(ipAfter.sub(ipBefore)).to.equal(wipFees.sub(half));
+    });
+
+    it("handles mixed token0/token1 ordering for combined fees", async function () {
+      const ipAsset = ethers.Wallet.createRandom().address;
+      const { exchange, wrapperAddress, keeper, tokenId, piperXV3PositionManager, wip } = await launchAndGraduate({ ipAsset });
+
+      const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
+      const pmWrapperBal = await wrapper.balanceOf(piperXV3PositionManager.address);
+      const pmWipBal = await wip.balanceOf(piperXV3PositionManager.address);
+
+      const wrapperFees = pmWrapperBal.div(3000);
+      const wipFees = pmWipBal.div(3000);
+
+      const token0 = wrapperAddress.toLowerCase() < wip.address.toLowerCase() ? wrapperAddress : wip.address;
+      const wrapperIsToken0 = token0.toLowerCase() === wrapperAddress.toLowerCase();
+      const amount0 = wrapperIsToken0 ? wrapperFees : wipFees;
+      const amount1 = wrapperIsToken0 ? wipFees : wrapperFees;
+
+      await piperXV3PositionManager.setFees(tokenId, amount0, amount1);
+
+      const treasuryAddr = await exchange.treasury();
+      const treasuryWrapBefore = await wrapper.balanceOf(treasuryAddr);
+      const treasuryWipBefore = await wip.balanceOf(treasuryAddr);
+      const ipWrapBefore = await wrapper.balanceOf(ipAsset);
+      const ipWipBefore = await wip.balanceOf(ipAsset);
+
+      await expect(exchange.connect(keeper).collectDexFees(wrapperAddress, 0)).to.not.be.reverted;
+
+      const halfWrap = wrapperFees.div(2);
+      const halfWip = wipFees.div(2);
+      expect((await wrapper.balanceOf(treasuryAddr)).sub(treasuryWrapBefore)).to.equal(halfWrap);
+      expect((await wrapper.balanceOf(ipAsset)).sub(ipWrapBefore)).to.equal(wrapperFees.sub(halfWrap));
+      expect((await wip.balanceOf(treasuryAddr)).sub(treasuryWipBefore)).to.equal(halfWip);
+      expect((await wip.balanceOf(ipAsset)).sub(ipWipBefore)).to.equal(wipFees.sub(halfWip));
+    });
+
+    it("does not revert when there are no fees to collect (no-op)", async function () {
+      const { exchange, wrapperAddress, keeper } = await launchAndGraduate();
+      await expect(exchange.connect(keeper).collectDexFees(wrapperAddress, 0)).to.not.be.reverted;
+    });
+
+    it("allows any amountOutMin value (unused) and does not revert", async function () {
+      const { exchange, wrapperAddress, keeper } = await launchAndGraduate();
+      await expect(exchange.connect(keeper).collectDexFees(wrapperAddress, 12345)).to.not.be.reverted;
+    });
   });
 });
