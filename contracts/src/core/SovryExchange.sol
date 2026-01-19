@@ -15,6 +15,7 @@ import "../interfaces/ISovryExchange.sol";
 import "../interfaces/IPiperXV3Factory.sol";
 import "../interfaces/IPiperXV3PositionManager.sol";
 import "../interfaces/IPiperXV3SwapRouter.sol";
+import "../interfaces/IRoyaltyModule.sol";
 
 error InvalidAddress();
 error InvalidAmount();
@@ -44,6 +45,9 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     using SafeERC20 for IERC20;
 
     bytes32 public constant KEEPER_ROLE = keccak256("KEEPER_ROLE");
+
+    event RoyaltyRevenueQueued(address indexed wrapperToken, uint256 amount);
+    event RoyaltyRevenueProcessed(address indexed wrapperToken, uint256 amount, address indexed ipAsset);
 
     uint256 public constant TRADE_FEE_BPS = 100;
     uint256 public constant BPS_DENOMINATOR = 10000;
@@ -123,6 +127,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     mapping(address => address) public dexPools;
 
     mapping(address => uint256) public pendingWithdrawals;
+    mapping(address => uint256) public accumulatedRoyaltyNative;
 
     constructor(
         address _treasury,
@@ -348,7 +353,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
                 _enqueuePendingWithdrawal(treasury, treasuryShare);
             }
             if (ipaShare > 0) {
-                _safeTransferETH(payable(token.ipAsset), ipaShare);
+                _accrueRoyalty(wrapperToken, ipaShare);
             }
         }
 
@@ -560,7 +565,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             _safeTransferETH(payable(treasury), treasuryCut);
         }
         if (ipaCut > 0) {
-            _safeTransferETH(payable(token.ipAsset), ipaCut);
+            _accrueRoyalty(wrapperToken, ipaCut);
         }
 
         uint256 nativeAfterFee = nativeLiquidity - feeTotal;
@@ -651,7 +656,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             uint256 treasuryDust = dustWip / 2;
             uint256 ipaDust = dustWip - treasuryDust;
             if (treasuryDust > 0) _safeTransferETH(payable(treasury), treasuryDust);
-            if (ipaDust > 0) _safeTransferETH(payable(token.ipAsset), ipaDust);
+            if (ipaDust > 0) _accrueRoyalty(wrapperToken, ipaDust);
         }
 
         SovryToken(wrapperToken).unlockTransfers();
@@ -664,6 +669,27 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (msg.value == 0) revert InvalidAmount();
 
         _enqueuePendingWithdrawal(beneficiary, msg.value);
+    }
+
+    function processRevenue(address wrapperToken) external nonReentrant {
+        if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
+        if (wrapperToken == address(0)) revert InvalidAddress();
+
+        LaunchedToken storage token = launchedTokens[wrapperToken];
+        if (token.wrapperAddress == address(0)) revert UnknownToken();
+
+        uint256 amount = accumulatedRoyaltyNative[wrapperToken];
+        if (amount == 0) revert NoRoyalties();
+        if (address(this).balance < amount) revert InsufficientReserves();
+
+        accumulatedRoyaltyNative[wrapperToken] = 0;
+
+        IWIP(wipToken).deposit{value: amount}();
+        IERC20(wipToken).forceApprove(royaltyWorkflows, amount);
+
+        IRoyaltyModule(royaltyWorkflows).payRoyaltyOnBehalf(token.ipAsset, address(this), wipToken, amount);
+
+        emit RoyaltyRevenueProcessed(wrapperToken, amount, token.ipAsset);
     }
 
     function depositRoyalties(address wrapperToken, uint256 wipAmount, uint256 /* amountOutMin */) external nonReentrant {
@@ -761,55 +787,10 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         }
     }
 
-    function _applyRoyaltiesToBondingCurve(address wrapperToken, uint256 claimedAmount) internal {
-        BondingCurve storage curve = bondingCurves[wrapperToken];
-        uint256 supply = uint256(curve.currentSupply);
-
-        if (supply < WRAP_UNIT) {
-            uint256 newReserve = uint256(curve.reserveBalance) + claimedAmount;
-            if (newReserve > type(uint128).max) revert ParamsTooLarge();
-            curve.reserveBalance = uint128(newReserve);
-            totalCurveReserves += claimedAmount;
-            return;
-        }
-
-        LaunchedToken storage token = launchedTokens[wrapperToken];
-        uint256 initialCurveSupply = token.initialCurveSupply;
-        uint256 soldRaw = initialCurveSupply > supply ? (initialCurveSupply - supply) : 0;
-        uint256 soldUnits = soldRaw / WRAP_UNIT;
-
-        uint256 remainingUnits = supply / WRAP_UNIT;
-        if (remainingUnits == 0) {
-            uint256 newReserve2 = uint256(curve.reserveBalance) + claimedAmount;
-            if (newReserve2 > type(uint128).max) revert ParamsTooLarge();
-            curve.reserveBalance = uint128(newReserve2);
-            totalCurveReserves += claimedAmount;
-            return;
-        }
-
-        uint256 basePrice = uint256(curve.basePrice);
-        uint256 priceIncrement = uint256(curve.priceIncrement);
-
-        uint256 unitsToBuy = BondingCurveLib.maxBuyUnits(
-            basePrice,
-            priceIncrement,
-            soldUnits,
-            claimedAmount,
-            remainingUnits
-        );
-
-        if (unitsToBuy > 0) {
-            uint256 wrapperToBurn = unitsToBuy * WRAP_UNIT;
-            uint256 newSupply = supply - wrapperToBurn;
-            if (newSupply > type(uint128).max) revert ParamsTooLarge();
-            curve.currentSupply = uint128(newSupply);
-            SovryToken(wrapperToken).burn(wrapperToBurn);
-        }
-
-        uint256 newReserve3 = uint256(curve.reserveBalance) + claimedAmount;
-        if (newReserve3 > type(uint128).max) revert ParamsTooLarge();
-        curve.reserveBalance = uint128(newReserve3);
-        totalCurveReserves += claimedAmount;
+    function _accrueRoyalty(address wrapperToken, uint256 amount) internal {
+        if (amount == 0) return;
+        accumulatedRoyaltyNative[wrapperToken] += amount;
+        emit RoyaltyRevenueQueued(wrapperToken, amount);
     }
 
     function _getSqrtPriceX96(uint256 spotPrice, address wrapperToken, address token0) internal pure returns (uint160) {
