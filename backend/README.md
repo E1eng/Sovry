@@ -46,10 +46,16 @@ They are designed to be deployed as **two separate services** (e.g. on Railway).
 - `IP_PRICE_FALLBACK_USD`
   - Optional numeric fallback price used only if StoryScan fails.
 
-### Royalty Harvest (Worker only)
+### Keeper / Fee Collection (Worker only)
 
-- `LAUNCHPAD_ADDRESS`
-- `HARVEST_PRIVATE_KEY`
+- `SOVRY_EXCHANGE_ADDRESS`
+  - SovryExchange contract the worker interacts with for `collectDexFees`.
+- `KEEPER_PRIVATE_KEY`
+  - Private key that holds `KEEPER_ROLE` on SovryExchange. **Never reuse creator wallets; restrict to keeper-only account.**
+- `RPC_PROVIDER_URL`
+  - (Inherited from global section) must point to the same chain as SovryExchange.
+
+> Legacy `LAUNCHPAD_ADDRESS` / `HARVEST_PRIVATE_KEY` are deprecated and replaced by the values above.
 
 ## Railway Deployment
 
