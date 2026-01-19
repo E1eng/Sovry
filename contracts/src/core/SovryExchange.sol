@@ -53,7 +53,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     uint8 public constant RT_DECIMALS = 6;
     uint256 public constant RT_UNIT = 10 ** RT_DECIMALS;
-    uint256 public constant MIN_LISTING_AMOUNT = 100 * RT_UNIT;
 
     uint8 public constant WRAPPER_DECIMALS = 18;
     uint256 public constant WRAP_UNIT = 10 ** WRAPPER_DECIMALS;
@@ -202,7 +201,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 priceIncrement = uint256(globalPriceIncrement);
         if (basePrice == 0 || priceIncrement == 0) revert InvalidPrice();
         if (rtToWrapper[rtAddress] != address(0)) revert TokenAlreadyLaunched();
-        if (amount < MIN_LISTING_AMOUNT) revert MinListingRequired();
 
         if (!curveParamsLocked) {
             curveParamsLocked = true;

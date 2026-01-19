@@ -1,0 +1,29 @@
+{
+  "network": "aeneid",
+  "chainId": 1315,
+  "deployer": "0x8c317fb91a73E2C8D4883DDED3981982F046F733",
+  "config": {
+    "treasury": "0x8c317fb91a73e2c8d4883dded3981982f046f733",
+    "piperXV3Factory": "0xb8c21e89983B5EcCD841846eA294c4c8a89718f1",
+    "piperXV3SwapRouter": "0x8295c195CEe31404ea082d253a140310b9a0A37e",
+    "piperXV3PositionManager": "0x700722D24f9256Be288f56449E8AB1D27C4a70ca",
+    "royaltyWorkflows": "0x9515faE61E0c0447C6AC6dEe5628A2097aFE1890",
+    "wipToken": "0x1514000000000000000000000000000000000000",
+    "weth": "0x1514000000000000000000000000000000000000",
+    "graduationThreshold": "10000000000000000000000",
+    "keeper": "0x8c317fb91a73e2c8d4883dded3981982f046f733"
+  },
+  "contracts": {
+    "BondingCurveLib": "0x5512BFF08E71562d60F720Ad852D6BD2a9Ac89bc",
+    "SovryExchange": "0xB78284c6874d648b88F77a0C3368c9fc266D40ef",
+    "SovryFactory": "0xFC4eAE33D3FCfcE79cE19339eD9Af682E91c09b3",
+    "SovryRouter": "0x0E6ea9AB38Dfea9B8f8e4B229B56E1727992EAD2"
+  },
+  "blocks": {
+    "BondingCurveLib": null,
+    "SovryExchange": 13477091,
+    "SovryFactory": 13477094,
+    "SovryRouter": 13477097,
+    "subgraphStartBlock": 13477094
+  }
+}

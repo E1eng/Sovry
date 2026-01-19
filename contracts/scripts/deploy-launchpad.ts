@@ -21,6 +21,7 @@ async function main() {
   const royaltyWorkflows = process.env.ROYALTY_WORKFLOWS || process.env.ROYALTY_WORKFLOWS_AENEID;
   const wipToken = process.env.WIP_ADDRESS || process.env.WIP_ADDRESS_AENEID;
   const keeperAddress = process.env.KEEPER_ADDRESS || deployer.address;
+  const shouldVerify = !!process.env.STORYSCAN_API_KEY && process.env.SKIP_AUTO_VERIFY !== "true";
 
   if (!treasury || !piperXV3Factory || !piperXV3SwapRouter || !piperXV3PositionManager || !royaltyWorkflows || !wipToken) {
     throw new Error(
@@ -87,6 +88,25 @@ async function main() {
   await (await exchange.grantRole(keeperRole, keeperAddress)).wait();
   console.log("✅ Granted KEEPER_ROLE to:", keeperAddress);
 
+  if (shouldVerify) {
+    console.log("🔍 STORYSCAN verification enabled (STORYSCAN_API_KEY detected)");
+    await verifyContract("BondingCurveLib", bondingCurveLib.address, []);
+    await verifyContract("SovryExchange", exchange.address, [
+      treasury,
+      piperXV3Factory,
+      piperXV3SwapRouter,
+      piperXV3PositionManager,
+      royaltyWorkflows,
+      wipToken,
+      graduationThreshold,
+      deployer.address,
+    ]);
+    await verifyContract("SovryFactory", factory.address, [exchange.address]);
+    await verifyContract("SovryRouter", router.address, [factory.address, exchange.address, wipToken]);
+  } else {
+    console.log("ℹ️ STORYSCAN verification skipped (set STORYSCAN_API_KEY and omit SKIP_AUTO_VERIFY to enable)");
+  }
+
   console.log("\n=== Deployment Summary ===");
   console.log("BondingCurveLib:", bondingCurveLib.address);
   console.log("SovryExchange  :", exchange.address);
@@ -129,6 +149,24 @@ async function main() {
   const outPath = path.join(deploymentsDir, `${hre.network.name}.json`);
   fs.writeFileSync(outPath, JSON.stringify(deployment, null, 2));
   console.log("📝 Saved deployment file:", outPath);
+}
+
+async function verifyContract(label: string, address: string, constructorArgs: any[]) {
+  try {
+    console.log(`🧾 Verifying ${label} @ ${address}`);
+    await hre.run("verify:verify", {
+      address,
+      constructorArguments: constructorArgs,
+    });
+    console.log(`✅ ${label} verified`);
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    if (message.includes("Already Verified")) {
+      console.log(`ℹ️ ${label} already verified`);
+      return;
+    }
+    console.warn(`⚠️ Verification skipped for ${label}:`, message);
+  }
 }
 
 main()
