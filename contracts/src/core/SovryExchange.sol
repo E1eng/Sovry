@@ -128,6 +128,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     mapping(address => uint256) public pendingWithdrawals;
     mapping(address => uint256) public accumulatedRoyaltyNative;
 
+    // ====== Deployment & Admin Configuration ======
+
     constructor(
         address _treasury,
         address _piperXV3Factory,
@@ -188,6 +190,16 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             priceIncrement: uint128(priceIncrement),
             finalized: true
         });
+    }
+
+    // ====== Launch Lifecycle ======
+
+    function queueLaunchFee(address beneficiary) external payable nonReentrant {
+        if (msg.sender != factory) revert NotAuthorized();
+        if (beneficiary == address(0)) revert InvalidAddress();
+        if (msg.value == 0) revert InvalidAmount();
+
+        _enqueuePendingWithdrawal(beneficiary, msg.value);
     }
 
     function launchTokenFromFactory(
@@ -254,6 +266,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 totalWrapped = amount * WRAP_PER_RT;
         wrapper.mint(address(this), totalWrapped);
     }
+
+    // ====== Trading (Bonding Curve) ======
 
     function calculateBuyPrice(address wrapperToken, uint256 amount) public view returns (uint256) {
         if (!bondingCurveActive[wrapperToken]) revert CurveInactive();
@@ -423,6 +437,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         emit TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, treasury);
     }
 
+    // ====== Redemption ======
+
     function redeem(
         address wrapperToken,
         uint256 wrapperAmount,
@@ -450,6 +466,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         emit TokensRedeemed(msg.sender, wrapperToken, wrapperAmount, rtAmount, recipient);
     }
+
+    // ====== View Helpers ======
 
     function getMarketCap(address wrapperToken) public view returns (uint256) {
         if (!bondingCurveActive[wrapperToken]) return 0;
@@ -513,6 +531,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             curveActive: isActive
         });
     }
+
+    // ====== Graduation Flow ======
 
     function graduate(address wrapperToken) external nonReentrant {
         LaunchedToken storage token = launchedTokens[wrapperToken];
@@ -662,15 +682,9 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         SovryToken(wrapperToken).renounceOwnership();
     }
 
-    function queueLaunchFee(address beneficiary) external payable nonReentrant {
-        if (msg.sender != factory) revert NotAuthorized();
-        if (beneficiary == address(0)) revert InvalidAddress();
-        if (msg.value == 0) revert InvalidAmount();
+    // ====== Keeper Operations ======
 
-        _enqueuePendingWithdrawal(beneficiary, msg.value);
-    }
-
-    function processRevenue(address wrapperToken) external nonReentrant {
+    function settleRoyaltyRevenue(address wrapperToken) external nonReentrant {
         if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
         if (wrapperToken == address(0)) revert InvalidAddress();
 
@@ -691,7 +705,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         emit RoyaltyRevenueProcessed(wrapperToken, amount, token.ipAsset);
     }
 
-    function depositRoyalties(address wrapperToken, uint256 wipAmount, uint256 /* amountOutMin */) external nonReentrant {
+    function distributeRoyalties(address wrapperToken, uint256 wipAmount, uint256 /* amountOutMin */) external nonReentrant {
         if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
         if (wrapperToken == address(0)) revert InvalidAddress();
         if (wipAmount == 0) revert InvalidAmount();
@@ -711,7 +725,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (ipaShare > 0) IERC20(wipToken).safeTransfer(token.ipAsset, ipaShare);
     }
 
-    function collectDexFees(address wrapperToken, uint256) external nonReentrant {
+    function harvestDexFees(address wrapperToken, uint256) external nonReentrant {
         if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
         if (wrapperToken == address(0)) revert InvalidAddress();
 
@@ -754,6 +768,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         }
     }
 
+    // ====== Withdrawals ======
+
     function withdrawPending(address payable to) external nonReentrant {
         if (to == address(0)) revert InvalidAddress();
 
@@ -767,6 +783,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             revert TransferFailed();
         }
     }
+
+    // ====== Internal Helpers ======
 
     function _enqueuePendingWithdrawal(address beneficiary, uint256 amount) internal {
         if (beneficiary == address(0)) revert InvalidAddress();

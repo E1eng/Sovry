@@ -5,8 +5,8 @@ const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHA
 const KEEPER_PRIVATE_KEY = process.env.HARVESTER_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
 
 const EXCHANGE_ABI = [
-  'function collectDexFees(address wrapperToken, uint256 amountOutMin) external',
-  'function processRevenue(address wrapperToken) external',
+  'function harvestDexFees(address wrapperToken, uint256 amountOutMin) external',
+  'function settleRoyaltyRevenue(address wrapperToken) external',
   'function lpTokenIds(address wrapperToken) view returns (uint256)',
   'function launchedTokens(address wrapper) view returns (address rt,address wrapperAddress,address creator,address ipAsset,uint256 launchTime,uint256 totalLocked,bool graduated,uint256 totalRoyaltiesHarvested,address vaultAddress,uint256 dexReserve,uint256 initialCurveSupply)',
   'function accumulatedRoyaltyNative(address wrapperToken) view returns (uint256)',
@@ -86,22 +86,22 @@ async function runRoyaltyHarvestCycle() {
     for (const wrapper of wrappers) {
       processed += 1;
       try {
-        console.log(`[HARVEST] collectDexFees on ${wrapper}`);
-        const gasEstimate = await ex.estimateGas.collectDexFees(wrapper, 0);
-        const tx = await ex.collectDexFees(wrapper, 0, {
+        console.log(`[HARVEST] harvestDexFees on ${wrapper}`);
+        const gasEstimate = await ex.estimateGas.harvestDexFees(wrapper, 0);
+        const tx = await ex.harvestDexFees(wrapper, 0, {
           gasLimit: gasEstimate.mul(120).div(100),
           gasPrice,
         });
-        console.log(`[HARVEST] Sent collectDexFees tx: ${tx.hash}`);
+        console.log(`[HARVEST] Sent harvestDexFees tx: ${tx.hash}`);
         const receipt = await tx.wait();
         console.log(
-          `[HARVEST] collectDexFees confirmed for ${wrapper}: status=${receipt.status}, gasUsed=${receipt.gasUsed.toString()}`,
+          `[HARVEST] harvestDexFees confirmed for ${wrapper}: status=${receipt.status}, gasUsed=${receipt.gasUsed.toString()}`,
         );
         harvested += 1;
       } catch (error) {
         skipped += 1;
         console.warn(
-          `[HARVEST] Skipping ${wrapper} due to error (maybe no fees):`,
+          `[HARVEST] Skipping ${wrapper} for harvestDexFees (maybe no fees):`,
           error && error.message ? error.message : error,
         );
       }
@@ -109,21 +109,21 @@ async function runRoyaltyHarvestCycle() {
       try {
         const pendingRoyalty = await ex.accumulatedRoyaltyNative(wrapper);
         if (pendingRoyalty.gt(0)) {
-          console.log(`[HARVEST] processRevenue on ${wrapper} (queued ${pendingRoyalty.toString()} wei)`);
-          const gasEstimate = await ex.estimateGas.processRevenue(wrapper);
-          const tx = await ex.processRevenue(wrapper, {
+          console.log(`[HARVEST] settleRoyaltyRevenue on ${wrapper} (queued ${pendingRoyalty.toString()} wei)`);
+          const gasEstimate = await ex.estimateGas.settleRoyaltyRevenue(wrapper);
+          const tx = await ex.settleRoyaltyRevenue(wrapper, {
             gasLimit: gasEstimate.mul(120).div(100),
             gasPrice,
           });
           const receipt = await tx.wait();
           console.log(
-            `[HARVEST] processRevenue confirmed for ${wrapper}: status=${receipt.status}, gasUsed=${receipt.gasUsed.toString()}`,
+            `[HARVEST] settleRoyaltyRevenue confirmed for ${wrapper}: status=${receipt.status}, gasUsed=${receipt.gasUsed.toString()}`,
           );
           revenuesProcessed += 1;
         }
       } catch (error) {
         console.warn(
-          `[HARVEST] processRevenue failed for ${wrapper}:`,
+          `[HARVEST] settleRoyaltyRevenue failed for ${wrapper}:`,
           error && error.message ? error.message : error,
         );
       }

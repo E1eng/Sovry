@@ -35,9 +35,9 @@ Sovry mengikuti pattern di atas:
 
 2. **Royalties**
     - Keeper calls:
-    - `Exchange.collectDexFees(wrapperToken, 0)` – collects V3 LP fees dan langsung split sesuai tokennya
-    - `Exchange.depositRoyalties(wrapperToken, wipAmount, amountOutMin)` – splits WIP 50/50 treasury/IP Asset (keeper sudah mengklaim WIP dari Story)
-    - `Exchange.processRevenue(wrapperToken)` – wrap native queue menjadi WIP dan panggil `payRoyaltyOnBehalf`
+    - `Exchange.harvestDexFees(wrapperToken, 0)` – collects V3 LP fees dan langsung split sesuai tokennya
+    - `Exchange.distributeRoyalties(wrapperToken, wipAmount, amountOutMin)` – splits WIP 50/50 treasury/IP Asset (keeper sudah mengklaim WIP dari Story)
+    - `Exchange.settleRoyaltyRevenue(wrapperToken)` – wrap native queue menjadi WIP dan panggil `payRoyaltyOnBehalf`
   - Emits: `RoyaltiesHarvested`, `RoyaltyRevenueQueued`, `RoyaltyRevenueProcessed`
    - 50% `WIP` dikirim ke **treasury**.
    - 50% `WIP` dikirim ke **`ipAsset`**.
@@ -54,7 +54,7 @@ File utama: `contracts/src/core/SovryExchange.sol`
   - 50% `WIP` ke `treasury`.
   - 50% `WIP` ke `token.ipAsset`.
 
-### B) `collectDexFees()`
+### B) `harvestDexFees()`
 - Fee LP yang dikoleksi dari V3 PositionManager berbentuk:
   - `wrapperFees` (ERC20 wrapper token) → dibagi 50/50:
     - 50% wrapper ke `treasury`
@@ -66,7 +66,7 @@ File utama: `contracts/src/core/SovryExchange.sol`
 
 Catatan penting: `amountOutMin` dipertahankan di signature untuk kompatibilitas, tapi **tidak digunakan** (karena tidak ada swap/buyback di kontrak).
 
-## 4) Penjelasan lengkap test suite `collectDexFees()`
+## 4) Penjelasan lengkap test suite `harvestDexFees()`
 
 Lokasi: `contracts/test/Sovry_Chaos_Audit.test.ts` → `describe("collectDexFees", ...)`
 
@@ -80,18 +80,18 @@ Lokasi: `contracts/test/Sovry_Chaos_Audit.test.ts` → `describe("collectDexFees
 ### Daftar test cases dan apa yang di-assert
 
 1. **reverts when caller is not keeper**
-   - Memastikan hanya address dengan `KEEPER_ROLE` yang bisa memanggil `collectDexFees()`.
+   - Memastikan hanya address dengan `KEEPER_ROLE` yang bisa memanggil `harvestDexFees()`.
 
 2. **reverts when token is not graduated**
-   - Memastikan `collectDexFees()` tidak bisa dipanggil sebelum graduation (karena belum ada LP NFT).
+   - Memastikan `harvestDexFees()` tidak bisa dipanggil sebelum graduation (karena belum ada LP NFT).
 
 3. **reverts when graduated via fallback (tokenId=0)**
    - Saat mint LP NFT gagal (mock `revertMint=true`), exchange melakukan fallback graduation dan `lpTokenIds[wrapper]=0`.
-   - `collectDexFees()` harus revert (karena tidak ada NFT untuk dikoleksi).
+   - `harvestDexFees()` harus revert (karena tidak ada NFT untuk dikoleksi).
 
 4. **distributes wrapper fees 50/50 to treasury and ipAsset**
    - Menset fee di mock PositionManager untuk sisi wrapper token.
-   - Memanggil `collectDexFees()`.
+   - Memanggil `harvestDexFees()`.
    - Assert balance wrapper token milik `treasury` bertambah `wrapperFees/2`.
    - Assert balance wrapper token milik `ipAsset` bertambah `wrapperFees - wrapperFees/2`.
 
@@ -106,7 +106,7 @@ Lokasi: `contracts/test/Sovry_Chaos_Audit.test.ts` → `describe("collectDexFees
    - Assert split 50/50 untuk kedua token (wrapper dan WIP) tetap benar.
 
 7. **does not revert when there are no fees to collect (no-op)**
-   - Dengan fee balances 0, call `collectDexFees()` tidak revert.
+   - Dengan fee balances 0, call `harvestDexFees()` tidak revert.
 
 8. **allows any amountOutMin value (unused) and does not revert**
    - Test memastikan `amountOutMin` memang **unused** (kompatibilitas signature), jadi nilai apapun tidak mengubah behavior dan tidak menyebabkan revert.
@@ -118,7 +118,7 @@ Lokasi: `contracts/test/Sovry_Chaos_Audit.test.ts` → `describe("collectDexFees
 
 - **Trade fee**: native IP/ETH (sesuai bonding curve dan fungsi `payable`).
 - **Royalty/revenue**: `WIP` (ERC20 whitelisted token) sesuai constraint Story Protocol.
-- Test suite `collectDexFees()` memastikan:
+- Test suite `harvestDexFees()` memastikan:
   - Access control benar.
   - Token harus graduate dan memiliki LP NFT.
   - Fee collection dari LP V3 benar, termasuk edge-case ordering.

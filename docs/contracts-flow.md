@@ -16,8 +16,8 @@ This document describes how Sovry Launchpad works on Story Protocol (Aeneid) aft
 3) **Harvest royalties (WIP) and DEX fees (V3 LP)**
    - Royalties are ERC20/WIP (Story whitelisted); trade fees are native IP/ETH
    - Keeper calls (requires `KEEPER_ROLE`):
-     - `depositRoyalties(wrapper, wipAmount, amountOutMin)` → splits WIP **50% treasury / 50% IP Asset**
-     - `collectDexFees(wrapper, 0)` → collects PiperX V3 LP fees and splits **50% treasury / 50% IP Asset** in the collected token(s)
+     - `distributeRoyalties(wrapper, wipAmount, amountOutMin)` → splits WIP **50% treasury / 50% IP Asset**
+     - `harvestDexFees(wrapper, 0)` → collects PiperX V3 LP fees and splits **50% treasury / 50% IP Asset** in the collected token(s)
 
 4) **Graduation to PiperX V3** (when threshold reached)
    - Exchange mints V3 liquidity via PositionManager; receives LP NFT (tokenId) and stores it (`lpTokenIds(wrapper)`) while keeping custody
