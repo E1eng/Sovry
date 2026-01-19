@@ -21,6 +21,7 @@ type WrapperToken @entity {
   totalRoyaltiesHarvested: BigInt!
   totalFees: BigInt!
   poolAddress: Bytes
+  lpTokenId: BigInt
   createdAt: BigInt!
   updatedAt: BigInt!
 
@@ -88,6 +89,7 @@ type Graduation @entity {
   token: WrapperToken!
   totalLiquidity: BigInt!
   pool: Bytes!
+  lpTokenId: BigInt
   txHash: Bytes!
   timestamp: BigInt!
 }

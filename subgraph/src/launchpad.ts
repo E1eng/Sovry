@@ -75,6 +75,7 @@ function getOrCreateWrapper(
     wrapper.totalRoyaltiesHarvested = BigInt.zero();
     wrapper.totalFees = BigInt.zero();
     wrapper.poolAddress = null;
+    wrapper.lpTokenId = null;
     wrapper.createdAt = BigInt.zero();
     wrapper.updatedAt = BigInt.zero();
   }
@@ -160,6 +161,7 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
   wrapper.totalFees = BigInt.zero();
   wrapper.graduated = false;
   wrapper.poolAddress = null;
+  wrapper.lpTokenId = null;
   wrapper.createdAt = event.block.timestamp;
   wrapper.updatedAt = event.block.timestamp;
 
@@ -334,6 +336,11 @@ export function handleGraduated(event: GraduatedEvent): void {
   let wrapper = getOrCreateWrapper(launchpadId, event.params.wrapperToken);
   wrapper.graduated = true;
   wrapper.poolAddress = event.params.poolAddress;
+  let exchange = SovryExchangeContract.bind(event.address);
+  let lpIdResult = exchange.try_lpTokenIds(event.params.wrapperToken);
+  if (!lpIdResult.reverted) {
+    wrapper.lpTokenId = lpIdResult.value;
+  }
   wrapper.updatedAt = event.block.timestamp;
   wrapper.save();
 
@@ -346,6 +353,11 @@ export function handleGraduated(event: GraduatedEvent): void {
   grad.token = wrapper.id;
   grad.totalLiquidity = event.params.liquidity;
   grad.pool = event.params.poolAddress;
+  if (!lpIdResult.reverted) {
+    grad.lpTokenId = lpIdResult.value;
+  } else {
+    grad.lpTokenId = null;
+  }
   grad.txHash = event.transaction.hash;
   grad.timestamp = event.block.timestamp;
   grad.save();

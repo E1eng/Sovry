@@ -80,5 +80,12 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [{ "name": "", "type": "address" }],
+    "name": "lpTokenIds",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
   }
 ]

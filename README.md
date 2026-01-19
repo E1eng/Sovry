@@ -2,7 +2,7 @@
 
 Sovry is a launchpad for Story Protocol IP assets.
 
-Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** into the Launchpad (currently **100 RT per launch**), which deploys a branded ERC‑20 **wrapper token** and sells it on a bonding curve. When the raise target is hit, the wrapper graduates to a **PiperX V2** pool. Royalties earned by the underlying IP can be **harvested** and injected back into the curve to **boost price**.
+Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** into the Launchpad (currently **100 RT per launch**), which deploys a branded ERC‑20 **wrapper token** and sells it on a bonding curve. When the raise target is hit, the wrapper graduates to a **PiperX V3** pool. The LP position is minted as an NFT and custody is held by the Exchange. All fees (trade, royalties, DEX) are split **50% treasury / 50% IP Asset**.
 
 ---
 
@@ -11,7 +11,7 @@ Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** int
 - **Blockchain**: Story Protocol – Aeneid Testnet (chainId `1315`)
 - **Core Contracts** (Aeneid):
   - `SovryFactory.sol` – launching (collects launch fee, queues to treasury via Exchange, calls Exchange)
-  - `SovryExchange.sol` – bonding curve vault (trading, graduation, keeper harvest)
+  - `SovryExchange.sol` – bonding curve vault (trading, graduation, keeper harvest, LP NFT custody)
   - `SovryRouter.sol` – user gateway for common write actions
   - `SovryToken.sol` – ERC‑20 wrapper token deployed per launch
 - **Deployed Addresses (Aeneid testnet)**
@@ -45,12 +45,11 @@ Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** int
 - **Exchange – `SovryExchange`**
   - Holds locked **Royalty Tokens (RT)** and mints the wrapper supply
   - Runs a **linear bonding curve** (buy/sell)
-  - **Trade fee**: **0.2% (20 bps)**, **100% paid to token creator**
-    - Events include explicit `feeAmount` and `feeRecipient`
-  - Graduation:
-    - Extracts **10%** of native reserve prior to LP
-    - Split: **5% to creator**, **5% to treasury**
-  - **Royalty Injection / harvest** is `KEEPER_ROLE` gated
+  - **Trade fee**: **1% total (100 bps)** → **0.5% treasury / 0.5% IP Asset** (fee emitted per trade)
+  - Graduation (PiperX V3):
+    - Extracts **10%** of native reserve pre-LP; split **50% treasury / 50% IP Asset**
+    - Mints V3 LP position; stores LP NFT tokenId; marks wrapper graduated; unlocks transfers; renounces wrapper ownership
+  - **Royalties + DEX fees**: WIP/ERC20 tokens split **50% treasury / 50% IP Asset** via keeper-only `depositRoyalties` / `collectDexFees`
 
 - **Router – `SovryRouter`**
   - Convenience gateway for UI:
@@ -80,35 +79,33 @@ Key on‑chain behaviours:
 - **Bonding Curve**
   - Buy path (UI): `Router.buyETH(wrapperToken, amount, maxEthCost, deadline)`
     - Linear curve using `basePrice` and `priceIncrement`
-    - Collects 0.2% fee from base cost, paid to creator
+    - Collects 1% fee from base cost, split 50/50 treasury/IP Asset
     - Updates `BondingCurve.currentSupply` and `reserveBalance`
     - Emits `TokensPurchased(buyer, wrapperToken, amount, baseCost, feeAmount, feeRecipient)`
   - Sell path (UI): `Router.sell(wrapperToken, amount, minEthProceeds, deadline)`
     - Sells along the same linear curve
-    - 0.2% fee paid to creator, emits `TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, feeRecipient)`
+    - 1% fee split 50/50 treasury/IP Asset, emits `TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, feeRecipient)`
   - `calculateBuyPrice` / `calculateSellPrice` are exposed as view helpers
 
-- **Harvest (Royalties → Curve Pump)**
-  - Frontend uses Story SDK to:
-    - Call `royalty.claimAllRevenue` for the IP
-    - Transfer WIP to the `SovryExchange` contract
-  - On‑chain, the keeper/bot calls:
-    - `Exchange.depositRoyalties(wrapperToken, wipAmount, amountOutMin)` (requires `KEEPER_ROLE`)
-    - Emits `RoyaltiesHarvested(wrapperToken, amount)`
+- **Harvest (Royalties / DEX fees)**
+  - Royalties are WIP/ERC20 (Story whitelisted); trade fees are native IP/ETH
+  - Keeper calls:
+    - `Exchange.depositRoyalties(wrapperToken, wipAmount, amountOutMin)` – splits WIP 50/50 treasury/IP Asset
+    - `Exchange.collectDexFees(wrapperToken, 0)` – collects V3 LP fees and splits 50/50 in the collected token(s)
+  - Emits `RoyaltiesHarvested(wrapperToken, amount)` for royalty deposits
 
 - **Redeem (Burn wrapper → withdraw RT)**
   - Users can call `Exchange.redeem(wrapperToken, wrapperAmount, recipient)`
   - RT returned is pro-rata: `rtAmount = wrapperAmount * totalLocked / totalSupply`
   - Emits `TokensRedeemed(redeemer, wrapperToken, wrapperAmount, rtAmount, recipient)`
 
-- **Graduation to PiperX**
+- **Graduation to PiperX V3**
   - Exchange tracks reserves and market cap; when above `graduationThreshold` for a delay,
     `_checkGraduation` triggers `_graduate` (see contract for details):
-    - Adds liquidity on PiperX V2 router (`addLiquidityETH`)
-    - Burns LP tokens to `BURN_ADDRESS` to lock liquidity
-    - Marks `launchedTokens[wrapper].graduated = true`
-    - Emits `Graduated(wrapperToken, liquidity, poolAddress)`
-  - **Fallback:** if `addLiquidityETH` reverts, the Exchange transfers the intended wrapper + ETH liquidity to treasury and still emits `Graduated(wrapperToken, 0, address(0))`.
+    - Adds liquidity on PiperX V3 via PositionManager; receives LP NFT (tokenId) and stores it
+    - Marks `launchedTokens[wrapper].graduated = true`, unlocks wrapper transfers, renounces wrapper ownership
+    - Emits `Graduated(wrapperToken, liquidity, poolAddress)` and LP tokenId is queryable via `lpTokenIds(wrapper)`
+  - **Fallback:** if LP mint fails, wrapper + ETH liquidity go to treasury and graduation still emits with `poolAddress=0` (no LP)
 
 ---
 
