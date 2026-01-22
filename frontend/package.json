@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo",
+    "dev": "set NEXT_DISABLE_TURBOPACK=1&& next dev --webpack",
     "build": "set NODE_OPTIONS=--max_old_space_size=4096&& next build --webpack",
     "start": "next start",
     "lint": "eslint ."

@@ -20,14 +20,15 @@ import {
 import UserProfile from "@/components/social/UserProfile";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
+import { copyToClipboard, truncateAddress } from "@/lib/utils";
 import { fetchSubgraph } from "@/services/subgraph";
+import { Coins, Copy, AlertCircle } from "lucide-react";
+
 import {
   getTokenBalance,
   type TokenBalance,
   getClaimableRoyaltyForIp,
 } from "@/services/storyProtocolService";
-
-import { Coins, Copy, AlertCircle } from "lucide-react";
 
 // ===== Holdings (from Portfolio) =====
 interface PortfolioAsset {
@@ -369,10 +370,7 @@ export default function ProfilePage() {
     }
   };
 
-  const displayAddress =
-    walletAddress && walletAddress.length > 10
-      ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-      : walletAddress || "Unknown address";
+  const displayAddress = truncateAddress(walletAddress, { fallback: "Unknown address" });
 
   const headerName =
     profileUsername && profileUsername.trim().length > 0
@@ -386,28 +384,15 @@ export default function ProfilePage() {
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        await navigator.clipboard.writeText(walletAddress);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = walletAddress;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        textarea.style.top = "0";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
 
+    const success = await copyToClipboard(walletAddress);
+    if (success) {
       setHasCopiedAddress(true);
       window.setTimeout(() => setHasCopiedAddress(false), 1500);
-    } catch (err) {
-      logger.error("Failed to copy address", err);
+      return;
     }
+
+    logger.error("Failed to copy address");
   };
 
   const isConnected = !!primaryWallet;
@@ -415,20 +400,25 @@ export default function ProfilePage() {
   if (!isConnected) {
     return (
       <section className="px-2 sm:px-4">
-        <div className="min-h-[calc(100vh-10rem)] flex items-center justify-center">
+        <div className="min-h-[calc(100vh-12rem)] flex items-center justify-center">
           <Card className="w-full max-w-xs sm:max-w-sm">
             <CardContent className="p-6 text-center space-y-4">
-              <div className="mx-auto w-10 h-10 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-amber-400" />
+              <div className="mx-auto w-10 h-10 rounded-sm border border-border bg-muted/40 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-secondary" />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-zinc-100">Wallet not connected</p>
-                <p className="text-xs text-zinc-400">Connect your wallet to view your profile.</p>
+              <div className="space-y-2">
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                  Profile access
+                </p>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">Wallet not connected</p>
+                  <p className="text-xs text-muted-foreground">Connect your wallet to view your profile.</p>
+                </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs w-full"
+                className="w-full h-10 text-[11px] font-mono uppercase tracking-[0.2em]"
                 onClick={() => setShowAuthFlow?.(true)}
               >
                 Connect Wallet
@@ -442,53 +432,60 @@ export default function ProfilePage() {
 
   return (
     <>
-      <section className="mb-4 sm:mb-6 px-2 sm:px-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-full border-3 border-zinc-900 shadow-xl overflow-hidden bg-zinc-800 flex-shrink-0">
-              <Image
-                src={profileAvatarUrl || "/Sovry_Logo.png"}
-                alt="Profile picture"
-                fill
-                className="object-cover"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <h1 className="text-lg sm:text-2xl md:text-3xl font-semibold text-zinc-50 tracking-tight">
-                {headerName}
-              </h1>
-              {walletAddress && (
-                <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-sm text-zinc-100 font-mono bg-zinc-900/80 border border-sovry-crimson/50 rounded-full px-2 py-0.5 sm:px-3 sm:py-1 mt-1 shadow-sm">
-                  <span className="truncate max-w-[120px] sm:max-w-[260px] md:max-w-[420px]">
-                    {walletAddress}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyAddress}
-                    className="inline-flex items-center gap-1 text-sovry-crimson hover:text-sovry-crimson/80 cursor-pointer"
-                    aria-label={hasCopiedAddress ? "Address copied" : "Copy address"}
-                  >
-                    <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
-                    <span className="hidden sm:inline whitespace-nowrap">
-                      {hasCopiedAddress ? "Copied" : "Copy address"}
-                    </span>
-                  </button>
+      <section className="mb-6 px-2 sm:px-4">
+        <div className="flex flex-col gap-4 rounded-sm border border-border bg-card/60 p-4 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="relative h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24 rounded-sm border border-border bg-muted/40 overflow-hidden flex-shrink-0">
+                <Image
+                  src={profileAvatarUrl || "/Sovry_Logo.png"}
+                  alt="Profile picture"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                  Profile
+                </p>
+                <div className="space-y-1">
+                  <h1 className="text-lg sm:text-2xl md:text-3xl font-semibold text-foreground">
+                    {headerName}
+                  </h1>
+                  {walletAddress && (
+                    <div className="inline-flex items-center gap-2 rounded-sm border border-border bg-muted/40 px-2.5 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                      <span className="truncate max-w-[140px] sm:max-w-[280px] md:max-w-[420px] text-foreground tabular-nums">
+                        {walletAddress}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyAddress}
+                        className="inline-flex items-center gap-1 text-primary hover:text-primary/80"
+                        aria-label={hasCopiedAddress ? "Address copied" : "Copy address"}
+                      >
+                        <Copy className="h-3 w-3" aria-hidden="true" />
+                        <span className="hidden sm:inline whitespace-nowrap">
+                          {hasCopiedAddress ? "Copied" : "Copy"}
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-              <p className="mt-2 text-sm sm:text-lg text-zinc-300 max-w-xl">
-                {headerBio}
-              </p>
+                <p className="text-sm sm:text-base text-muted-foreground max-w-xl">
+                  {headerBio}
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex justify-start sm:justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-3 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium"
-              onClick={() => setIsProfileDialogOpen(true)}
-            >
-              Edit profile
-            </Button>
+            <div className="flex justify-start sm:justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 px-4 text-[11px] font-mono uppercase tracking-[0.2em]"
+                onClick={() => setIsProfileDialogOpen(true)}
+              >
+                Edit profile
+              </Button>
+            </div>
           </div>
         </div>
       </section>
@@ -511,17 +508,17 @@ export default function ProfilePage() {
 
       <section className="px-2 sm:px-4">
         <Tabs defaultValue={initialTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="inline-flex w-fit h-auto rounded-lg p-0.5 sm:p-1">
+          <TabsList className="inline-flex w-fit h-auto rounded-sm border border-border bg-muted/40 p-1">
             <TabsTrigger
               value="tokens"
-              className="text-[11px] sm:text-sm font-medium px-3 sm:px-4 py-1 sm:py-1.5 rounded-md data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 hover:bg-zinc-800/40 hover:text-zinc-100"
+              className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] px-3 sm:px-4 py-1.5 rounded-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground hover:text-foreground"
             >
               <span className="sm:hidden">Tokens</span>
               <span className="hidden sm:inline">Tokens launched</span>
             </TabsTrigger>
             <TabsTrigger
               value="holdings"
-              className="text-[11px] sm:text-sm font-medium px-3 sm:px-4 py-1 sm:py-1.5 rounded-md data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 hover:bg-zinc-800/40 hover:text-zinc-100"
+              className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] px-3 sm:px-4 py-1.5 rounded-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground hover:text-foreground"
             >
               <span className="sm:hidden">Holdings</span>
               <span className="hidden sm:inline">Your holdings</span>
@@ -532,39 +529,39 @@ export default function ProfilePage() {
           <TabsContent value="tokens" className="space-y-6">
             {holdingsLoading ? (
               <div className="py-10 sm:py-16 text-center">
-                <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-                <p className="text-zinc-400">Loading your tokens...</p>
+                <Coins className="h-10 w-10 text-primary mx-auto mb-4 animate-pulse" />
+                <p className="text-sm text-muted-foreground">Loading your tokens...</p>
               </div>
             ) : (
               <>
                 {harvestError && (
-                  <p className="text-sm text-red-400">{harvestError}</p>
+                  <p className="text-sm text-destructive">{harvestError}</p>
                 )}
-                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-                  <CardHeader>
-                    <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
+                <Card className="overflow-hidden">
+                  <CardHeader className="border-b border-border bg-muted/40">
+                    <CardTitle className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">
                       Launched Tokens
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-0">
                     <div className="overflow-x-auto">
                       <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-zinc-800">
-                            <th className="text-left py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                        <thead className="bg-muted/30">
+                          <tr className="border-b border-border">
+                            <th className="text-left py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                               Asset
                             </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                               Balance
                             </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                               Value
                             </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Available to Harvest
+                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                              Harvestable
                             </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Harvest
+                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                              Action
                             </th>
                           </tr>
                         </thead>
@@ -573,7 +570,7 @@ export default function ProfilePage() {
                             <tr>
                               <td
                                 colSpan={5}
-                                className="py-4 px-3 text-center text-xs text-zinc-500"
+                                className="py-6 px-3 text-center text-xs text-muted-foreground"
                               >
                                 {`You haven't launched any tokens yet.`}
                               </td>
@@ -582,11 +579,11 @@ export default function ProfilePage() {
                             launchedAssets.map((asset) => (
                               <tr
                                 key={asset.id}
-                                className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
+                                className="border-b border-border/60 hover:bg-muted/40"
                               >
-                                <td className="py-2 px-2 sm:py-3 sm:px-3">
+                                <td className="py-3 px-3">
                                   <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
+                                    <div className="w-9 h-9 rounded-sm overflow-hidden border border-border bg-muted/40">
                                       <Image
                                         src={asset.image}
                                         alt={asset.name}
@@ -596,43 +593,43 @@ export default function ProfilePage() {
                                       />
                                     </div>
                                     <div>
-                                      <p className="text-xs sm:text-base font-medium text-zinc-50">
+                                      <p className="text-sm font-semibold text-foreground">
                                         {asset.symbol}
                                       </p>
-                                      <p className="text-[10px] sm:text-sm text-zinc-400">
+                                      <p className="text-[11px] text-muted-foreground">
                                         {asset.name}
                                       </p>
                                     </div>
                                   </div>
                                 </td>
-                                <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                                <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
                                   {asset.balance.toFixed(2)}
                                 </td>
-                                <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                                <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
                                   {new Intl.NumberFormat("en-US", {
                                     style: "currency",
                                     currency: "USD",
                                   }).format(asset.valueUSD)}
                                 </td>
-                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                <td className="text-right py-3 px-3">
                                   {asset.claimableRevenue > 0 ? (
-                                    <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-2.5 py-0.5 rounded-full text-[10px] sm:text-sm font-medium border border-sovry-crimson/40">
+                                    <span className="inline-flex items-center gap-1 rounded-sm border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] text-primary tabular-nums">
                                       {asset.claimableRevenue.toLocaleString("en-US", {
                                         maximumFractionDigits: 4,
                                       })}
-                                      <span className="text-[9px] sm:text-[11px] font-normal text-zinc-300 ml-1">
+                                      <span className="text-[9px] font-normal text-muted-foreground ml-1">
                                         WIP
                                       </span>
                                     </span>
                                   ) : (
-                                    <span className="text-[10px] text-zinc-500">-</span>
+                                    <span className="text-[10px] text-muted-foreground">-</span>
                                   )}
                                 </td>
-                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                                <td className="text-right py-3 px-3">
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                    className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
                                     onClick={() => handleHarvestAsset(asset.id)}
                                     disabled={!primaryWallet || harvestingId === asset.id}
                                   >
@@ -657,31 +654,31 @@ export default function ProfilePage() {
           <TabsContent value="holdings" className="space-y-6">
             {holdingsLoading ? (
               <div className="py-10 sm:py-16 text-center">
-                <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-                <p className="text-zinc-400">Loading your holdings...</p>
+                <Coins className="h-10 w-10 text-primary mx-auto mb-4 animate-pulse" />
+                <p className="text-sm text-muted-foreground">Loading your holdings...</p>
               </div>
             ) : (
-              <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-                <CardHeader>
-                  <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
+              <Card className="overflow-hidden">
+                <CardHeader className="border-b border-border bg-muted/40">
+                  <CardTitle className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">
                     Holdings
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-zinc-800">
-                          <th className="text-left py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                      <thead className="bg-muted/30">
+                        <tr className="border-b border-border">
+                          <th className="text-left py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                             Asset
                           </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                             Balance
                           </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                             Value
                           </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
+                          <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                             Trade
                           </th>
                         </tr>
@@ -691,7 +688,7 @@ export default function ProfilePage() {
                           <tr>
                             <td
                               colSpan={4}
-                              className="py-4 px-3 text-center text-xs text-zinc-500"
+                              className="py-6 px-3 text-center text-xs text-muted-foreground"
                             >
                               {`You don't hold any assets yet.`}
                             </td>
@@ -700,11 +697,11 @@ export default function ProfilePage() {
                           holdingAssets.map((asset) => (
                             <tr
                               key={asset.id}
-                              className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
+                              className="border-b border-border/60 hover:bg-muted/40"
                             >
-                              <td className="py-2 px-2 sm:py-4 sm:px-4">
+                              <td className="py-3 px-3">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
+                                  <div className="w-9 h-9 rounded-sm overflow-hidden border border-border bg-muted/40">
                                     <Image
                                       src={asset.image}
                                       alt={asset.name}
@@ -714,30 +711,30 @@ export default function ProfilePage() {
                                     />
                                   </div>
                                   <div>
-                                    <p className="text-xs sm:text-base font-medium text-zinc-50">
+                                    <p className="text-sm font-semibold text-foreground">
                                       {asset.symbol}
                                     </p>
-                                    <p className="text-[10px] sm:text-sm text-zinc-400">
+                                    <p className="text-[11px] text-muted-foreground">
                                       {asset.name}
                                     </p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                              <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
                                 {asset.balance.toFixed(2)}
                               </td>
-                              <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
+                              <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
                                 {new Intl.NumberFormat("en-US", {
                                   style: "currency",
                                   currency: "USD",
                                 }).format(asset.valueUSD)}
                               </td>
-                              <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
+                              <td className="text-right py-3 px-3">
                                 <Link href={`/pool/${asset.id}`}>
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
+                                    className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
                                   >
                                     Trade
                                   </Button>

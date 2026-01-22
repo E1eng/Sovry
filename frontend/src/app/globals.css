@@ -1,63 +1,50 @@
 @import "tailwindcss";
 
 :root {
-  /* Sovry Color Scheme */
-  /* Background - Void Black (#09090B / zinc-950) */
-  --background: #09090B;
-  /* Text Main - Hologram White (#FAFAFA / zinc-50) */
-  --foreground: #FAFAFA;
-  /* Surface - Gunmetal (#18181B / zinc-900) */
-  --card: #18181B;
-  --card-foreground: #FAFAFA;
-  --popover: #18181B;
-  --popover-foreground: #FAFAFA;
-  /* Primary/Buy - Toxic Green (#39FF14) */
-  --primary: #E5E7EB;
-  --primary-foreground: #09090B;
-  /* Secondary/Sell - Hot Pink (#FF10F0) */
-  --secondary: #E5E7EB;
-  --secondary-foreground: #09090B;
-  /* Surface variant */
-  --muted: #18181B;
-  /* Text Muted - Ash Grey (#A1A1AA / zinc-400) */
-  --muted-foreground: #A1A1AA;
-  /* Accent uses primary (Toxic Green) */
-  --accent: #E5E7EB;
-  --accent-foreground: #09090B;
-  /* Destructive now uses neutral grey */
-  --destructive: #A1A1AA;
-  --destructive-foreground: #09090B;
-  /* Border - Deep Zinc (#27272A / zinc-800) */
-  --border: #27272A;
-  /* Input uses surface (Gunmetal) */
-  --input: #18181B;
-  /* Ring uses primary (Toxic Green) */
-  --ring: #E5E7EB;
-  --radius: 0.625rem;
+  /* Industrial Minimalism / Swiss palette */
+  --background: #050505;
+  --foreground: #f2f2f2;
+  --card: #0a0a0a;
+  --card-foreground: #f2f2f2;
+  --popover: #0a0a0a;
+  --popover-foreground: #f2f2f2;
+  --primary: #ccff00;
+  --primary-foreground: #050505;
+  --secondary: #ff4d00;
+  --secondary-foreground: #ffffff;
+  --muted: #111111;
+  --muted-foreground: #a3a3a3;
+  --accent: #ccff00;
+  --accent-foreground: #050505;
+  --destructive: #ff4d00;
+  --destructive-foreground: #ffffff;
+  --border: #262626;
+  --input: #0a0a0a;
+  --ring: #ccff00;
+  --radius: 2px;
 }
 
 .dark {
-  /* Same colors for dark mode */
-  --background: #09090B;
-  --foreground: #FAFAFA;
-  --card: #18181B;
-  --card-foreground: #FAFAFA;
-  --popover: #18181B;
-  --popover-foreground: #FAFAFA;
-  --primary: #E5E7EB;
-  --primary-foreground: #09090B;
-  --secondary: #E5E7EB;
-  --secondary-foreground: #09090B;
-  --muted: #18181B;
-  --muted-foreground: #A1A1AA;
-  --accent: #E5E7EB;
-  --accent-foreground: #09090B;
-  --destructive: #A1A1AA;
-  --destructive-foreground: #09090B;
-  --border: #27272A;
-  --input: #18181B;
-  --ring: #E5E7EB;
-  --radius: 0.5rem;
+  --background: #050505;
+  --foreground: #f2f2f2;
+  --card: #0a0a0a;
+  --card-foreground: #f2f2f2;
+  --popover: #0a0a0a;
+  --popover-foreground: #f2f2f2;
+  --primary: #ccff00;
+  --primary-foreground: #050505;
+  --secondary: #ff4d00;
+  --secondary-foreground: #ffffff;
+  --muted: #111111;
+  --muted-foreground: #a3a3a3;
+  --accent: #ccff00;
+  --accent-foreground: #050505;
+  --destructive: #ff4d00;
+  --destructive-foreground: #ffffff;
+  --border: #262626;
+  --input: #0a0a0a;
+  --ring: #ccff00;
+  --radius: 2px;
 }
 
 @theme inline {
@@ -80,21 +67,16 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  /* Sovry Custom Colors */
-  --color-void-black: #09090B;
-  --color-gunmetal: #18181B;
-  --color-toxic-green: #E5E7EB;
-  --color-hot-pink: #E5E7EB;
-  --color-hologram-white: #FAFAFA;
-  --color-ash-grey: #A1A1AA;
-  --color-deep-zinc: #27272A;
-  /* Sovry Style Guide Colors - Utility Classes */
-  --color-sovry-green: #E5E7EB;
-  --color-sovry-pink: #A1A1AA;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+  --color-surface: var(--card);
+  --color-surface-strong: var(--muted);
+  --color-lime: var(--primary);
+  --color-electric-orange: var(--secondary);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
 }
 
 @layer base {
@@ -116,7 +98,9 @@
     animation: infinite-cards 24s linear infinite;
   }
   body {
-    @apply bg-zinc-950 text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
     scrollbar-width: none; /* Firefox */
   }
 
@@ -128,42 +112,42 @@
 @layer components {
   /* Enhanced glass-card with better visibility - brighter and more opaque */
   .glass-card {
-    @apply backdrop-blur-xl bg-zinc-900/50 border border-zinc-800 rounded-xl shadow-xl shadow-black/50;
+    @apply bg-card border border-border rounded-sm;
   }
 
   /* Improved glass-input with better focus states and transitions */
   .glass-input {
-    @apply bg-input/90 backdrop-blur-sm border border-border rounded-lg px-4 py-3 text-foreground placeholder-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-accent/70 focus:border-accent/50 focus:bg-input transition-all duration-200;
+    @apply bg-input border border-border rounded-sm px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors;
   }
 
   /* Buy button - Sovry Green (Primary Action) */
   .buy-button {
-    @apply bg-sovry-green hover:bg-sovry-green/90 text-black font-bold uppercase tracking-wide rounded-lg py-3 px-6 transition-colors;
+    @apply bg-primary text-black font-semibold uppercase tracking-wide rounded-sm py-3 px-6 transition-colors hover:brightness-90;
   }
 
   /* Sell button - Sovry Pink (Destructive Action) */
   .sell-button {
-    @apply bg-sovry-pink hover:bg-sovry-pink/90 text-white font-bold uppercase tracking-wide rounded-lg py-3 px-6 transition-colors;
+    @apply bg-secondary text-white font-semibold uppercase tracking-wide rounded-sm py-3 px-6 transition-colors hover:brightness-90;
   }
 
   /* Enhanced accent-button with Toxic Green */
   .accent-button {
-    @apply bg-gradient-to-r from-[#E5E7EB] via-[#E5E7EB] to-[#E5E7EB]/90 hover:from-[#E5E7EB]/95 hover:to-[#E5E7EB]/80 text-[#09090B] font-semibold rounded-lg py-3 px-6 transition-all duration-300 shadow-lg shadow-[#E5E7EB]/20 hover:shadow-xl hover:shadow-[#E5E7EB]/30 active:scale-95;
+    @apply bg-primary text-black font-semibold rounded-sm py-3 px-6 transition-colors hover:brightness-90 active:translate-y-px;
   }
 
   /* Positive PnL / Up charts - Toxic Green */
   .positive-pnl {
-    @apply text-[#E5E7EB];
+    @apply text-primary;
   }
 
   /* Negative PnL / Down charts - Hot Pink */
   .negative-pnl {
-    @apply text-[#A1A1AA];
+    @apply text-secondary;
   }
 
   /* Updated apy-badge with Toxic Green */
   .apy-badge {
-    @apply inline-flex items-center gap-1 bg-[#E5E7EB]/25 text-[#E5E7EB] px-3 py-1 rounded-full text-xs font-medium border border-[#E5E7EB]/40;
+    @apply inline-flex items-center gap-1 bg-card text-foreground px-3 py-1 rounded-sm text-xs font-medium border border-border;
   }
 }
 
@@ -210,6 +194,7 @@
   }
 
   input[type="number"] {
+    appearance: textfield;
     -moz-appearance: textfield;
   }
 }

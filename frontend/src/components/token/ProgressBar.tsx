@@ -122,25 +122,22 @@ export function ProgressToGraduation({
   return (
     <div className={cn("space-y-3", className)}>
       {/* Header with labels */}
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-semibold text-zinc-50">Progress to Graduate</span>
-        <span className="text-zinc-400 font-mono">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em]">
+        <span className="font-semibold text-foreground">Progress to Graduate</span>
+        <span className="text-muted-foreground font-mono tabular-nums">
           {totalRaisedFormatted} IP / {targetRaiseDisplay} IP ({progress.toFixed(1)}%)
         </span>
       </div>
 
       {/* Progress Bar Container */}
       <div className="relative">
-        {/* Custom Progress Bar with Gradient */}
-        <div className="relative h-4 sm:h-6 w-full overflow-hidden rounded-full bg-zinc-800/50 border border-zinc-800">
-          {/* Animated Progress Fill with Gradient */}
+        {/* Progress Bar */}
+        <div className="relative h-2 sm:h-3 w-full overflow-hidden rounded-sm bg-muted border border-border">
           <div
             className={cn(
-              "h-full rounded-full transition-all duration-700 ease-out relative",
-              isGraduatedState
-                ? "bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-600 shadow-[0_0_20px_rgba(250,204,21,0.5)]"
-                : "bg-gradient-to-r from-green-400 to-green-600",
-              isNearCompletion && !isGraduatedState && "shadow-[0_0_20px_rgba(34,197,94,0.5)]"
+              "h-full rounded-sm transition-all duration-700 ease-out",
+              isGraduatedState ? "bg-secondary" : "bg-primary",
+              isNearCompletion && !isGraduatedState && "bg-primary"
             )}
             style={{
               width: `${Math.min(Math.max(animatedProgress, 0), 100)}%`,
@@ -149,18 +146,7 @@ export function ProgressToGraduation({
             aria-valuenow={animatedProgress}
             aria-valuemin={0}
             aria-valuemax={100}
-          >
-            {/* Shimmer effect when near completion or graduated */}
-            {(isNearCompletion || isGraduatedState) && (
-              <div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                style={{
-                  backgroundSize: "200% 100%",
-                  animation: "shimmer 2s infinite",
-                }}
-              />
-            )}
-          </div>
+          />
         </div>
 
         {/* Milestone Markers - Hidden on mobile, shown on desktop */}
@@ -174,12 +160,12 @@ export function ProgressToGraduation({
               {/* Marker Dot */}
               <div
                 className={cn(
-                  "w-1.5 h-1.5 rounded-full transition-all duration-300",
+                  "w-1.5 h-1.5 rounded-sm transition-all duration-300",
                   animatedProgress >= milestone
                     ? isGraduatedState
-                      ? "bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]"
-                      : "bg-green-400 shadow-[0_0_8px_rgba(34,197,94,0.6)]"
-                    : "bg-zinc-600"
+                      ? "bg-secondary"
+                      : "bg-primary"
+                    : "bg-border"
                 )}
               />
             </div>

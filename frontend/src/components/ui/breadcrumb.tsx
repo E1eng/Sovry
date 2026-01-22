@@ -29,7 +29,7 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
               {index === 0 && item.href === "/" ? (
                 <Link
                   href="/"
-                  className="text-zinc-400 hover:text-zinc-50 transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                   aria-label="Home"
                 >
                   <Home className="h-4 w-4" />
@@ -37,21 +37,21 @@ export function Breadcrumb({ items, className }: BreadcrumbProps) {
               ) : item.href && !isLast ? (
                 <Link
                   href={item.href}
-                  className="text-zinc-400 hover:text-zinc-50 transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {item.label}
                 </Link>
               ) : (
                 <span
                   className={cn(
-                    isLast ? "text-zinc-50 font-medium" : "text-zinc-400"
+                    isLast ? "text-foreground font-medium" : "text-muted-foreground"
                   )}
                 >
                   {item.label}
                 </span>
               )}
               {!isLast && (
-                <ChevronRight className="h-4 w-4 text-zinc-600" aria-hidden="true" />
+                <ChevronRight className="h-4 w-4 text-border" aria-hidden="true" />
               )}
             </li>
           )

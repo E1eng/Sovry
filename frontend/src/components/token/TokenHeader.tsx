@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import toast from "react-hot-toast"
-import { cn, copyToClipboard } from "@/lib/utils"
+import { cn, copyToClipboard, truncateAddress } from "@/lib/utils"
 import { IPFS_GATEWAY, STORYSCAN_BASE_URL } from "@/lib/env"
 import type { LaunchDetails } from "@/hooks/useLaunchDetails"
 
@@ -92,11 +92,6 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
     return `${num.toLocaleString(undefined, { maximumFractionDigits: 3 })} IP`
   }
 
-  const truncateAddress = (address: string) => {
-    if (!address || address.length < 10) return address
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
-  }
-
   const getIpIdExplorerUrl = (ipId: string | undefined | null) => {
     if (!ipId) return undefined
     return `https://aeneid.explorer.story.foundation/ipa/${ipId}`
@@ -137,7 +132,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
       <CardContent className="p-4 sm:p-6">
         <div className="flex flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6">
           {/* Token Image */}
-          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 rounded-2xl overflow-hidden bg-zinc-800 border border-zinc-800">
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 rounded-sm overflow-hidden bg-muted border border-border">
             {imageUrl ? (
               <Image
                 src={imageUrl}
@@ -148,8 +143,8 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                 unoptimized
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-zinc-700/60">
-                <span className="text-3xl font-bold text-zinc-400">
+              <div className="flex h-full w-full items-center justify-center bg-muted">
+                <span className="text-3xl font-semibold text-muted-foreground">
                   {ticker.charAt(0).toUpperCase()}
                 </span>
               </div>
@@ -160,11 +155,11 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2 sm:gap-3 mb-2">
               <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-zinc-50 truncate">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-foreground truncate">
                   {name}
                 </h1>
                 <div className="mt-1 inline-flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full bg-zinc-900/70 border border-zinc-700 text-xs sm:text-sm font-mono tracking-wide uppercase text-zinc-100">
+                  <span className="px-3 py-1 border border-border bg-muted text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                     {ticker}
                   </span>
                 </div>
@@ -172,25 +167,25 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
               {isGraduated ? (
                 <Badge
                   variant="outline"
-                  className="border-emerald-500/60 bg-emerald-500/10 text-emerald-300 flex items-center gap-1.5 text-[11px] sm:text-xs whitespace-nowrap"
+                  className="border-secondary/60 bg-secondary/10 text-secondary flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.2em] whitespace-nowrap"
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                   Graduated
                 </Badge>
               ) : (
                 <Badge
                   variant="outline"
-                  className="border-zinc-600 bg-zinc-800/60 text-zinc-300 flex items-center gap-1.5 text-[11px] sm:text-xs whitespace-nowrap"
+                  className="border-primary/60 bg-primary/10 text-primary flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.2em] whitespace-nowrap"
                 >
-                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-zinc-400" />
+                  <span className="inline-flex h-1.5 w-1.5 rounded-sm bg-primary" />
                   Active
                 </Badge>
               )}
             </div>
             {(isGraduated && formatMarketCapString(marketCap)) && (
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs sm:text-sm text-zinc-500">Market Cap:</span>
-                <span className="text-xs sm:text-sm font-semibold text-yellow-400">
+                <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Market Cap</span>
+                <span className="text-xs sm:text-sm font-mono text-foreground tabular-nums">
                   {formatMarketCapString(marketCap)}
                 </span>
               </div>
@@ -198,8 +193,8 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
 
             {(isGraduated && !formatMarketCapString(marketCap) && formatLiquidity(graduationLiquidity)) && (
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs sm:text-sm text-zinc-500">Liquidity:</span>
-                <span className="text-xs sm:text-sm font-semibold text-yellow-400">
+                <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Liquidity</span>
+                <span className="text-xs sm:text-sm font-mono text-foreground tabular-nums">
                   {formatLiquidity(graduationLiquidity)}
                 </span>
               </div>
@@ -208,12 +203,12 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
             {/* Creator Address */}
             {creator && (
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs sm:text-sm text-zinc-500">Created by</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Created by</span>
                 <a
                   href={getAddressExplorerUrl(creator)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs sm:text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2"
+                  className="text-xs sm:text-sm font-mono text-muted-foreground hover:text-foreground hover:underline decoration-dotted underline-offset-2"
                 >
                   {truncateAddress(creator)}
                 </a>
@@ -222,27 +217,27 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
 
             {/* Contract Address with Copy */}
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/50 rounded-lg border border-zinc-800 group">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-sm border border-border group">
                 <a
                   href={getAddressExplorerUrl(details.tokenAddress)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs sm:text-sm text-zinc-400 font-mono hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2"
+                  className="text-xs sm:text-sm text-muted-foreground font-mono hover:text-foreground hover:underline decoration-dotted underline-offset-2"
                 >
                   {truncateAddress(details.tokenAddress)}
                 </a>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 sm:h-6 sm:w-6 p-0 hover:bg-zinc-700 transition-colors touch-manipulation"
+                  className="h-8 w-8 sm:h-6 sm:w-6 p-0 hover:bg-muted transition-colors touch-manipulation"
                   onClick={handleCopyAddress}
                   aria-label="Copy contract address"
                   title="Copy address to clipboard"
                 >
                   {copied ? (
-                    <Check className="h-3.5 w-3.5 text-green-400" />
+                    <Check className="h-3.5 w-3.5 text-primary" strokeWidth={1.5} />
                   ) : (
-                    <Copy className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-300 transition-colors" />
+                    <Copy className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors" strokeWidth={1.5} />
                   )}
                 </Button>
               </div>
@@ -254,7 +249,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 p-0 hover:bg-zinc-700"
+                      className="h-8 w-8 p-0 hover:bg-muted"
                       asChild
                     >
                       <a
@@ -263,7 +258,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                         rel="noopener noreferrer"
                         aria-label="Twitter"
                       >
-                        <Twitter className="h-4 w-4 text-zinc-400 hover:text-blue-400" />
+                        <Twitter className="h-4 w-4 text-muted-foreground hover:text-foreground" strokeWidth={1.5} />
                       </a>
                     </Button>
                   )}
@@ -271,7 +266,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 p-0 hover:bg-zinc-700"
+                      className="h-8 w-8 p-0 hover:bg-muted"
                       asChild
                     >
                       <a
@@ -280,7 +275,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                         rel="noopener noreferrer"
                         aria-label="Telegram"
                       >
-                        <MessageCircle className="h-4 w-4 text-zinc-400 hover:text-blue-400" />
+                        <MessageCircle className="h-4 w-4 text-muted-foreground hover:text-foreground" strokeWidth={1.5} />
                       </a>
                     </Button>
                   )}
@@ -288,7 +283,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 p-0 hover:bg-zinc-700"
+                      className="h-8 w-8 p-0 hover:bg-muted"
                       asChild
                     >
                       <a
@@ -297,7 +292,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                         rel="noopener noreferrer"
                         aria-label="Website"
                       >
-                        <Globe className="h-4 w-4 text-zinc-400 hover:text-blue-400" />
+                        <Globe className="h-4 w-4 text-muted-foreground hover:text-foreground" strokeWidth={1.5} />
                       </a>
                     </Button>
                   )}
@@ -308,19 +303,20 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
         </div>
 
         {wrapperMeta && (
-          <div className="mt-4 pt-3 border-t border-zinc-800 text-xs sm:text-sm text-zinc-300">
+          <div className="mt-4 pt-3 border-t border-border text-xs sm:text-sm text-muted-foreground">
             <div className="w-full flex justify-center">
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors uppercase tracking-[0.2em] text-[10px]"
                 onClick={() => setMetricsOpen((open) => !open)}
               >
-                <span className="font-medium">Stat</span>
+                <span className="font-medium">Stats</span>
                 <ChevronDown
                   className={cn(
                     "h-3 w-3 transition-transform",
                     metricsOpen ? "rotate-180" : "rotate-0",
                   )}
+                  strokeWidth={1.5}
                 />
               </button>
             </div>
@@ -329,34 +325,34 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 {/* Left Panel: Token Data */}
                 <div className="space-y-2">
-                  <div className="text-[11px] uppercase tracking-wide text-zinc-500">Token Data</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Token Data</div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">RT Address</div>
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">RT Address</div>
                       <a
                         href={getAddressExplorerUrl(wrapperMeta.rt || details.rtAddress || details.tokenAddress)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block font-mono text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                        className="block font-mono text-[11px] text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
                       >
                         {truncateAddress(wrapperMeta.rt || details.rtAddress || details.tokenAddress)}
                       </a>
                     </div>
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Launched</div>
-                      <div className="text-[11px] text-zinc-300">
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Launched</div>
+                      <div className="text-[11px] text-foreground tabular-nums">
                         {formatTimestamp(wrapperMeta.launchTime)}
                       </div>
                     </div>
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Supply Locked</div>
-                      <div className="text-[11px] text-zinc-300">
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Supply Locked</div>
+                      <div className="text-[11px] text-foreground font-mono tabular-nums">
                         {formatAmount(wrapperMeta.totalLocked, 6, 0)} RT
                       </div>
                     </div>
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Revenue Injected</div>
-                      <div className="text-[11px] text-zinc-300">
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Revenue Injected</div>
+                      <div className="text-[11px] text-foreground font-mono tabular-nums">
                         {formatAmount(wrapperMeta.totalRoyaltiesHarvested, 18, 0)} WIP
                       </div>
                     </div>
@@ -365,56 +361,56 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
 
                 {/* Right Panel: IP Metadata */}
                 <div className="space-y-2">
-                  <div className="text-[11px] uppercase tracking-wide text-zinc-500">IP Metadata</div>
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IP Metadata</div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">IPID</div>
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
                       {details.ipId ? (
                         <a
                           href={getIpIdExplorerUrl(details.ipId)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block font-mono text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                          className="block font-mono text-[11px] text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
                         >
                           {truncateAddress(details.ipId)}
                         </a>
                       ) : (
-                        <div className="text-[11px] text-zinc-500">—</div>
+                        <div className="text-[11px] text-muted-foreground">—</div>
                       )}
                     </div>
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Creator</div>
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Creator</div>
                       {creator ? (
                         <a
                           href={getAddressExplorerUrl(creator)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block font-mono text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                          className="block font-mono text-[11px] text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
                         >
                           {truncateAddress(creator)}
                         </a>
                       ) : (
-                        <div className="text-[11px] text-zinc-500">—</div>
+                        <div className="text-[11px] text-muted-foreground">—</div>
                       )}
                     </div>
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Metadata URI</div>
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Metadata URI</div>
                       {metadataUri ? (
                         <a
                           href={metadataHref || "#"}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-[11px] text-zinc-300 hover:text-zinc-100 hover:underline decoration-dotted underline-offset-2 truncate"
+                          className="block text-[11px] text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
                         >
                           {metadataUri}
                         </a>
                       ) : (
-                        <div className="text-[11px] text-zinc-500">—</div>
+                        <div className="text-[11px] text-muted-foreground">—</div>
                       )}
                     </div>
-                    <div className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-wide text-zinc-500">Media Type</div>
-                      <div className="text-[11px] text-zinc-300">
+                    <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Media Type</div>
+                      <div className="text-[11px] text-foreground">
                         {details.mediaType ?? "—"}
                       </div>
                     </div>

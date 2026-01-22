@@ -54,8 +54,8 @@ export function FileUpload({
 
   return (
     <div
-      className={`w-full border border-dashed rounded-lg px-3 py-2 text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 bg-transparent hover:border-neutral-400 dark:hover:border-neutral-500 flex flex-col items-start justify-center cursor-pointer transition-colors ${
-        isDragging ? "border-sovry-green/70 bg-sovry-green/5" : "border-neutral-200 dark:border-neutral-700"
+      className={`w-full border border-dashed rounded-sm px-3 py-2 text-xs sm:text-sm text-muted-foreground bg-transparent hover:border-border/80 flex flex-col items-start justify-center cursor-pointer transition-colors ${
+        isDragging ? "border-primary/70 bg-primary/10 text-foreground" : "border-border"
       } ${className}`}
       onClick={handleClick}
       onDrop={handleDrop}
@@ -66,13 +66,13 @@ export function FileUpload({
         Click to upload or drag and drop your file here.
       </span>
       {selectedFiles.length > 0 ? (
-        <span className="truncate text-neutral-700 dark:text-neutral-200">
+        <span className="truncate text-foreground">
           {multiple
             ? `${selectedFiles.length} file(s) selected`
             : selectedFiles[0]?.name}
         </span>
       ) : (
-        <span className="truncate text-neutral-400 dark:text-neutral-500">
+        <span className="truncate text-muted-foreground">
           Supported: images (PNG, JPG, GIF, SVG, WebP)
         </span>
       )}

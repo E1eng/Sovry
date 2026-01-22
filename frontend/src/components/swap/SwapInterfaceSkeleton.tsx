@@ -17,19 +17,22 @@ export function SwapInterfaceSkeleton({ className, delay = 200 }: SwapInterfaceS
         animation: `fadeIn 0.5s ease-out ${delay}ms both`,
       }}
     >
-      <CardHeader className="relative pb-4">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-8 w-8 rounded" />
+      <CardHeader className="border-b border-border bg-muted/60">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-6 w-24" />
+          </div>
+          <Skeleton className="h-8 w-8 rounded-sm" />
         </div>
         <div className="flex items-center justify-end mt-2">
-          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-3 w-24" />
         </div>
         {/* Tabs Skeleton */}
         <div className="mt-4">
-          <div className="h-10 w-full rounded-lg border border-zinc-800 bg-zinc-900/50 p-1 flex gap-1">
-            <Skeleton className="h-full flex-1 rounded-md" />
-            <Skeleton className="h-full flex-1 rounded-md" />
+          <div className="h-10 w-full rounded-sm border border-border bg-background/40 p-1 flex gap-1">
+            <Skeleton className="h-full flex-1 rounded-sm" />
+            <Skeleton className="h-full flex-1 rounded-sm" />
           </div>
         </div>
       </CardHeader>
@@ -39,12 +42,12 @@ export function SwapInterfaceSkeleton({ className, delay = 200 }: SwapInterfaceS
         <div className="space-y-2">
           <Skeleton className="h-3 w-16" />
           <div className="flex flex-col sm:flex-row gap-2">
-            <Skeleton className="flex-1 h-14 sm:h-16 rounded-md" />
-            <Skeleton className="w-full sm:w-24 h-14 sm:h-16 rounded-md" />
+            <Skeleton className="flex-1 h-14 sm:h-16 rounded-sm" />
+            <Skeleton className="w-full sm:w-24 h-14 sm:h-16 rounded-sm" />
           </div>
           <div className="flex items-center justify-between">
             <Skeleton className="h-3 w-32" />
-            <Skeleton className="h-6 w-12 rounded" />
+            <Skeleton className="h-6 w-12 rounded-sm" />
           </div>
         </div>
 
@@ -57,14 +60,14 @@ export function SwapInterfaceSkeleton({ className, delay = 200 }: SwapInterfaceS
         <div className="space-y-2">
           <Skeleton className="h-3 w-20" />
           <div className="flex flex-col sm:flex-row gap-2">
-            <Skeleton className="flex-1 h-14 sm:h-16 rounded-md" />
-            <Skeleton className="w-full sm:w-24 h-14 sm:h-16 rounded-md" />
+            <Skeleton className="flex-1 h-14 sm:h-16 rounded-sm" />
+            <Skeleton className="w-full sm:w-24 h-14 sm:h-16 rounded-sm" />
           </div>
           <Skeleton className="h-3 w-32" />
         </div>
 
         {/* Place Trade Button */}
-        <Skeleton className="h-12 w-full rounded-md mt-4" />
+        <Skeleton className="h-12 w-full rounded-sm mt-4" />
       </CardContent>
     </Card>
   )

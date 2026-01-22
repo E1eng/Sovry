@@ -5,28 +5,32 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sovry-green focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-sm text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-sovry-green text-black font-bold uppercase tracking-wide hover:bg-sovry-green/90",
+        default:
+          "bg-primary text-black font-semibold uppercase tracking-wide hover:brightness-90",
         destructive:
-          "bg-sovry-pink text-white font-bold uppercase tracking-wide hover:bg-sovry-pink/90",
-        buy: "bg-sovry-green text-black font-bold uppercase tracking-wide hover:bg-sovry-green/90",
-        sell: "bg-sovry-pink text-white font-bold uppercase tracking-wide hover:bg-sovry-pink/90",
-        purple: "bg-purple-600 text-white font-bold uppercase tracking-wide hover:bg-purple-700 rounded-lg",
+          "bg-secondary text-white font-semibold uppercase tracking-wide hover:brightness-90",
+        buy: "bg-primary text-black font-semibold uppercase tracking-wide hover:brightness-90",
+        sell: "bg-secondary text-white font-semibold uppercase tracking-wide hover:brightness-90",
+        purple:
+          "bg-foreground text-background font-semibold uppercase tracking-wide hover:brightness-90",
         outline:
-          "border-2 border-zinc-700 text-zinc-50 font-semibold hover:bg-zinc-800",
+          "border border-border text-foreground font-semibold hover:bg-muted",
         secondary:
-          "bg-zinc-800 text-zinc-50 font-semibold hover:bg-zinc-700",
-        ghost: "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-50",
-        link: "text-sovry-green underline-offset-4 hover:underline",
-        login: "bg-zinc-900 border border-zinc-800 text-white font-semibold hover:bg-zinc-800 rounded-lg",
+          "bg-muted text-foreground font-semibold hover:bg-muted/80",
+        ghost:
+          "text-muted-foreground hover:bg-muted hover:text-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+        login:
+          "bg-card border border-border text-foreground font-semibold hover:bg-muted",
       },
       size: {
         default: "h-10 px-6 py-3",
-        sm: "h-9 rounded-lg px-4 py-2",
-        lg: "h-11 rounded-lg px-8 py-3",
+        sm: "h-9 px-4 py-2",
+        lg: "h-11 px-8 py-3",
         icon: "h-10 w-10 p-0",
       },
     },

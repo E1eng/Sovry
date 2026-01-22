@@ -689,6 +689,7 @@ export const newLaunchpadAbi = [
               { internalType: "address", name: "rtAddress", type: "address" },
               { internalType: "address", name: "wrapperAddress", type: "address" },
               { internalType: "address", name: "creator", type: "address" },
+              { internalType: "address", name: "ipAsset", type: "address" },
               { internalType: "uint256", name: "launchTime", type: "uint256" },
               { internalType: "uint256", name: "totalLocked", type: "uint256" },
               { internalType: "bool", name: "graduated", type: "bool" },

@@ -12,13 +12,13 @@ export function LaunchCardSkeleton({ className }: LaunchCardSkeletonProps) {
     <div
       className={cn(
         "relative flex h-full items-start gap-4 overflow-hidden",
-        "rounded-xl border border-zinc-800/80 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950",
+        "rounded-sm border border-border bg-card",
         "px-4 py-3 sm:px-5 sm:py-4",
         className
       )}
     >
       {/* Left - Thumbnail skeleton */}
-      <div className="relative h-16 w-16 sm:h-20 sm:w-20 rounded-lg overflow-hidden bg-zinc-900/80 flex-shrink-0">
+      <div className="relative h-16 w-16 sm:h-20 sm:w-20 border border-border overflow-hidden bg-muted flex-shrink-0">
         <Skeleton className="absolute inset-0 w-full h-full" />
       </div>
 
@@ -29,7 +29,7 @@ export function LaunchCardSkeleton({ className }: LaunchCardSkeletonProps) {
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-3 w-16" />
           </div>
-          <Skeleton className="h-4 w-20 rounded-full" />
+          <Skeleton className="h-4 w-20" />
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">

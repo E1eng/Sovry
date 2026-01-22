@@ -77,6 +77,39 @@ export function formatMarketCapFull(
   }).format(num)
 }
 
+export interface TruncateAddressOptions {
+  start?: number
+  end?: number
+  separator?: string
+  minLength?: number
+  fallback?: string
+  stripPrefix?: boolean
+}
+
+export function truncateAddress(
+  address?: string | null,
+  options: TruncateAddressOptions = {}
+): string {
+  const {
+    start = 6,
+    end = 4,
+    separator = "...",
+    minLength = start + end + 2,
+    fallback = "—",
+    stripPrefix = false,
+  } = options
+
+  if (!address) return fallback
+
+  const normalized = stripPrefix && address.startsWith("0x") ? address.slice(2) : address
+
+  if (normalized.length <= minLength) return normalized
+
+  if (end <= 0) return normalized.slice(0, start)
+
+  return `${normalized.slice(0, start)}${separator}${normalized.slice(-end)}`
+}
+
 /**
  * Copy text to clipboard with fallback for older browsers
  * @param text - Text to copy to clipboard

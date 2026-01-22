@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Button } from "@/components/ui/button";
+import { ActionBtn } from "@/components/ui/ActionBtn";
+import { TerminalCard } from "@/components/ui/TerminalCard";
 import { ChevronLeft, ChevronRight, Filter, LayoutGrid, List, Settings, Radio } from "lucide-react";
 import AssetCard from "@/components/marketplace/AssetCard";
 import { LaunchCardSkeleton } from "@/components/LaunchCardSkeleton";
@@ -52,23 +53,31 @@ function NowTrendingSection() {
       <div className="w-full space-y-4">
         {/* Section Header */}
         <div className="flex items-center justify-between">
-          <h2 id="now-trending-heading" className="text-lg font-semibold text-sovry-green">
-            Now trending
-          </h2>
+          <div className="space-y-1">
+            <h2
+              id="now-trending-heading"
+              className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground"
+            >
+              Now trending
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Live launches gaining momentum right now.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => scroll("left")}
-              className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 transition-colors"
+              className="inline-flex h-8 w-8 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
               aria-label="Scroll left"
             >
-              <ChevronLeft className="h-4 w-4 text-zinc-400" />
+              <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
             </button>
             <button
               onClick={() => scroll("right")}
-              className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 transition-colors"
+              className="inline-flex h-8 w-8 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
               aria-label="Scroll right"
             >
-              <ChevronRight className="h-4 w-4 text-zinc-400" />
+              <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
             </button>
           </div>
         </div>
@@ -89,21 +98,16 @@ function NowTrendingSection() {
             ))}
           </div>
         ) : error ? (
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 text-center space-y-3">
-            <p className="text-sm text-zinc-400">{error}</p>
-            <Button
-              onClick={retry}
-              variant="outline"
-              size="sm"
-              className="border-zinc-800 hover:border-sovry-green/50"
-            >
+          <TerminalCard className="p-6 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <ActionBtn onClick={retry} tone="ghost" className="text-[10px]">
               Retry
-            </Button>
-          </div>
+            </ActionBtn>
+          </TerminalCard>
         ) : activeLaunches.length === 0 ? (
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 text-center">
-            <p className="text-sm text-zinc-400">No trending tokens yet.</p>
-          </div>
+          <TerminalCard className="p-6 text-center">
+            <p className="text-sm text-muted-foreground">No trending tokens yet.</p>
+          </TerminalCard>
         ) : (
           <div
             ref={scrollRef}
@@ -218,17 +222,20 @@ export default function Home() {
       <NowTrendingSection />
 
       {/* Explore Section */}
-      <div id="explore" className="px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-3 sm:space-y-4">
+      <div
+        id="explore"
+        className="px-3 sm:px-4 md:px-6 py-4 sm:py-6 space-y-3 sm:space-y-4 border-t border-border"
+      >
         {/* Tabs: Explore / Watchlist */}
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-          <div className="flex items-center gap-6">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => setActiveTab("explore")}
               className={cn(
-                "text-base font-medium transition-colors",
+                "text-[11px] font-semibold uppercase tracking-[0.2em] transition-colors",
                 activeTab === "explore"
-                  ? "text-zinc-50"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               Explore
@@ -236,10 +243,10 @@ export default function Home() {
             <button
               onClick={() => setActiveTab("graduated")}
               className={cn(
-                "text-base font-medium transition-colors",
+                "text-[11px] font-semibold uppercase tracking-[0.2em] transition-colors",
                 activeTab === "graduated"
-                  ? "text-zinc-50"
-                  : "text-zinc-500 hover:text-zinc-300"
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
               Graduated
@@ -255,17 +262,17 @@ export default function Home() {
                 key={option.id}
                 onClick={() => setSelectedFilter(option.id)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+                  "inline-flex items-center gap-1.5 border border-border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] transition-colors",
                   selectedFilter === option.id
-                    ? "bg-sovry-green text-black"
-                    : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700"
+                    ? "bg-primary text-black border-primary/60"
+                    : "bg-card text-muted-foreground hover:text-foreground hover:border-primary/40"
                 )}
               >
                 {option.icon && (
-                  <option.icon className={cn(
-                    "h-3 w-3",
-                    option.id === "live" && "text-red-500"
-                  )} />
+                  <option.icon
+                    className={cn("h-3 w-3", option.id === "live" && "text-secondary")}
+                    strokeWidth={1.5}
+                  />
                 )}
                 {option.label}
               </button>
@@ -274,50 +281,50 @@ export default function Home() {
 
           {/* Right side: Filter button + View toggle + Settings */}
           <div className="flex items-center gap-2">
-            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-zinc-700">
-              <Filter className="h-3 w-3" />
+            <button className="inline-flex items-center gap-1.5 border border-border bg-card px-3 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground hover:border-primary/40">
+              <Filter className="h-3 w-3" strokeWidth={1.5} />
               Filter
             </button>
-            <div className="flex items-center border border-zinc-800 rounded-lg overflow-hidden">
+            <div className="flex items-center border border-border">
               <button
                 onClick={() => setViewMode("grid")}
                 className={cn(
-                  "p-1.5 transition-colors",
-                  viewMode === "grid" ? "bg-zinc-800 text-zinc-50" : "text-zinc-500 hover:text-zinc-300"
+                  "px-2 py-1 text-muted-foreground transition-colors",
+                  viewMode === "grid" ? "bg-muted text-foreground" : "hover:text-foreground"
                 )}
               >
-                <LayoutGrid className="h-4 w-4" />
+                <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
               </button>
               <button
                 onClick={() => setViewMode("list")}
                 className={cn(
-                  "p-1.5 transition-colors",
-                  viewMode === "list" ? "bg-zinc-800 text-zinc-50" : "text-zinc-500 hover:text-zinc-300"
+                  "px-2 py-1 text-muted-foreground transition-colors",
+                  viewMode === "list" ? "bg-muted text-foreground" : "hover:text-foreground"
                 )}
               >
-                <List className="h-4 w-4" />
+                <List className="h-4 w-4" strokeWidth={1.5} />
               </button>
             </div>
-            <button className="p-1.5 rounded-lg border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700">
-              <Settings className="h-4 w-4" />
+            <button className="inline-flex h-8 w-8 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:text-foreground hover:border-primary/40">
+              <Settings className="h-4 w-4" strokeWidth={1.5} />
             </button>
           </div>
         </div>
 
         {/* Content Grid */}
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-5 border-2 border-sovry-green border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-zinc-400">Loading tokens...</span>
+          <TerminalCard className="py-12">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground">
+              <div className="h-4 w-4 border-2 border-primary border-t-transparent animate-spin" />
+              <span className="text-xs uppercase tracking-[0.2em]">Loading tokens</span>
             </div>
-          </div>
+          </TerminalCard>
         ) : visibleLaunches.length === 0 ? (
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 text-center">
-            <p className="text-sm text-zinc-400">
+          <TerminalCard className="p-8 text-center">
+            <p className="text-sm text-muted-foreground">
               {activeTab === "explore" ? "No tokens found yet." : "No graduated tokens yet."}
             </p>
-          </div>
+          </TerminalCard>
         ) : (
           <div
             className={cn(
