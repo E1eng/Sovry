@@ -30,12 +30,10 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} overflow-x-hidden`}
       >
         <Providers>
-          <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
+          <div className="min-h-screen bg-background bg-[linear-gradient(to_right,#262626_1px,transparent_1px),linear-gradient(to_bottom,#262626_1px,transparent_1px)] bg-[size:4rem_4rem] flex flex-col overflow-x-hidden">
             <TopBar />
             <main className="flex-1 pb-16 md:pb-12 overflow-x-hidden">
-              <div className="w-full mx-auto px-0 sm:px-4 py-6 sm:py-8 max-w-[1600px]">
-                {children}
-              </div>
+              <div className="w-full px-0 py-6 sm:py-8">{children}</div>
             </main>
             <StatusBar />
           </div>
