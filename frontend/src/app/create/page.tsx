@@ -1149,13 +1149,12 @@ export default function CreatePage() {
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="p-6 bg-muted/30 border border-border rounded-sm text-center text-sm text-muted-foreground">
-                    Select an IP asset above to launch it on SovryLaunchpad.
-                  </div>
-                )}
-
-              </div>
+                </div>
+              ) : (
+                <div className="p-6 bg-muted/30 border border-border rounded-sm text-center text-sm text-muted-foreground">
+                  Select an IP asset above to launch it on SovryLaunchpad.
+                </div>
+              )}
 
               {/* Register IP Link */}
               <div className="mt-8 text-center">

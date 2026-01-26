@@ -1,182 +1,315 @@
 "use client";
 
+import { useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
 import { useLaunches } from "@/hooks/useLaunches";
 import { formatMarketCapIP, truncateAddress } from "@/lib/utils";
 
+type LaunchRow = {
+  id: string;
+  symbol: string;
+  name: string;
+  marketCap: number;
+  bondingProgress: number;
+  creator: string;
+  imageUrl?: string | null;
+  graduated?: boolean;
+  tokenAddress: string;
+};
+
+const marqueeStats = [
+  "ETH: $2,400",
+  "GAS: 12 GWEI",
+  "SOVRY_VOL: $4.2M",
+  "NEW_MINT: #4021",
+  "ROYALTY_INJECTION LIVE",
+  "STORY L1 ONLINE",
+];
+
+const getSeededNumber = (seed: string, min: number, max: number) => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  const normalized = hash / 2 ** 32;
+  return Math.round(min + (max - min) * normalized);
+};
+
+const getVolume = (launch: LaunchRow) => Math.max(Number(launch.marketCap) || 0, 0);
+
 export default function Home() {
   const { launches, loading, error, retry } = useLaunches(24);
-  const gridLaunches = launches.slice(0, 8);
-  const tickerLaunches = launches.slice(0, 12);
+
+  const spotlight = launches[0];
+  const marketMovers = launches.slice(0, 5);
+  const terminalRows: LaunchRow[] = launches.slice(0, 12).map((launch) => ({
+    id: launch.id,
+    symbol: (launch.symbol || launch.name || "TOKEN").toString().slice(0, 8).toUpperCase(),
+    name: launch.name || "Untitled IP",
+    marketCap: Number(launch.marketCap) || 0,
+    bondingProgress: Number(launch.bondingProgress) || 0,
+    creator: launch.creator || "0x0",
+    imageUrl: launch.imageUrl,
+    graduated: launch.graduated,
+    tokenAddress: launch.token || launch.id,
+  }));
+
+  const maxVolume = useMemo(() => {
+    if (terminalRows.length === 0) return 1;
+    return Math.max(...terminalRows.map(getVolume), 1);
+  }, [terminalRows]);
+
+  const priceLabel = (row: LaunchRow) => {
+    const syntheticPrice = row.marketCap > 0 ? row.marketCap / 1_000_000 : row.bondingProgress / 10;
+    return `$${syntheticPrice.toFixed(2)}`;
+  };
 
   return (
-    <div className="w-full">
-      {/* Zone A: Asset Grid Hero */}
-      <section className="border-b border-[#262626]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-px bg-[#262626] border-b border-[#262626]">
-          {loading
-            ? Array.from({ length: 8 }).map((_, index) => (
-                <div key={index} className="bg-[#0A0A0A] flex flex-col min-h-[260px]">
-                  <div className="flex-[7] bg-[#111111]" />
-                  <div className="flex-[3] border-t border-[#262626] px-3 py-2 space-y-2">
-                    <div className="h-3 w-20 bg-[#1f1f1f]" />
-                    <div className="h-2 w-32 bg-[#1f1f1f]" />
-                    <div className="h-2 w-16 bg-[#1f1f1f]" />
-                  </div>
-                </div>
-              ))
-            : gridLaunches.length === 0
-            ? (
-                <div className="col-span-full bg-[#0A0A0A] px-6 py-12 text-center text-xs font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                  No assets available
-                </div>
-              )
-            : gridLaunches.map((launch) => {
-                const tokenAddress = launch.token || launch.id;
-                const displaySymbol = (launch.symbol || launch.name || "TOKEN")
-                  .toString()
-                  .slice(0, 8)
-                  .toUpperCase();
-                const displayName = launch.name || "Untitled IP";
-                const marketCapLabel = formatMarketCapIP(launch.marketCap);
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Top neon ticker */}
+      <div className="h-8 w-full bg-[#CCFF00] text-black border-b border-black/40 overflow-hidden">
+        <div className="h-full flex items-center font-mono text-xs uppercase tracking-[0.25em]">
+          <div className="animate-[marquee_22s_linear_infinite] whitespace-nowrap flex items-center gap-8">
+            {marqueeStats.concat(marqueeStats).map((item, idx) => (
+              <span key={`${item}-${idx}`} className="flex items-center gap-2">
+                <span className="h-1 w-1 rounded-full bg-black" />
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Hero: asymmetric split */}
+      <section className="border-b border-[#262626] bg-[#050505]">
+        <div className="relative h-[500px] grid grid-cols-12">
+          <div className="col-span-12 lg:col-span-8 relative border-r border-[#262626] overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-black via-black/40 to-transparent" />
+            {spotlight?.imageUrl ? (
+              <Image
+                src={spotlight.imageUrl}
+                alt={spotlight.name || "Spotlight"}
+                fill
+                unoptimized
+                className="object-cover scale-[1.02]"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#0f0f0f,transparent_45%),radial-gradient(circle_at_80%_30%,#111,transparent_40%),#000]" />
+            )}
+            <div className="absolute inset-0 flex flex-col justify-between p-8 lg:p-10">
+              <div className="space-y-3">
+                <span className="inline-flex items-center gap-2 rounded-sm bg-white/10 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.25em] text-[#CCFF00] border border-[#262626]">
+                  IP_OF_THE_DAY
+                </span>
+                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
+                  {spotlight?.name || "Signal Lost"}
+                </h1>
+                <p className="text-sm md:text-base text-white/70 max-w-2xl">
+                  Spotlighted IP asset sourced from Story Protocol. Tap into the bonding curve and the royalty vault in one launch flow.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-xs font-mono uppercase tracking-[0.2em] text-white/70">
+                <span className="rounded-sm border border-white/10 bg-black/40 px-3 py-1">
+                  {spotlight ? formatMarketCapIP(spotlight.marketCap) : "--"}
+                </span>
+                <span className="rounded-sm border border-white/10 bg-black/40 px-3 py-1">
+                  {spotlight ? `Progress ${Math.round(spotlight.bondingProgress || 0)}%` : "Awaiting signal"}
+                </span>
+                <Link
+                  href={spotlight ? `/pool/${spotlight.token || spotlight.id}` : "#"}
+                  className="rounded-sm border border-[#CCFF00] bg-[#CCFF00] text-black px-4 py-2 text-[11px] font-mono uppercase tracking-[0.25em] hover:brightness-110 transition"
+                >
+                  Enter Pool
+                </Link>
+              </div>
+            </div>
+            <div className="pointer-events-none absolute -right-8 -bottom-20 text-[200px] font-black tracking-[0.1em] text-[#0f0f0f] select-none">
+              SOVRY_PROTOCOL
+            </div>
+          </div>
+
+          {/* Rising Board */}
+          <div className="col-span-12 lg:col-span-4 bg-[#0A0A0A] border-l border-[#262626] flex flex-col">
+            <div className="border-b border-[#262626] px-4 py-3 flex items-center justify-between">
+              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Market_Movers</p>
+              {error && (
+                <button onClick={retry} className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">
+                  Retry
+                </button>
+              )}
+            </div>
+            <div className="flex-1 divide-y divide-[#1a1a1a]">
+              {(loading ? Array.from({ length: 5 }) : marketMovers).map((item, idx) => {
+                const key = loading ? `skeleton-${idx}` : item.token || item.id;
+                const gain = loading ? 0 : getSeededNumber(String(item.id), 12, 480);
                 return (
-                  <Link
-                    key={tokenAddress}
-                    href={`/pool/${tokenAddress}`}
-                    className="bg-[#0A0A0A] flex flex-col min-h-[260px] hover:bg-[#101010] transition-colors"
-                  >
-                    <div className="relative flex-[7] border-b border-[#262626] bg-black">
-                      {launch.imageUrl ? (
-                        <Image
-                          src={launch.imageUrl}
-                          alt={displayName}
-                          fill
-                          unoptimized
-                          className="object-cover"
-                        />
+                  <div key={key} className="flex items-center gap-3 px-4 py-3 group">
+                    <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-black/60 relative">
+                      {!loading && item.imageUrl ? (
+                        <Image src={item.imageUrl} alt={item.name || "IP"} fill unoptimized className="object-cover" />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-[#090909]">
-                          <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                            No Signal
-                          </span>
-                        </div>
+                        <div className="absolute inset-0 bg-[#111]" />
                       )}
                     </div>
-                    <div className="flex-[3] border-t border-[#262626] px-3 py-2 space-y-2">
-                      <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                        {displaySymbol}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-foreground truncate">
+                        {loading ? "Booting..." : item.name || "Untitled IP"}
                       </div>
-                      <div className="text-sm font-semibold text-foreground truncate">{displayName}</div>
-                      <div className="text-[11px] font-mono text-muted-foreground">
-                        {marketCapLabel}
+                      <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                        {loading ? "—" : (item.symbol || "TOKEN").toString().slice(0, 8).toUpperCase()}
                       </div>
                     </div>
-                  </Link>
+                    <div className="flex flex-col items-end text-right">
+                      <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">+{gain}%</span>
+                      <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                        {loading ? "--" : formatMarketCapIP(item.marketCap)}
+                      </span>
+                    </div>
+                  </div>
                 );
               })}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Zone B: Ticker */}
-      <section className="px-4 sm:px-6 py-6">
-        <div className="border border-[#262626] bg-[#0A0A0A]">
-          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[#262626]">
-            <h2 className="text-[11px] font-sans uppercase tracking-[0.3em] text-muted-foreground">
-              Market Ticker
-            </h2>
+      {/* Data Terminal */}
+      <section className="px-4 sm:px-6 py-8 lg:py-10 bg-[#050505]">
+        <div className="border border-[#262626] bg-[#0A0A0A] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
+          <div className="flex items-center justify-between px-4 lg:px-6 py-4 border-b border-[#262626]">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-2 w-2 rounded-full bg-[#CCFF00] shadow-[0_0_0_4px_rgba(204,255,0,0.15)]" />
+              <h2 className="text-sm font-semibold tracking-[0.25em] uppercase text-muted-foreground">Data_Terminal</h2>
+            </div>
             {error && (
-              <button
-                type="button"
-                onClick={retry}
-                className="text-[10px] font-mono uppercase tracking-[0.2em] text-primary"
-              >
+              <button onClick={retry} className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">
                 Retry
               </button>
             )}
           </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="text-[10px] font-sans uppercase tracking-[0.3em] text-muted-foreground">
-                <tr className="border-b border-[#262626]">
-                  <th className="px-4 py-3 text-left">Asset</th>
-                  <th className="px-4 py-3 text-left">Market Cap</th>
-                  <th className="px-4 py-3 text-left">Progress</th>
+            <table className="w-full border-collapse">
+              <thead className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                <tr className="border-b border-[#262626] bg-[#0d0d0d]">
+                  <th className="px-4 py-3 text-left border-r border-[#1a1a1a]">Asset</th>
+                  <th className="px-4 py-3 text-left border-r border-[#1a1a1a]">Price</th>
+                  <th className="px-4 py-3 text-left border-r border-[#1a1a1a]">Volume</th>
+                  <th className="px-4 py-3 text-left border-r border-[#1a1a1a]">Progress</th>
                   <th className="px-4 py-3 text-left">Creator</th>
-                  <th className="px-4 py-3 text-left">Status</th>
                 </tr>
               </thead>
-              <tbody className="text-[11px] font-mono text-foreground">
-                {loading ? (
-                  Array.from({ length: 6 }).map((_, index) => (
-                    <tr key={index} className="border-b border-[#262626]">
-                      <td className="px-4 py-3">
-                        <div className="h-3 w-24 bg-[#1f1f1f]" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-3 w-20 bg-[#1f1f1f]" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-3 w-12 bg-[#1f1f1f]" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-3 w-28 bg-[#1f1f1f]" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="h-3 w-12 bg-[#1f1f1f]" />
-                      </td>
-                    </tr>
-                  ))
-                ) : tickerLaunches.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-6 text-center text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground"
-                    >
-                      No data available
-                    </td>
-                  </tr>
-                ) : (
-                  tickerLaunches.map((launch) => {
-                    const tokenAddress = launch.token || launch.id;
-                    const symbol = (launch.symbol || launch.name || "TOKEN")
-                      .toString()
-                      .slice(0, 8)
-                      .toUpperCase();
-                    const marketCapLabel = formatMarketCapIP(launch.marketCap);
-                    const progress = `${Math.round(launch.bondingProgress || 0)}%`;
-                    const creator = truncateAddress(launch.creator, {
-                      start: 6,
-                      end: 4,
-                      separator: "…",
-                      minLength: 10,
-                    });
-                    return (
-                      <tr
-                        key={tokenAddress}
-                        className="border-b border-[#262626] hover:bg-[#111111]"
-                      >
+              <tbody className="text-[12px] font-mono text-foreground">
+                {loading
+                  ? Array.from({ length: 6 }).map((_, idx) => (
+                      <tr key={idx} className="border-b border-[#262626]">
                         <td className="px-4 py-3">
-                          <Link href={`/pool/${tokenAddress}`} className="hover:text-primary">
-                            {symbol}
-                          </Link>
+                          <div className="h-3 w-24 bg-[#1a1a1a]" />
                         </td>
-                        <td className="px-4 py-3 tabular-nums">{marketCapLabel}</td>
-                        <td className="px-4 py-3 tabular-nums">{progress}</td>
-                        <td className="px-4 py-3 tabular-nums">{creator}</td>
                         <td className="px-4 py-3">
-                          {launch.graduated ? "GRADUATED" : "LIVE"}
+                          <div className="h-3 w-16 bg-[#1a1a1a]" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-3 w-28 bg-[#1a1a1a]" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-3 w-20 bg-[#1a1a1a]" />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="h-3 w-24 bg-[#1a1a1a]" />
                         </td>
                       </tr>
-                    );
-                  })
-                )}
+                    ))
+                  : terminalRows.length === 0
+                    ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                            No data available
+                          </td>
+                        </tr>
+                      )
+                    : terminalRows.map((row) => {
+                        const gain = getSeededNumber(row.id, -12, 420);
+                        const isUp = gain >= 0;
+                        const volume = getVolume(row);
+                        const volumePct = Math.min(100, Math.max(5, Math.round((volume / maxVolume) * 100)));
+                        const creatorLabel = truncateAddress(row.creator, { start: 6, end: 4, separator: "…", minLength: 10 });
+                        return (
+                          <tr
+                            key={row.id}
+                            className="border-b border-[#1a1a1a] hover:bg-white/5 transition-colors group"
+                          >
+                            <td className="px-4 py-3 border-r border-[#1a1a1a]">
+                              <div className="flex items-center gap-3">
+                                <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-[#262626] bg-black/60">
+                                  {row.imageUrl ? (
+                                    <Image src={row.imageUrl} alt={row.name} fill unoptimized className="object-cover" />
+                                  ) : (
+                                    <div className="absolute inset-0 bg-[#0d0d0d]" />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <Link href={`/pool/${row.tokenAddress}`} className="text-sm font-semibold hover:text-[#CCFF00] transition-colors">
+                                    {row.name}
+                                  </Link>
+                                  <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{row.symbol}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 border-r border-[#1a1a1a]">
+                              <span
+                                className={`inline-flex items-center gap-2 rounded-sm px-2 py-1 ${
+                                  isUp ? "bg-emerald-900/40 text-emerald-200" : "bg-red-900/40 text-red-200"
+                                } animate-pulse`}
+                              >
+                                <span className="text-[10px] opacity-70">{isUp ? "▲" : "▼"}</span>
+                                {priceLabel(row)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 border-r border-[#1a1a1a]">
+                              <div className="flex items-center gap-3">
+                                <div className="relative h-2 w-32 bg-[#0f0f0f] rounded-sm overflow-hidden">
+                                  <div
+                                    className="absolute inset-y-0 left-0 bg-[#CCFF00]/80"
+                                    style={{ width: `${volumePct}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] tabular-nums text-muted-foreground">{formatMarketCapIP(volume)}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 border-r border-[#1a1a1a] tabular-nums">
+                              <div className="flex items-center gap-2">
+                                <span>{Math.round(row.bondingProgress)}%</span>
+                                <div className="h-1 w-16 bg-[#0f0f0f] rounded-sm overflow-hidden">
+                                  <div className="h-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, row.bondingProgress))}%` }} />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 tabular-nums">
+                              <div className="flex items-center gap-2 border-l-4 border-transparent group-hover:border-[#CCFF00] pl-2">
+                                <span className="text-[11px] text-muted-foreground">{creatorLabel}</span>
+                                {row.graduated && (
+                                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">Graduated</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
               </tbody>
             </table>
           </div>
         </div>
       </section>
+
+      <style jsx>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
     </div>
   );
 }
