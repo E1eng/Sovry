@@ -84,7 +84,7 @@ export default function Home() {
 
       {/* Hero: asymmetric split */}
       <section className="border-b border-[#262626] bg-[#050505]">
-        <div className="relative min-h-[580px] sm:min-h-[540px] lg:h-[500px] grid grid-cols-12">
+        <div className="relative min-h-[100vh] sm:min-h-[90vh] md:min-h-[80vh] lg:min-h-[500px] grid grid-cols-12">
           <div className="col-span-12 lg:col-span-8 relative border-b lg:border-b-0 lg:border-r border-[#262626] overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black/40 to-transparent" />
             {spotlight?.imageUrl ? (
@@ -98,15 +98,15 @@ export default function Home() {
             ) : (
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#0f0f0f,transparent_45%),radial-gradient(circle_at_80%_30%,#111,transparent_40%),#000]" />
             )}
-            <div className="absolute inset-0 flex flex-col justify-between p-6 pt-12 sm:pt-14 md:p-8 lg:p-10">
+            <div className="absolute inset-0 flex flex-col gap-5 sm:gap-7 p-6 sm:p-6 md:p-8 lg:p-8 pt-18 pb-24 sm:pt-18 sm:pb-16 lg:pt-12 lg:pb-10">
               <div className="space-y-2 md:space-y-3">
                 <span className="inline-flex items-center gap-2 rounded-sm bg-white/15 px-3.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.28em] text-[#CCFF00] border border-[#262626]">
                   IP_OF_THE_DAY
                 </span>
-                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
+                <h1 className="text-2xl sm:text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
                   {spotlight?.name || "Signal Lost"}
                 </h1>
-                <p className="text-[13px] md:text-base text-white/70 max-w-2xl">
+                <p className="text-[12px] sm:text-[13px] md:text-base text-white/70 max-w-2xl">
                   Spotlighted IP asset sourced from Story Protocol. Tap into the bonding curve and the royalty vault in one launch flow.
                 </p>
               </div>
