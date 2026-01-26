@@ -12,8 +12,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sovry - Trade Token Backed IP Asset",
-  description: "Trade Token Backed IP assets on Story Protocol",
+  title: "Sovry - Bonding Curves for Story Protocol IP",
+  description: "Launch bonding-curve IP tokens with royalty injection on Story Protocol",
   icons: {
     icon: "/Logo only no bg 1x1.ico",
   },

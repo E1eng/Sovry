@@ -22,7 +22,7 @@ type LaunchRow = {
 const marqueeStats = [
   "ETH: $2,400",
   "GAS: 12 GWEI",
-  "SOVRY_VOL: $4.2M",
+  "SOVRY_BOND_VOL: $4.2M",
   "NEW_MINT: #4021",
   "ROYALTY_INJECTION LIVE",
   "STORY L1 ONLINE",
@@ -70,7 +70,7 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground">
       {/* Top neon ticker */}
       <div className="h-8 w-full bg-[#CCFF00] text-black border-b border-black/40 overflow-hidden">
-        <div className="h-full flex items-center font-mono text-xs uppercase tracking-[0.25em]">
+        <div className="h-full flex items-center font-mono text-[10px] sm:text-xs uppercase tracking-[0.25em]">
           <div className="animate-[marquee_22s_linear_infinite] whitespace-nowrap flex items-center gap-8">
             {marqueeStats.concat(marqueeStats).map((item, idx) => (
               <span key={`${item}-${idx}`} className="flex items-center gap-2">
@@ -84,8 +84,8 @@ export default function Home() {
 
       {/* Hero: asymmetric split */}
       <section className="border-b border-[#262626] bg-[#050505]">
-        <div className="relative h-[500px] grid grid-cols-12">
-          <div className="col-span-12 lg:col-span-8 relative border-r border-[#262626] overflow-hidden">
+        <div className="relative min-h-[580px] sm:min-h-[540px] lg:h-[500px] grid grid-cols-12">
+          <div className="col-span-12 lg:col-span-8 relative border-b lg:border-b-0 lg:border-r border-[#262626] overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black/40 to-transparent" />
             {spotlight?.imageUrl ? (
               <Image
@@ -98,19 +98,19 @@ export default function Home() {
             ) : (
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#0f0f0f,transparent_45%),radial-gradient(circle_at_80%_30%,#111,transparent_40%),#000]" />
             )}
-            <div className="absolute inset-0 flex flex-col justify-between p-8 lg:p-10">
-              <div className="space-y-3">
-                <span className="inline-flex items-center gap-2 rounded-sm bg-white/10 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.25em] text-[#CCFF00] border border-[#262626]">
+            <div className="absolute inset-0 flex flex-col justify-between p-6 pt-12 sm:pt-14 md:p-8 lg:p-10">
+              <div className="space-y-2 md:space-y-3">
+                <span className="inline-flex items-center gap-2 rounded-sm bg-white/15 px-3.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.28em] text-[#CCFF00] border border-[#262626]">
                   IP_OF_THE_DAY
                 </span>
-                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
+                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
                   {spotlight?.name || "Signal Lost"}
                 </h1>
-                <p className="text-sm md:text-base text-white/70 max-w-2xl">
+                <p className="text-[13px] md:text-base text-white/70 max-w-2xl">
                   Spotlighted IP asset sourced from Story Protocol. Tap into the bonding curve and the royalty vault in one launch flow.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs font-mono uppercase tracking-[0.2em] text-white/70">
+              <div className="flex flex-wrap items-center gap-3 text-[11px] md:text-xs font-mono uppercase tracking-[0.2em] text-white/70">
                 <span className="rounded-sm border border-white/10 bg-black/40 px-3 py-1">
                   {spotlight ? formatMarketCapIP(spotlight.marketCap) : "--"}
                 </span>
@@ -119,21 +119,18 @@ export default function Home() {
                 </span>
                 <Link
                   href={spotlight ? `/pool/${spotlight.token || spotlight.id}` : "#"}
-                  className="rounded-sm border border-[#CCFF00] bg-[#CCFF00] text-black px-4 py-2 text-[11px] font-mono uppercase tracking-[0.25em] hover:brightness-110 transition"
+                  className="rounded-sm border border-[#CCFF00] bg-[#CCFF00] text-black px-4 py-2 text-[10px] md:text-[11px] font-mono uppercase tracking-[0.25em] hover:brightness-110 transition"
                 >
                   Enter Pool
                 </Link>
               </div>
             </div>
-            <div className="pointer-events-none absolute -right-8 -bottom-20 text-[200px] font-black tracking-[0.1em] text-[#0f0f0f] select-none">
-              SOVRY_PROTOCOL
-            </div>
           </div>
 
           {/* Rising Board */}
-          <div className="col-span-12 lg:col-span-4 bg-[#0A0A0A] border-l border-[#262626] flex flex-col">
+          <div className="col-span-12 lg:col-span-4 bg-[#0A0A0A] border-t lg:border-t-0 lg:border-l border-[#262626] flex flex-col">
             <div className="border-b border-[#262626] px-4 py-3 flex items-center justify-between">
-              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Market_Movers</p>
+              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Curve_Movers</p>
               {error && (
                 <button onClick={retry} className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">
                   Retry
@@ -157,8 +154,8 @@ export default function Home() {
                       <div className="text-sm font-semibold text-foreground truncate">
                         {loading ? "Booting..." : item.name || "Untitled IP"}
                       </div>
-                      <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                        {loading ? "—" : (item.symbol || "TOKEN").toString().slice(0, 8).toUpperCase()}
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                        Total bonding volume (IP)
                       </div>
                     </div>
                     <div className="flex flex-col items-end text-right">

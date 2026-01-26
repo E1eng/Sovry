@@ -444,6 +444,20 @@ export default function CreatePage() {
   const inputClassNameSm =
     "h-10 bg-[#050505] border-[#262626] focus-visible:ring-primary focus-visible:border-primary/80 text-[11px] sm:text-sm";
 
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const canProceedStep1 = !!selectedIPAsset;
+  const canProceedStep2 = tokenName.trim().length > 0 && tokenSymbolLaunch.trim().length > 0;
+
+  const goNext = () => {
+    if (currentStep === 1 && !canProceedStep1) return;
+    if (currentStep === 2 && !canProceedStep2) return;
+    setCurrentStep((prev) => Math.min(3, prev + 1));
+  };
+
+  const goPrev = () => {
+    setCurrentStep((prev) => Math.max(1, prev - 1));
+  };
+
   const normalizeTwitterUrl = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return "";
@@ -481,7 +495,7 @@ export default function CreatePage() {
     <div className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-6 sm:py-10">
       <div className="mx-auto w-full max-w-[1600px]">
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] border border-[#262626] bg-[#0A0A0A]">
-          <aside className="border-b lg:border-b-0 lg:border-r border-[#262626] bg-[#060606] px-4 sm:px-6 py-6 lg:sticky lg:top-24 lg:self-start lg:h-[calc(100vh-7rem)] lg:overflow-y-auto">
+          <aside className="border-b lg:border-b-0 lg:border-r border-[#262626] bg-[#060606] p-4 sm:p-6 lg:sticky lg:top-24 lg:self-start">
             <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -498,7 +512,6 @@ export default function CreatePage() {
                   Raw wireframe of the Sovry wrapper token and Story IP asset payload.
                 </p>
               </div>
-
               <div className="space-y-3">
                 <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                   Token Card
@@ -531,63 +544,27 @@ export default function CreatePage() {
                       <span>{launchPercentage}%</span>
                     </div>
                     <div className="text-sm font-semibold text-foreground truncate">{previewName}</div>
-                    <div className="text-[11px] font-mono text-muted-foreground">
-                      Vault {vaultAddressLabel}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                  IP Asset
-                </p>
-                <div className="border border-[#262626] bg-[#050505]">
-                  <div className="relative aspect-square border-b border-[#262626] bg-black flex items-center justify-center">
-                    {selectedIPAsset?.imageUrl ? (
-                      <Image
-                        loader={externalImageLoader}
-                        unoptimized
-                        src={selectedIPAsset.imageUrl}
-                        alt={selectedIPAsset.name || "IP asset"}
-                        fill
-                        sizes="360px"
-                        className="object-cover"
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          target.style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <span className="text-[10px] font-mono uppercase tracking-[0.4em] text-muted-foreground">
-                        NO SIGNAL
-                      </span>
-                    )}
-                  </div>
-                  <div className="p-3 space-y-2">
-                    <div className="text-[11px] font-semibold text-foreground truncate">
-                      {selectedIPAsset?.name || "Unassigned IP"}
-                    </div>
-                    <div className="space-y-1 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                      <div className="flex items-center justify-between">
-                        <span>IP ID</span>
-                        <span className="text-foreground tabular-nums">{ipIdLabel}</span>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-white">Vault</span>
+                        <span className="text-white/70 tabular-nums">{vaultAddressLabel}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span>Creator</span>
-                        <span className="text-foreground tabular-nums">{creatorLabel}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-white">IP ID</span>
+                        <span className="text-white/70 tabular-nums">{ipIdLabel}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span>Media</span>
-                        <span className="text-foreground">
-                          {selectedIPAsset?.mediaType || "—"}
-                        </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-white">Creator</span>
+                        <span className="text-white/70 tabular-nums">{creatorLabel}</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-white">Media</span>
+                        <span className="text-white/70">{selectedIPAsset?.mediaType || "—"}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
               <div className="space-y-2">
                 <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                   Checklist
@@ -631,12 +608,12 @@ export default function CreatePage() {
               </div>
             </div>
           </aside>
-          <div className="bg-[#0A0A0A] px-4 sm:px-6 py-6 lg:px-8 lg:py-8 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+          <div className="bg-[#0A0A0A] px-4 sm:px-6 py-6 lg:px-8 lg:py-8">
             <div className="space-y-8">
-              <header className="border border-[#262626] bg-[#050505] px-4 py-4 space-y-2">
+              <header className="border border-[#262626] bg-[#050505] px-4 py-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                    Input Console
+                    Launch Wizard
                   </span>
                   <span
                     className={`text-[11px] font-mono uppercase tracking-[0.3em] ${signalTone}`}
@@ -644,9 +621,29 @@ export default function CreatePage() {
                     Signal {signalStatus}
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                  <span>Specification Sheet</span>
-                  <span>{selectedIPAsset ? "Asset Locked" : "Awaiting IP"}</span>
+                <div className="grid grid-cols-3 gap-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                  {["Select IP", "Token & Branding", "Review & Launch"].map((label, idx) => {
+                    const stepNumber = (idx + 1) as 1 | 2 | 3;
+                    const isActive = currentStep === stepNumber;
+                    const isDone = currentStep > stepNumber;
+                    return (
+                      <div
+                        key={label}
+                        className={`flex items-center gap-2 border border-[#262626] px-3 py-2 ${
+                          isActive ? "bg-white/5 text-white" : isDone ? "bg-white/5 text-white/70" : "bg-transparent"
+                        }`}
+                      >
+                        <span
+                          className={`h-5 w-5 flex items-center justify-center rounded-sm border ${
+                            isDone ? "border-primary text-primary" : isActive ? "border-white text-white" : "border-[#262626]"
+                          }`}
+                        >
+                          {stepNumber}
+                        </span>
+                        <span className="truncate">{label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </header>
 
@@ -683,481 +680,471 @@ export default function CreatePage() {
                 </div>
               )}
 
-              <section className="border border-[#262626] bg-[#050505] p-4 sm:p-5 space-y-4">
-                <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                  <span>IP Assets</span>
-                  <span>{totalAssets} total</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Browse and select an IP asset from your connected wallet to launch.
-                </p>
-                {loading ? (
-                  <div className="flex items-center justify-center py-10 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    <span>Loading your IP assets...</span>
+              {/* STEP 1: IP selection */}
+              {currentStep === 1 && (
+                <section className="border border-[#262626] bg-[#050505] p-4 sm:p-5 space-y-4">
+                  <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                    <span>IP Assets</span>
+                    <span>{totalAssets} total</span>
                   </div>
-                ) : totalAssets === 0 ? (
-                  <div className="rounded-sm border border-dashed border-[#262626] bg-[#0A0A0A] px-4 py-6 text-center space-y-3">
-                    <p className="text-sm text-foreground font-semibold">No IP assets found in your connected wallet.</p>
-                    <p className="text-xs text-muted-foreground">
-                      Register an IP on Story Protocol to start launching tokens on Sovry.
-                    </p>
-                    <div className="flex justify-center">
-                      <Link
-                        href="https://story.foundation/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-sm border border-primary/40 bg-primary/10 px-4 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:bg-primary/20 transition-colors"
-                      >
-                        <PlusCircle className="h-4 w-4" />
-                        <span>Register IP on Story Protocol</span>
-                      </Link>
+                  <p className="text-xs text-muted-foreground">
+                    Browse and select an IP asset from your connected wallet to launch.
+                  </p>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-10 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <span>Loading your IP assets...</span>
                     </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-h-[480px] overflow-y-auto pr-1">
-                      {paginatedAssets.map((ipAsset) => {
-                        const tokenBalance = tokenBalances[ipAsset.ipId];
-                        const hasTokens =
-                          tokenBalance && Number(tokenBalance.balance) > 0.000001;
-                        return (
-                          <div
-                            key={ipAsset.ipId}
-                            className={`group overflow-hidden rounded-sm border border-[#262626] bg-[#050505] cursor-pointer transition-colors ${
-                              selectedIP === ipAsset.ipId
-                                ? "border-primary/60 bg-[#0f0f0f]"
-                                : "hover:border-primary/50"
-                            }`}
-                            onClick={() => setSelectedIP(ipAsset.ipId)}
-                          >
-                            <div className="relative w-full aspect-square bg-black flex items-center justify-center">
-                              {ipAsset.imageUrl ? (
-                                <Image
-                                  loader={externalImageLoader}
-                                  unoptimized
-                                  src={ipAsset.imageUrl}
-                                  alt={ipAsset.name || "IP asset"}
-                                  fill
-                                  sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                                  className="absolute inset-0 w-full h-full object-cover"
-                                  onError={(e) => {
-                                    const target = e.currentTarget as HTMLImageElement;
-                                    target.style.display = "none";
-                                  }}
-                                />
-                              ) : (
-                                <span className="text-[9px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                                  NO SIGNAL
-                                </span>
-                              )}
-                            </div>
-                            <div className="p-2 space-y-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="font-semibold text-foreground truncate text-[11px] md:text-sm">
-                                    {ipAsset.name}
-                                  </h3>
-                                </div>
-                                <span
-                                  className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[8px] md:text-[10px] font-mono uppercase tracking-[0.2em] border ${
-                                    hasTokens
-                                      ? "bg-primary/10 text-primary border-primary/30"
-                                      : "bg-transparent text-muted-foreground border-[#262626]"
-                                  }`}
-                                >
-                                  {hasTokens ? "READY" : "LOCKED"}
-                                </span>
-                              </div>
-                              {ipAsset.description && (
-                                <p className="hidden md:block text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
-                                  {ipAsset.description}
-                                </p>
-                              )}
-                              {tokenBalance && (
-                                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground pt-0.5 md:pt-1">
-                                  Balance {" "}
-                                  <span className="text-foreground tabular-nums">
-                                    {tokenBalance.balance}%
+                  ) : totalAssets === 0 ? (
+                    <div className="rounded-sm border border-dashed border-[#262626] bg-[#0A0A0A] px-4 py-6 text-center space-y-3">
+                      <p className="text-sm text-foreground font-semibold">No IP assets found in your connected wallet.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Register an IP on Story Protocol to start launching tokens on Sovry.
+                      </p>
+                      <div className="flex justify-center">
+                        <Link
+                          href="https://story.foundation/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-sm border border-primary/40 bg-primary/10 px-4 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:bg-primary/20 transition-colors"
+                        >
+                          <PlusCircle className="h-4 w-4" />
+                          <span>Register IP on Story Protocol</span>
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {paginatedAssets.map((ipAsset) => {
+                          const tokenBalance = tokenBalances[ipAsset.ipId];
+                          const hasTokens =
+                            tokenBalance && Number(tokenBalance.balance) > 0.000001;
+                          return (
+                            <div
+                              key={ipAsset.ipId}
+                              className={`group overflow-hidden rounded-sm border border-[#262626] bg-[#050505] cursor-pointer transition-colors ${
+                                selectedIP === ipAsset.ipId
+                                  ? "border-primary/60 bg-[#0f0f0f]"
+                                  : "hover:border-primary/50"
+                              }`}
+                              onClick={() => setSelectedIP(ipAsset.ipId)}
+                            >
+                              <div className="relative w-full aspect-square bg-black flex items-center justify-center">
+                                {ipAsset.imageUrl ? (
+                                  <Image
+                                    loader={externalImageLoader}
+                                    unoptimized
+                                    src={ipAsset.imageUrl}
+                                    alt={ipAsset.name || "IP asset"}
+                                    fill
+                                    sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.currentTarget as HTMLImageElement;
+                                      target.style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="text-[9px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                                    NO SIGNAL
                                   </span>
-                                </p>
-                              )}
+                                )}
+                              </div>
+                              <div className="p-2 space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <h3 className="font-semibold text-foreground truncate text-[11px] md:text-sm">
+                                      {ipAsset.name}
+                                    </h3>
+                                  </div>
+                                  <span
+                                    className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[8px] md:text-[10px] font-mono uppercase tracking-[0.2em] border ${
+                                      hasTokens
+                                        ? "bg-primary/10 text-primary border-primary/30"
+                                        : "bg-transparent text-muted-foreground border-[#262626]"
+                                    }`}
+                                  >
+                                    {hasTokens ? "READY" : "LOCKED"}
+                                  </span>
+                                </div>
+                                {ipAsset.description && (
+                                  <p className="hidden md:block text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                                    {ipAsset.description}
+                                  </p>
+                                )}
+                                {tokenBalance && (
+                                  <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground pt-0.5 md:pt-1">
+                                    Balance {" "}
+                                    <span className="text-foreground tabular-nums">
+                                      {tokenBalance.balance}%
+                                    </span>
+                                  </p>
+                                )}
+                              </div>
                             </div>
+                          );
+                        })}
+                      </div>
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 text-[11px] text-muted-foreground">
+                          <span>
+                            Page {currentPage} of {totalPages} · Showing {paginatedAssets.length} of {totalAssets} IPs
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
+                              disabled={currentPage === 1}
+                              onClick={() => setAssetsPage((prev) => Math.max(1, prev - 1))}
+                            >
+                              Prev
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
+                              disabled={currentPage === totalPages}
+                              onClick={() => setAssetsPage((prev) => Math.min(totalPages, prev + 1))}
+                            >
+                              Next
+                            </Button>
                           </div>
-                        );
-                      })}
+                        </div>
+                      )}
                     </div>
-                    {totalPages > 1 && (
-                      <div className="flex items-center justify-between mt-4 text-[11px] text-muted-foreground">
-                        <span>
-                          Page {currentPage} of {totalPages} · Showing {paginatedAssets.length} of {totalAssets} IPs
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
-                            disabled={currentPage === 1}
-                            onClick={() => setAssetsPage((prev) => Math.max(1, prev - 1))}
-                          >
-                            Prev
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
-                            disabled={currentPage === totalPages}
-                            onClick={() => setAssetsPage((prev) => Math.min(totalPages, prev + 1))}
-                          >
-                            Next
-                          </Button>
+                  )}
+                </section>
+              )}
+
+              {/* STEP 2: Token & Branding */}
+              {currentStep === 2 && (
+                <section className="space-y-4">
+                  <div className="p-4 md:p-5 rounded-sm border border-border bg-card/60 space-y-4">
+                    <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                      <span>Token Basics</span>
+                      <span className={canProceedStep2 ? "text-primary" : "text-muted-foreground"}>
+                        {canProceedStep2 ? "Ready" : "Fill required"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Token Name
+                        </Label>
+                        <Input
+                          value={tokenName}
+                          onChange={(e) => setTokenName(e.target.value)}
+                          placeholder={selectedIPAsset?.name || "Super Meme"}
+                          className={inputClassName}
+                        />
+                        <p className="text-[11px] text-muted-foreground">May differ from the original IP name.</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Token Symbol
+                        </Label>
+                        <Input
+                          value={tokenSymbolLaunch}
+                          onChange={(e) => setTokenSymbolLaunch(e.target.value.toUpperCase().slice(0, 10))}
+                          placeholder="MEME"
+                          className={inputClassName}
+                        />
+                        <p className="text-[11px] text-muted-foreground">Max 10 Character, A–Z and 0–9.</p>
+                      </div>
+                    </div>
+
+                    {selectedIPAsset?.imageUrl && (
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Token Logo Preview
+                        </Label>
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-20 md:w-24 aspect-square rounded-sm overflow-hidden border border-border bg-muted/40">
+                            <Image
+                              loader={externalImageLoader}
+                              unoptimized
+                              src={launchImageUrl || selectedIPAsset.imageUrl}
+                              alt="Token logo preview"
+                              fill
+                              sizes="96px"
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            {launchLogoFile && (
+                              <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-sm border border-primary/40 bg-primary text-[9px] font-mono uppercase tracking-[0.2em] text-primary-foreground">
+                                Custom
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Using image from IP asset. You can override with a custom image below if needed.
+                          </p>
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
-              </section>
 
-              {/* Selected IP + Launch */}
-              {selectedIPAsset ? (
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                          Selected IP &amp; Launch
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                        Detail Panel
-                      </span>
-                    </div>
-                    <div className="h-px w-full bg-gradient-to-r from-transparent via-muted-foreground/30 to-transparent" />
-                  </div>
-
-                  {/* Selected IP summary */}
-                  <div className="p-4 md:p-5 rounded-sm border border-border bg-card/60">
-                    <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">
-                      Selected IP Asset
-                    </h3>
-                    <div className="flex items-start gap-4">
-                      {selectedIPAsset.imageUrl && (
-                        <div className="flex-shrink-0">
-                          <Image
-                            loader={externalImageLoader}
-                            unoptimized
-                            src={selectedIPAsset.imageUrl}
-                            alt={selectedIPAsset.name || "Selected IP asset"}
-                            width={96}
-                            height={96}
-                            className="w-24 h-24 rounded-sm object-cover border border-border"
-                            onError={(e) => {
-                              const target = e.currentTarget as HTMLImageElement;
-                              target.style.display = "none";
-                            }}
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-sm md:text-base font-semibold text-foreground">{selectedIPAsset.name}</p>
-                        <p className="text-[11px] text-muted-foreground tabular-nums">
-                          Royalty Token: {selectedIPAsset.royaltyVaultAddress.slice(0, 10)}...
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          Media Type: {selectedIPAsset.mediaType || "Unknown"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Launch config */}
-                  <div className="space-y-4">
-                    <div className="p-4 md:p-5 rounded-sm border border-border bg-card/60 space-y-4">
-
-                      {/* Token Basics */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                          Token Basics
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                              Token Name
-                            </Label>
-                            <Input
-                              value={tokenName}
-                              onChange={(e) => setTokenName(e.target.value)}
-                              placeholder={selectedIPAsset.name || "Super Meme"}
-                              className={inputClassName}
-                            />
-
-                            <p className="text-[11px] text-muted-foreground">
-                              May differ from the original IP name.
-                            </p>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                              Token Symbol
-                            </Label>
-                            <Input
-                              value={tokenSymbolLaunch}
-                              onChange={(e) =>
-                                setTokenSymbolLaunch(e.target.value.toUpperCase().slice(0, 10))
-                              }
-                              placeholder="MEME"
-                              className={inputClassName}
-                            />
-
-                            <p className="text-[11px] text-muted-foreground">
-                              Max 10 Character, A–Z and 0–9.
-                            </p>
-                          </div>
-                        </div>
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Custom Logo (optional override)
+                        </Label>
+                        <FileUpload
+                          accept="image/*"
+                          multiple={false}
+                          onChange={(files) => {
+                            const file = files?.[0] || null;
+                            handleLogoFileChange(file);
+                          }}
+                        />
+                        {launchLogoFile && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-[10px] font-mono uppercase tracking-[0.2em]"
+                            onClick={() => {
+                              setLaunchLogoFile(null);
+                              setLaunchImageUrl(selectedIPAsset?.imageUrl || "");
+                            }}
+                          >
+                            Reset to Story Protocol image
+                          </Button>
+                        )}
                       </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Token Description (optional)
+                        </Label>
+                        <Input
+                          value={launchDescription}
+                          onChange={(e) => setLaunchDescription(e.target.value)}
+                          placeholder="Short description for this wrapped IP token"
+                          className={inputClassName}
+                        />
+                      </div>
+                    </div>
 
-                      {/* Branding: Logo preview */}
-                      {selectedIPAsset.imageUrl && (
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Token Logo Preview
-                          </Label>
-                          <div className="flex items-center gap-4">
-                            <div className="relative w-20 md:w-24 aspect-square rounded-sm overflow-hidden border border-border bg-muted/40">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Twitter
+                        </Label>
+                        <Input
+                          value={twitterUrl}
+                          onChange={(e) => setTwitterUrl(normalizeTwitterUrl(e.target.value))}
+                          placeholder="https://twitter.com/username"
+                          className={inputClassNameSm}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Telegram
+                        </Label>
+                        <Input
+                          value={telegramUrl}
+                          onChange={(e) => setTelegramUrl(normalizeTelegramUrl(e.target.value))}
+                          placeholder="https://t.me/channel"
+                          className={inputClassNameSm}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                          Website
+                        </Label>
+                        <Input
+                          value={websiteUrl}
+                          onChange={(e) => setWebsiteUrl(normalizeWebsiteUrl(e.target.value))}
+                          placeholder="https://project.site"
+                          className={inputClassNameSm}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                        <span>Percentage to Launch</span>
+                        <span className="text-foreground tabular-nums">{launchPercentage}%</span>
+                      </div>
+                      <Slider
+                        value={[launchPercentage]}
+                        min={25}
+                        max={100}
+                        step={1}
+                        onValueChange={(v) => {
+                          const next = v[0] ?? 25;
+                          setLaunchPercentage(next < 25 ? 25 : next);
+                        }}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        You are selling {launchPercentage}% of total RT supply. You keep {100 - launchPercentage}% in your wallet.
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* STEP 3: Review & Launch */}
+              {currentStep === 3 && (
+                <section className="space-y-4">
+                  {selectedIPAsset ? (
+                    <div className="space-y-4">
+                      <div className="p-4 md:p-5 rounded-sm border border-border bg-card/60">
+                        <h3 className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Selected IP Asset</h3>
+                        <div className="flex items-start gap-4">
+                          {selectedIPAsset.imageUrl && (
+                            <div className="flex-shrink-0">
                               <Image
                                 loader={externalImageLoader}
                                 unoptimized
-                                src={launchImageUrl || selectedIPAsset.imageUrl}
-                                alt="Token logo preview"
-                                fill
-                                sizes="96px"
-                                className="absolute inset-0 w-full h-full object-cover"
+                                src={selectedIPAsset.imageUrl}
+                                alt={selectedIPAsset.name || "Selected IP asset"}
+                                width={96}
+                                height={96}
+                                className="w-24 h-24 rounded-sm object-cover border border-border"
+                                onError={(e) => {
+                                  const target = e.currentTarget as HTMLImageElement;
+                                  target.style.display = "none";
+                                }}
                               />
-                              {launchLogoFile && (
-                                <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-sm border border-primary/40 bg-primary text-[9px] font-mono uppercase tracking-[0.2em] text-primary-foreground">
-                                  Custom
-                                </div>
-                              )}
                             </div>
-                            <p className="text-[11px] text-muted-foreground">
-                              Using image from IP asset. You can override with a custom image below if needed.
+                          )}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="text-sm md:text-base font-semibold text-foreground">{selectedIPAsset.name}</p>
+                            <p className="text-[11px] text-muted-foreground tabular-nums">
+                              Royalty Token: {selectedIPAsset.royaltyVaultAddress.slice(0, 10)}...
                             </p>
+                            <p className="text-[11px] text-muted-foreground">Media Type: {selectedIPAsset.mediaType || "Unknown"}</p>
                           </div>
                         </div>
-                      )}
+                      </div>
 
-                      {/* Branding: Custom logo + description */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Custom Logo (optional override)
-                          </Label>
-                          <FileUpload
-                            accept="image/*"
-                            multiple={false}
-                            onChange={(files) => {
-                              const file = files?.[0] || null;
-                              handleLogoFileChange(file);
-                            }}
-                          />
-                          {launchLogoFile && (
+                      <div className="p-4 md:p-5 rounded-sm border border-border bg-card/60 space-y-4">
+                        {needsUnlock && (
+                          <div className="space-y-4">
+                            <div className="p-4 bg-muted/30 border border-border rounded-sm">
+                              <div className="flex items-center space-x-3">
+                                <Coins className="h-5 w-5 text-primary" />
+                                <div>
+                                  <p className="text-sm font-semibold text-foreground">Royalty Tokens Required</p>
+                                  <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                                    Get royalty tokens before launching. This will mint a license, deploy the vault, and transfer royalty tokens to your wallet.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
                             <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-[10px] font-mono uppercase tracking-[0.2em]"
-                              onClick={() => {
-                                setLaunchLogoFile(null);
-                                setLaunchImageUrl(selectedIPAsset?.imageUrl || "");
-                              }}
+                              onClick={() => handleUnlockTokens(selectedIPAsset)}
+                              disabled={unlockingTokens === selectedIPAsset.ipId}
+                              variant="default"
+                              className="w-full h-12 text-[10px] font-mono uppercase tracking-[0.2em]"
                             >
-                              Reset to Story Protocol image
+                              {unlockingTokens === selectedIPAsset.ipId ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Getting Royalty Tokens...
+                                </>
+                              ) : (
+                                <>
+                                  <Coins className="mr-2 h-4 w-4" />
+                                  Get Royalty Tokens
+                                  <ArrowRight className="ml-2 h-4 w-4" />
+                                </>
+                              )}
                             </Button>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Token Description (optional)
-                          </Label>
-                          <Input
-                            value={launchDescription}
-                            onChange={(e) => setLaunchDescription(e.target.value)}
-                            placeholder="Short description for this wrapped IP token"
-                            className={inputClassName}
-                          />
-                        </div>
-                      </div>
 
-                      {/* Social links */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Twitter
-                          </Label>
-                          <Input
-                            value={twitterUrl}
-                            onChange={(e) => setTwitterUrl(normalizeTwitterUrl(e.target.value))}
-                            placeholder="https://twitter.com/username"
-                            className={inputClassNameSm}
-                          />
-
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Telegram
-                          </Label>
-                          <Input
-                            value={telegramUrl}
-                            onChange={(e) => setTelegramUrl(normalizeTelegramUrl(e.target.value))}
-                            placeholder="https://t.me/channel"
-                            className={inputClassNameSm}
-                          />
-
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Website
-                          </Label>
-                          <Input
-                            value={websiteUrl}
-                            onChange={(e) => setWebsiteUrl(normalizeWebsiteUrl(e.target.value))}
-                            placeholder="https://project.site"
-                            className={inputClassNameSm}
-                          />
-
-                        </div>
-                      </div>
-
-                      {/* Launch Parameters */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                          <span>Percentage to Launch</span>
-                          <span className="text-foreground tabular-nums">{launchPercentage}%</span>
-                        </div>
-                        <Slider
-                          value={[launchPercentage]}
-                          min={25}
-                          max={100}
-                          step={1}
-                          onValueChange={(v) => {
-                            const next = v[0] ?? 25;
-                            setLaunchPercentage(next < 25 ? 25 : next);
-                          }}
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          You are selling {launchPercentage}% of total RT supply. You keep {100 - launchPercentage}% in your
-                          wallet.
-                        </p>
-                      </div>
-
-                      {/* Unlock notice + button */}
-                      {needsUnlock && (
-                        <div className="space-y-4">
-                          <div className="p-4 bg-muted/30 border border-border rounded-sm">
-                            <div className="flex items-center space-x-3">
-                              <Coins className="h-5 w-5 text-primary" />
-                              <div>
-                                <p className="text-sm font-semibold text-foreground">Royalty Tokens Required</p>
-                                <p className="text-xs text-muted-foreground leading-relaxed mt-1">
-                                  Get royalty tokens before launching. This will mint a license, deploy the vault, and transfer
-                                  royalty tokens to your wallet.
-                                </p>
+                            <div className="space-y-1 text-[11px] text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                {mintStatus === "pending" ? (
+                                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                ) : mintStatus === "success" ? (
+                                  <CheckCircle className="h-3 w-3 text-primary" />
+                                ) : mintStatus === "error" ? (
+                                  <AlertCircle className="h-3 w-3 text-amber-400" />
+                                ) : (
+                                  <span className="h-2 w-2 rounded-full border border-border" />
+                                )}
+                                <span>Mint License Token</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {transferStatus === "pending" ? (
+                                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                                ) : transferStatus === "success" ? (
+                                  <CheckCircle className="h-3 w-3 text-primary" />
+                                ) : transferStatus === "error" ? (
+                                  <AlertCircle className="h-3 w-3 text-amber-400" />
+                                ) : (
+                                  <span className="h-2 w-2 rounded-full border border-border" />
+                                )}
+                                <span>Transfer Royalty Tokens</span>
                               </div>
                             </div>
                           </div>
-
-                          <Button
-                            onClick={() => handleUnlockTokens(selectedIPAsset)}
-                            disabled={unlockingTokens === selectedIPAsset.ipId}
-                            variant="default"
-                            className="w-full h-12 text-[10px] font-mono uppercase tracking-[0.2em]"
-                          >
-                            {unlockingTokens === selectedIPAsset.ipId ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Getting Royalty Tokens...
-                              </>
-                            ) : (
-                              <>
-                                <Coins className="mr-2 h-4 w-4" />
-                                Get Royalty Tokens
-                                <ArrowRight className="ml-2 h-4 w-4" />
-                              </>
-                            )}
-                          </Button>
-
-                          {/* Mini status list for unlock flow */}
-                          <div className="space-y-1 text-[11px] text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              {mintStatus === "pending" ? (
-                                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                              ) : mintStatus === "success" ? (
-                                <CheckCircle className="h-3 w-3 text-primary" />
-                              ) : mintStatus === "error" ? (
-                                <AlertCircle className="h-3 w-3 text-amber-400" />
-                              ) : (
-                                <span className="h-2 w-2 rounded-full border border-border" />
-                              )}
-                              <span>Mint License Token</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {transferStatus === "pending" ? (
-                                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                              ) : transferStatus === "success" ? (
-                                <CheckCircle className="h-3 w-3 text-primary" />
-                              ) : transferStatus === "error" ? (
-                                <AlertCircle className="h-3 w-3 text-amber-400" />
-                              ) : (
-                                <span className="h-2 w-2 rounded-full border border-border" />
-                              )}
-                              <span>Transfer Royalty Tokens</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Launch button */}
-                      <Button
-                        onClick={() => handleCreatePool(selectedIPAsset)}
-                        disabled={
-                          creatingPool === selectedIPAsset.ipId ||
-                          needsUnlock ||
-                          !tokenName.trim() ||
-                          !tokenSymbolLaunch.trim()
-                        }
-                        variant="default"
-                        className="w-full h-12 text-[10px] font-mono uppercase tracking-[0.2em]"
-                      >
-                        {creatingPool === selectedIPAsset.ipId ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Launching...
-                          </>
-                        ) : (
-                          <>
-                            <TrendingUp className="mr-2 h-4 w-4" />
-                            Launch on Sovry
-                          </>
                         )}
-                      </Button>
-                      {/* Concise launch status */}
-                      <div className="mt-3 text-[11px] text-muted-foreground text-center">
-                        {creatingPool === selectedIPAsset.ipId
-                          ? "Launching... this may take a few moments."
-                          : needsUnlock
-                          ? "Unlock royalty tokens first, then you can launch."
-                          : "Ready to launch. Review details above, then confirm when you're ready."}
+
+                        <Button
+                          onClick={() => handleCreatePool(selectedIPAsset)}
+                          disabled={
+                            creatingPool === selectedIPAsset.ipId ||
+                            needsUnlock ||
+                            !tokenName.trim() ||
+                            !tokenSymbolLaunch.trim()
+                          }
+                          variant="default"
+                          className="w-full h-12 text-[10px] font-mono uppercase tracking-[0.2em]"
+                        >
+                          {creatingPool === selectedIPAsset.ipId ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Launching...
+                            </>
+                          ) : (
+                            <>
+                              <TrendingUp className="mr-2 h-4 w-4" />
+                              Launch on Sovry
+                            </>
+                          )}
+                        </Button>
+                        <div className="mt-3 text-[11px] text-muted-foreground text-center">
+                          {creatingPool === selectedIPAsset.ipId
+                            ? "Launching... this may take a few moments."
+                            : needsUnlock
+                              ? "Unlock royalty tokens first, then you can launch."
+                              : "Ready to launch. Review details above, then confirm when you're ready."}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-6 bg-muted/30 border border-border rounded-sm text-center text-sm text-muted-foreground">
-                  Select an IP asset above to launch it on SovryLaunchpad.
-                </div>
+                  ) : (
+                    <div className="p-6 bg-muted/30 border border-border rounded-sm text-center text-sm text-muted-foreground">
+                      Select an IP asset first, then continue.
+                    </div>
+                  )}
+                </section>
               )}
 
+              {/* Navigation controls */}
+              <div className="flex items-center justify-between gap-3 border-t border-[#262626] pt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[10px] font-mono uppercase tracking-[0.2em] border-[#262626]"
+                  onClick={goPrev}
+                  disabled={currentStep === 1}
+                >
+                  Back
+                </Button>
+                <Button
+                  size="sm"
+                  className="text-[10px] font-mono uppercase tracking-[0.2em]"
+                  onClick={goNext}
+                  disabled={(currentStep === 1 && !canProceedStep1) || (currentStep === 2 && !canProceedStep2) || currentStep === 3}
+                >
+                  {currentStep === 2 ? "Review" : currentStep === 1 ? "Next" : "Done"}
+                </Button>
+              </div>
+
               {/* Register IP Link */}
-              <div className="mt-8 text-center">
+              <div className="text-center">
                 <Link
                   href="https://portal.story.foundation/"
                   target="_blank"
@@ -1177,42 +1164,38 @@ export default function CreatePage() {
                       <div>
                         <h2 className="text-lg font-semibold text-foreground">Launch Successful</h2>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Your token has been launched on Sovry. You can now view the live pool or inspect it on StoryScan.
+                          Your royalty token is live. Pool and vault addresses are below.
                         </p>
                       </div>
-                      <button
-                        className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-[11px] font-mono uppercase tracking-[0.2em]"
                         onClick={() => setShowLaunchModal(false)}
                       >
                         Close
-                      </button>
+                      </Button>
                     </div>
-
-                    <div className="space-y-3 mb-4 text-[11px] text-muted-foreground">
+                    <div className="space-y-3 text-sm">
                       <div>
-                        <span className="font-mono uppercase tracking-[0.2em] text-foreground">Token:</span>{" "}
-                        <span>{launchedTokenSymbol || "Token"}</span>
+                        <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Royalty Token</p>
+                        <p className="text-foreground break-all">{launchedTokenAddress}</p>
                       </div>
-                      <div className="break-all tabular-nums">
-                        <span className="font-mono uppercase tracking-[0.2em] text-foreground">Address:</span>{" "}
-                        <span>{launchedTokenAddress}</span>
-                      </div>
+                      {launchedTokenSymbol && (
+                        <div>
+                          <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Symbol</p>
+                          <p className="text-foreground">{launchedTokenSymbol}</p>
+                        </div>
+                      )}
                     </div>
-
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Button
-                        className="flex-1 justify-center h-11 text-[10px] font-mono uppercase tracking-[0.2em]"
-                        variant="default"
-                        onClick={() => {
-                          setShowLaunchModal(false);
-                          router.push(`/pool/${launchedTokenAddress}`);
-                        }}
-                      >
-                        Trade on Sovry
+                    <div className="mt-4 flex flex-wrap gap-2 justify-end">
+                      <Button asChild size="sm" className="text-[11px] font-mono uppercase tracking-[0.2em]">
+                        <Link href={`/pool/${launchedTokenAddress}`}>Open Pool</Link>
                       </Button>
                       <Button
-                        className="flex-1 justify-center h-11 text-[10px] font-mono uppercase tracking-[0.2em]"
                         variant="outline"
+                        size="sm"
+                        className="text-[11px] font-mono uppercase tracking-[0.2em]"
                         onClick={() => {
                           const url = `https://aeneid.storyscan.io/address/${launchedTokenAddress}`;
                           window.open(url, "_blank", "noopener,noreferrer");

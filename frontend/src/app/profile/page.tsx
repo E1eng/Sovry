@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { AlertCircle } from "lucide-react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 
-import Image from "next/image";
-import Link from "next/link";
-
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -16,19 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-import UserProfile from "@/components/social/UserProfile";
-import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
-import { copyToClipboard, truncateAddress } from "@/lib/utils";
+import { truncateAddress } from "@/lib/utils";
 import { fetchSubgraph } from "@/services/subgraph";
-import { Coins, Copy, AlertCircle } from "lucide-react";
-
-import {
-  getTokenBalance,
-  type TokenBalance,
-  getClaimableRoyaltyForIp,
-} from "@/services/storyProtocolService";
+import { getTokenBalance, type TokenBalance } from "@/services/storyProtocolService";
+import UserProfile from "@/components/social/UserProfile";
 
 // ===== Holdings (from Portfolio) =====
 interface PortfolioAsset {
@@ -84,37 +74,11 @@ export default function ProfilePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
   const walletAddress = primaryWallet?.address;
 
-  // Default to the "tokens" tab; we no longer read `tab` from URL query
-  const initialTab: "tokens" | "holdings" = "tokens";
-
-  // Holdings state
   const [launchedAssets, setLaunchedAssets] = useState<PortfolioAsset[]>([]);
   const [holdingAssets, setHoldingAssets] = useState<PortfolioAsset[]>([]);
   const [holdingsLoading, setHoldingsLoading] = useState(true);
-
+  const [activeTab, setActiveTab] = useState<"inventory" | "creations">("inventory");
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
-  const [profileUsername, setProfileUsername] = useState<string | null>(null);
-  const [profileBio, setProfileBio] = useState<string | null>(null);
-  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
-  const [harvestingId, setHarvestingId] = useState<string | null>(null);
-  const [harvestError, setHarvestError] = useState<string | null>(null);
-  const [hasCopiedAddress, setHasCopiedAddress] = useState(false);
-
-  const handleProfileUpdated = (update: {
-    username?: string | null;
-    bio?: string | null;
-    avatarUrl?: string | null;
-  }) => {
-    if (update.username !== undefined) {
-      setProfileUsername(update.username);
-    }
-    if (update.bio !== undefined) {
-      setProfileBio(update.bio);
-    }
-    if (update.avatarUrl !== undefined) {
-      setProfileAvatarUrl(update.avatarUrl);
-    }
-  };
 
   // Load launched tokens & holdings from subgraph + on-chain balances
   useEffect(() => {
@@ -229,31 +193,8 @@ export default function ProfilePage() {
             };
           });
 
-        // Enrich launched tokens with real onchain royalty data for the
-        // "Available to Harvest" column by reading the WIP balance held in
-        // the Story Protocol royalty vault backing each IP.
-        const launchedWithRevenue: PortfolioAsset[] = await Promise.all(
-          launched.map(async (asset) => {
-            if (!asset.ipId || !asset.ipId.startsWith("0x") || asset.ipId.length !== 42) {
-              return asset;
-            }
-
-            try {
-              const claimable = await getClaimableRoyaltyForIp(asset.ipId, primaryWallet);
-
-              return {
-                ...asset,
-                claimableRevenue: isFinite(claimable) && claimable > 0 ? claimable : 0,
-              };
-            } catch (err) {
-              logger.error("Error loading claimable royalty for IP", asset.ipId, err);
-              return asset;
-            }
-          }),
-        );
-
         setHoldingAssets(holdings);
-        setLaunchedAssets(launchedWithRevenue);
+        setLaunchedAssets(launched);
       } catch (error) {
         logger.error("Error loading holdings from subgraph:", error);
         setLaunchedAssets([]);
@@ -263,167 +204,49 @@ export default function ProfilePage() {
       }
     };
 
-    if (!walletAddress || !primaryWallet) {
-      setLaunchedAssets([]);
-      setHoldingAssets([]);
-      setHoldingsLoading(false);
-      return;
-    }
-
     loadHoldings();
   }, [walletAddress, primaryWallet]);
 
-  // Load profile header (username, bio, avatar)
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadProfileHeader = async () => {
-      if (!walletAddress || !supabase || cancelled) return;
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("username, bio, avatar_url")
-          .eq("wallet_address", walletAddress.toLowerCase())
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (error) {
-          logger.warn("Failed to load profile header", error);
-          return;
-        }
-
-        if (data && typeof data.username === "string") {
-          setProfileUsername(data.username);
-        } else {
-          setProfileUsername(null);
-        }
-
-        if (data && typeof data.bio === "string") {
-          setProfileBio(data.bio);
-        } else {
-          setProfileBio(null);
-        }
-
-        if (
-          data &&
-          typeof (data as any).avatar_url === "string" &&
-          (data as any).avatar_url.trim().length > 0
-        ) {
-          setProfileAvatarUrl((data as any).avatar_url as string);
-        } else {
-          setProfileAvatarUrl(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          logger.warn("Failed to load profile header", err);
-        }
-      }
-    };
-
-    loadProfileHeader();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [walletAddress]);
-
-  const handleHarvestAsset = async (assetId: string) => {
-    if (!primaryWallet) return;
-
-    const asset = launchedAssets.find((a) => a.id === assetId);
-    if (!asset) {
-      setHarvestError("Unknown asset for harvest");
-      return;
-    }
-
-    // Require a valid backing IP ID (IP Account) for this wrapper token. This
-    // is the IP that royalties are paid to and must be used when claiming via
-    // Story Protocol.
-    if (!asset.ipId || !asset.ipId.startsWith("0x") || asset.ipId.length !== 42) {
-      setHarvestError("No valid IP ID configured for this token; cannot harvest royalties.");
-      return;
-    }
-
-    setHarvestError(null);
-    setHarvestingId(assetId);
-
-    try {
-      const { launchpadService } = await import("@/services/launchpadService");
-      const result = await launchpadService.harvestAndPump(asset.ipId, asset.id, primaryWallet);
-
-      if (!result.success) {
-        setHarvestError(result.error || "Failed to harvest royalties");
-        return;
-      }
-
-      setLaunchedAssets((prev) =>
-        prev.map((a) =>
-          a.id === assetId ? { ...a, claimableRevenue: 0 } : a,
-        ),
-      );
-    } catch (err: any) {
-      logger.error("Error harvesting royalties from profile page:", err);
-      setHarvestError(err?.message || "Failed to harvest royalties");
-    } finally {
-      setHarvestingId(null);
-    }
-  };
-
   const displayAddress = truncateAddress(walletAddress, { fallback: "Unknown address" });
 
-  const headerName =
-    profileUsername && profileUsername.trim().length > 0
-      ? profileUsername.trim()
-      : displayAddress;
-
-  const headerBio =
-    profileBio && profileBio.trim().length > 0
-      ? profileBio.trim()
-      : "This user has not added a bio yet.";
-
-  const handleCopyAddress = async () => {
-    if (!walletAddress) return;
-
-    const success = await copyToClipboard(walletAddress);
-    if (success) {
-      setHasCopiedAddress(true);
-      window.setTimeout(() => setHasCopiedAddress(false), 1500);
-      return;
-    }
-
-    logger.error("Failed to copy address");
+  const handleProfileUpdated = () => {
+    setIsProfileDialogOpen(false);
   };
 
   const isConnected = !!primaryWallet;
 
+  const netWorth = useMemo(() => {
+    const total = holdingAssets.reduce((acc, asset) => acc + (Number(asset.valueUSD) || 0), 0);
+    return total;
+  }, [holdingAssets]);
+
+  const tokensHeldCount = holdingAssets.length;
+  const tokensCreatedCount = launchedAssets.length;
+
+  const activeAssets = activeTab === "inventory" ? holdingAssets : launchedAssets;
+
   if (!isConnected) {
     return (
-      <section className="px-2 sm:px-4">
-        <div className="min-h-[calc(100vh-12rem)] flex items-center justify-center">
-          <Card className="w-full max-w-xs sm:max-w-sm">
-            <CardContent className="p-6 text-center space-y-4">
-              <div className="mx-auto w-10 h-10 rounded-sm border border-border bg-muted/40 flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-secondary" />
+      <section className="px-4 sm:px-6">
+        <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+          <Card className="w-full max-w-sm border border-[#262626] bg-black">
+            <div className="p-6 space-y-4 text-center text-white">
+              <div className="mx-auto w-12 h-12 rounded-sm border border-[#262626] bg-black flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-white/70" />
               </div>
-              <div className="space-y-2">
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                  Profile access
-                </p>
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground">Wallet not connected</p>
-                  <p className="text-xs text-muted-foreground">Connect your wallet to view your profile.</p>
-                </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/60">Access_Locked</p>
+                <p className="text-sm">Connect wallet to view The Ledger.</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full h-10 text-[11px] font-mono uppercase tracking-[0.2em]"
+                className="w-full h-10 text-[11px] font-mono uppercase tracking-[0.25em] border-[#262626] text-white"
                 onClick={() => setShowAuthFlow?.(true)}
               >
                 Connect Wallet
               </Button>
-            </CardContent>
+            </div>
           </Card>
         </div>
       </section>
@@ -431,327 +254,124 @@ export default function ProfilePage() {
   }
 
   return (
-    <>
-      <section className="mb-6 px-2 sm:px-4">
-        <div className="flex flex-col gap-4 rounded-sm border border-border bg-card/60 p-4 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="relative h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24 rounded-sm border border-border bg-muted/40 overflow-hidden flex-shrink-0">
-                <Image
-                  src={profileAvatarUrl || "/Sovry_Logo.png"}
-                  alt="Profile picture"
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                  Profile
-                </p>
-                <div className="space-y-1">
-                  <h1 className="text-lg sm:text-2xl md:text-3xl font-semibold text-foreground">
-                    {headerName}
-                  </h1>
-                  {walletAddress && (
-                    <div className="inline-flex items-center gap-2 rounded-sm border border-border bg-muted/40 px-2.5 py-1 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                      <span className="truncate max-w-[140px] sm:max-w-[280px] md:max-w-[420px] text-foreground tabular-nums">
-                        {walletAddress}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleCopyAddress}
-                        className="inline-flex items-center gap-1 text-primary hover:text-primary/80"
-                        aria-label={hasCopiedAddress ? "Address copied" : "Copy address"}
-                      >
-                        <Copy className="h-3 w-3" aria-hidden="true" />
-                        <span className="hidden sm:inline whitespace-nowrap">
-                          {hasCopiedAddress ? "Copied" : "Copy"}
-                        </span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <p className="text-sm sm:text-base text-muted-foreground max-w-xl">
-                  {headerBio}
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-start sm:justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-9 px-4 text-[11px] font-mono uppercase tracking-[0.2em]"
-                onClick={() => setIsProfileDialogOpen(true)}
-              >
-                Edit profile
-              </Button>
+    <div className="min-h-screen bg-black text-white">
+      <div className="px-4 sm:px-6 pt-6 flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-[11px] font-mono uppercase tracking-[0.25em] border-[#262626] text-white"
+          onClick={() => setIsProfileDialogOpen(true)}
+        >
+          Edit Profile
+        </Button>
+      </div>
+      <section className="px-4 sm:px-6 py-8 space-y-8">
+        {/* Value Strip */}
+        <div className="border border-[#262626] bg-black p-4 sm:p-6 flex flex-col lg:flex-row lg:items-stretch gap-6">
+          <div className="flex-1 flex flex-col justify-between gap-3">
+            <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-white/50">TOTAL_VALUE_USD</p>
+            <div className="text-5xl sm:text-6xl font-black leading-none">
+              {netWorth > 0
+                ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(netWorth)
+                : "—"}
             </div>
           </div>
+          <div className="w-full lg:w-[420px] grid grid-cols-2 grid-rows-2 border border-[#262626] divide-x divide-y divide-[#262626] text-xs font-mono uppercase tracking-[0.2em] bg-black/60">
+            <div className="p-4 flex flex-col gap-1">
+              <span className="text-white/50">Address</span>
+              <span className="text-sm font-semibold text-white break-all">{displayAddress}</span>
+            </div>
+            <div className="p-4 flex flex-col gap-1">
+              <span className="text-white/50">Tokens_Held</span>
+              <span className="text-lg font-semibold text-white tabular-nums">{tokensHeldCount}</span>
+            </div>
+            <div className="p-4 flex flex-col gap-1">
+              <span className="text-white/50">Tokens_Created</span>
+              <span className="text-lg font-semibold text-white tabular-nums">{tokensCreatedCount}</span>
+            </div>
+            <div className="p-4 flex flex-col gap-1">
+              <span className="text-white/50">Rank</span>
+              <span className="text-lg font-semibold text-white">—</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="border-b border-[#262626] flex items-center gap-6 text-xs font-mono uppercase tracking-[0.25em]">
+          {(["inventory", "creations"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-3 transition-colors ${activeTab === tab ? "text-white border-b border-white" : "text-white/50 hover:text-white"}`}
+            >
+              {tab === "inventory" ? "[ Inventory ]" : "[ Creations ]"}
+            </button>
+          ))}
+        </div>
+
+        {/* Asset Grid */}
+        <div>
+          {holdingsLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <div key={idx} className="h-32 border border-[#262626] bg-black animate-pulse" />
+              ))}
+            </div>
+          ) : activeAssets.length === 0 ? (
+            <div className="border border-dashed border-[#262626] bg-black/40 p-6 text-center text-xs font-mono uppercase tracking-[0.25em] text-white/60">
+              NO_ASSETS_FOUND :: INITIALIZE_LAUNCH_PROTOCOL
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {activeAssets.map((asset) => (
+                <div key={asset.id} className="border border-[#262626] bg-black/80 p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold uppercase tracking-[0.15em]">{asset.symbol}</div>
+                    <div className="text-[11px] text-white/60">{asset.category}</div>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <div className="text-xl font-bold">{asset.name}</div>
+                    <div className="text-sm text-white/60 tabular-nums">{asset.balance.toFixed(2)}</div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.15em] text-white/60">
+                    <span>Value</span>
+                    <span>
+                      {asset.valueUSD > 0
+                        ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(asset.valueUSD)
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.15em] text-white/60">
+                    <span>ID</span>
+                    <span className="truncate max-w-[180px] text-white">{truncateAddress(asset.id, { start: 6, end: 4, separator: "…", minLength: 10 })}</span>
+                  </div>
+                  <div className="flex justify-end">
+                    <Link
+                      href={`/pool/${asset.id}`}
+                      className="text-[11px] font-mono uppercase tracking-[0.2em] text-white underline-offset-4 hover:underline"
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-black text-white border border-[#262626]">
           <DialogHeader>
-            <DialogTitle>Edit your profile</DialogTitle>
-            <DialogDescription>
-              Update your profile information
+            <DialogTitle className="text-white">Edit Profile</DialogTitle>
+            <DialogDescription className="text-white/60">
+              Update your Sovry profile metadata.
             </DialogDescription>
           </DialogHeader>
 
-          <UserProfile
-            onClose={() => setIsProfileDialogOpen(false)}
-            onProfileUpdated={handleProfileUpdated}
-          />
+          <UserProfile onClose={() => setIsProfileDialogOpen(false)} onProfileUpdated={handleProfileUpdated} />
         </DialogContent>
       </Dialog>
-
-      <section className="px-2 sm:px-4">
-        <Tabs defaultValue={initialTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="inline-flex w-fit h-auto rounded-sm border border-border bg-muted/40 p-1">
-            <TabsTrigger
-              value="tokens"
-              className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] px-3 sm:px-4 py-1.5 rounded-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground hover:text-foreground"
-            >
-              <span className="sm:hidden">Tokens</span>
-              <span className="hidden sm:inline">Tokens launched</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="holdings"
-              className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] px-3 sm:px-4 py-1.5 rounded-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm text-muted-foreground hover:text-foreground"
-            >
-              <span className="sm:hidden">Holdings</span>
-              <span className="hidden sm:inline">Your holdings</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* My Tokens Tab */}
-          <TabsContent value="tokens" className="space-y-6">
-            {holdingsLoading ? (
-              <div className="py-10 sm:py-16 text-center">
-                <Coins className="h-10 w-10 text-primary mx-auto mb-4 animate-pulse" />
-                <p className="text-sm text-muted-foreground">Loading your tokens...</p>
-              </div>
-            ) : (
-              <>
-                {harvestError && (
-                  <p className="text-sm text-destructive">{harvestError}</p>
-                )}
-                <Card className="overflow-hidden">
-                  <CardHeader className="border-b border-border bg-muted/40">
-                    <CardTitle className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                      Launched Tokens
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-muted/30">
-                          <tr className="border-b border-border">
-                            <th className="text-left py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                              Asset
-                            </th>
-                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                              Balance
-                            </th>
-                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                              Value
-                            </th>
-                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                              Harvestable
-                            </th>
-                            <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                              Action
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {launchedAssets.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={5}
-                                className="py-6 px-3 text-center text-xs text-muted-foreground"
-                              >
-                                {`You haven't launched any tokens yet.`}
-                              </td>
-                            </tr>
-                          ) : (
-                            launchedAssets.map((asset) => (
-                              <tr
-                                key={asset.id}
-                                className="border-b border-border/60 hover:bg-muted/40"
-                              >
-                                <td className="py-3 px-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-sm overflow-hidden border border-border bg-muted/40">
-                                      <Image
-                                        src={asset.image}
-                                        alt={asset.name}
-                                        width={40}
-                                        height={40}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-semibold text-foreground">
-                                        {asset.symbol}
-                                      </p>
-                                      <p className="text-[11px] text-muted-foreground">
-                                        {asset.name}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
-                                  {asset.balance.toFixed(2)}
-                                </td>
-                                <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
-                                  {new Intl.NumberFormat("en-US", {
-                                    style: "currency",
-                                    currency: "USD",
-                                  }).format(asset.valueUSD)}
-                                </td>
-                                <td className="text-right py-3 px-3">
-                                  {asset.claimableRevenue > 0 ? (
-                                    <span className="inline-flex items-center gap-1 rounded-sm border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] text-primary tabular-nums">
-                                      {asset.claimableRevenue.toLocaleString("en-US", {
-                                        maximumFractionDigits: 4,
-                                      })}
-                                      <span className="text-[9px] font-normal text-muted-foreground ml-1">
-                                        WIP
-                                      </span>
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] text-muted-foreground">-</span>
-                                  )}
-                                </td>
-                                <td className="text-right py-3 px-3">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
-                                    onClick={() => handleHarvestAsset(asset.id)}
-                                    disabled={!primaryWallet || harvestingId === asset.id}
-                                  >
-                                    {harvestingId === asset.id
-                                      ? "Harvesting..."
-                                      : "Harvest"}
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          {/* Holdings Tab */}
-          <TabsContent value="holdings" className="space-y-6">
-            {holdingsLoading ? (
-              <div className="py-10 sm:py-16 text-center">
-                <Coins className="h-10 w-10 text-primary mx-auto mb-4 animate-pulse" />
-                <p className="text-sm text-muted-foreground">Loading your holdings...</p>
-              </div>
-            ) : (
-              <Card className="overflow-hidden">
-                <CardHeader className="border-b border-border bg-muted/40">
-                  <CardTitle className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                    Holdings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-muted/30">
-                        <tr className="border-b border-border">
-                          <th className="text-left py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Asset
-                          </th>
-                          <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Balance
-                          </th>
-                          <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Value
-                          </th>
-                          <th className="text-right py-3 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            Trade
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {holdingAssets.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={4}
-                              className="py-6 px-3 text-center text-xs text-muted-foreground"
-                            >
-                              {`You don't hold any assets yet.`}
-                            </td>
-                          </tr>
-                        ) : (
-                          holdingAssets.map((asset) => (
-                            <tr
-                              key={asset.id}
-                              className="border-b border-border/60 hover:bg-muted/40"
-                            >
-                              <td className="py-3 px-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-9 h-9 rounded-sm overflow-hidden border border-border bg-muted/40">
-                                    <Image
-                                      src={asset.image}
-                                      alt={asset.name}
-                                      width={40}
-                                      height={40}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-semibold text-foreground">
-                                      {asset.symbol}
-                                    </p>
-                                    <p className="text-[11px] text-muted-foreground">
-                                      {asset.name}
-                                    </p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
-                                {asset.balance.toFixed(2)}
-                              </td>
-                              <td className="text-right py-3 px-3 text-sm text-foreground tabular-nums">
-                                {new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: "USD",
-                                }).format(asset.valueUSD)}
-                              </td>
-                              <td className="text-right py-3 px-3">
-                                <Link href={`/pool/${asset.id}`}>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
-                                  >
-                                    Trade
-                                  </Button>
-                                </Link>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </section>
-    </>
+    </div>
   );
 }
