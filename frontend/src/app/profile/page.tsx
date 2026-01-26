@@ -320,7 +320,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <section className="px-4 sm:px-6 py-6 space-y-6">
+      <section className="px-4 sm:px-6 py-1.5 sm:py-2.5 space-y-6">
         {/* Value Strip with Profile */}
         <div className="border border-[#262626] bg-black p-4 sm:p-6 flex flex-col gap-4 lg:gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
