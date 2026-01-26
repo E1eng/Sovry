@@ -83,8 +83,9 @@ export default function Home() {
       </div>
 
       {/* Hero: asymmetric split */}
-      <section className="border-b border-[#262626] bg-[#050505]">
-        <div className="relative min-h-[70vh] sm:min-h-[70vh] md:min-h-[65vh] lg:min-h-[500px] grid grid-cols-12">
+      <section className="px-4 sm:px-6 py-6">
+        <div className="mt-4 border border-[#262626] bg-[#050505] rounded-xl overflow-hidden shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
+          <div className="relative min-h-[70vh] sm:min-h-[70vh] md:min-h-[65vh] lg:min-h-[500px] grid grid-cols-12">
           <div className="col-span-12 lg:col-span-8 relative border-b lg:border-b-0 lg:border-r border-[#262626] overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black/40 to-transparent" />
             {spotlight?.imageUrl ? (
@@ -174,6 +175,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+      </div>
       </section>
 
       {/* Data Terminal */}
