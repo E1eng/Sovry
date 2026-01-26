@@ -142,7 +142,11 @@ export default function Home() {
                 const key = loading ? `skeleton-${idx}` : item.token || item.id;
                 const gain = loading ? 0 : getSeededNumber(String(item.id), 12, 480);
                 return (
-                  <div key={key} className="flex items-center gap-3 px-4 py-3 group">
+                  <Link
+                    key={key}
+                    href={loading ? "#" : `/pool/${item.token || item.id}`}
+                    className="flex items-center gap-3 px-4 py-3 group hover:bg-white/5 transition-colors"
+                  >
                     <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-black/60 relative">
                       {!loading && item.imageUrl ? (
                         <Image src={item.imageUrl} alt={item.name || "IP"} fill unoptimized className="object-cover" />
@@ -164,7 +168,7 @@ export default function Home() {
                         {loading ? "--" : formatMarketCapIP(item.marketCap)}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
