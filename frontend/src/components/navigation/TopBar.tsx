@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DynamicUserProfile, useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { Wallet } from "lucide-react";
+import { Wallet, ChevronDown, User } from "lucide-react";
 
 import { SovrySymbol } from "@/components/ui/SovrySymbol";
 import { getAddressInitials } from "@/lib/avatarUtils";
@@ -19,11 +19,14 @@ export function TopBar() {
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!primaryWallet?.address || !supabase) {
       setAvatarUrl(null);
       setProfileUsername(null);
+      setShowProfileMenu(false);
       return;
     }
 
@@ -79,10 +82,20 @@ export function TopBar() {
   const walletLabel = profileUsername || shortAddress || "Connect Wallet";
   const avatarFallback = (profileUsername?.slice(0, 2) || getAddressInitials(address)).toUpperCase();
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6 max-w-[1600px]">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
           <Link
             href="/"
             className="flex items-center gap-3 rounded-sm border border-border bg-card px-2.5 py-1.5 text-foreground transition-colors hover:bg-muted/60"
@@ -91,7 +104,7 @@ export function TopBar() {
             <span className="text-[11px] font-mono uppercase tracking-[0.2em]">Sovry</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-2">
+          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
@@ -140,37 +153,61 @@ export function TopBar() {
             })}
           </nav>
 
-          <button
-            type="button"
-            onClick={openWalletModal}
-            className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-muted/60"
-            aria-label={primaryWallet ? "Open wallet" : "Connect wallet"}
-          >
-            {primaryWallet ? (
+          <div className="relative flex items-center gap-1" ref={menuRef}>
+            <button
+              type="button"
+              onClick={openWalletModal}
+              className="flex items-center gap-2 rounded-sm border border-border bg-card px-3 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-foreground transition-colors hover:bg-muted/60"
+              aria-label={primaryWallet ? "Open wallet" : "Connect wallet"}
+            >
+              {primaryWallet ? (
+                <>
+                  <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-sm border border-border bg-muted/40 text-[10px]">
+                    {avatarUrl ? (
+                      <Image
+                        src={avatarUrl}
+                        alt="Profile avatar"
+                        width={24}
+                        height={24}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="font-semibold">{avatarFallback}</span>
+                    )}
+                  </div>
+                  <span className="hidden sm:inline tabular-nums">{walletLabel}</span>
+                  <span className="sm:hidden tabular-nums">{shortAddress || "Wallet"}</span>
+                </>
+              ) : (
+                <>
+                  <Wallet className="h-4 w-4" />
+                  <span>Connect</span>
+                </>
+              )}
+            </button>
+            {primaryWallet && (
               <>
-                <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-sm border border-border bg-muted/40 text-[10px]">
-                  {avatarUrl ? (
-                    <Image
-                      src={avatarUrl}
-                      alt="Profile avatar"
-                      width={24}
-                      height={24}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span className="font-semibold">{avatarFallback}</span>
-                  )}
-                </div>
-                <span className="hidden sm:inline tabular-nums">{walletLabel}</span>
-                <span className="sm:hidden tabular-nums">{shortAddress || "Wallet"}</span>
-              </>
-            ) : (
-              <>
-                <Wallet className="h-4 w-4" />
-                <span>Connect</span>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileMenu((s) => !s)}
+                  className="flex h-9 w-9 items-center justify-center rounded-sm border border-border bg-card text-foreground hover:bg-muted/60"
+                  aria-label="Open profile quick menu"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                {showProfileMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-sm border border-border bg-card shadow-xl text-foreground text-[11px] font-mono uppercase tracking-[0.18em] z-50">
+                    <Link
+                      href="/profile"
+                      className="px-3 py-2 hover:bg-muted/40 flex items-center gap-2"
+                    >
+                      <User className="h-4 w-4" /> Profile
+                    </Link>
+                  </div>
+                )}
               </>
             )}
-          </button>
+          </div>
         </div>
       </div>
 

@@ -500,7 +500,7 @@ export default function CreatePage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                    Preview Blueprint
+                    Preview
                   </p>
                   <span
                     className={`text-[11px] font-mono uppercase tracking-[0.3em] ${signalTone}`}
@@ -509,7 +509,7 @@ export default function CreatePage() {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Raw wireframe of the Sovry wrapper token and Story IP asset payload.
+                  Raw wireframe of the Token and Story IP asset payload.
                 </p>
               </div>
               <div className="space-y-3">
@@ -517,7 +517,7 @@ export default function CreatePage() {
                   Token Card
                 </p>
                 <div className="border border-[#262626] bg-[#050505]">
-                  <div className="relative aspect-[4/3] border-b border-[#262626] bg-black flex items-center justify-center">
+                  <div className="relative aspect-square border-b border-[#262626] bg-black flex items-center justify-center">
                     {previewImage ? (
                       <Image
                         loader={externalImageLoader}
@@ -621,7 +621,7 @@ export default function CreatePage() {
                     Signal {signalStatus}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
                   {["Select IP", "Token & Branding", "Review & Launch"].map((label, idx) => {
                     const stepNumber = (idx + 1) as 1 | 2 | 3;
                     const isActive = currentStep === stepNumber;
@@ -640,7 +640,7 @@ export default function CreatePage() {
                         >
                           {stepNumber}
                         </span>
-                        <span className="truncate">{label}</span>
+                        <span className="whitespace-nowrap sm:whitespace-normal">{label}</span>
                       </div>
                     );
                   })}
