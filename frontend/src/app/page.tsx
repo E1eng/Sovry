@@ -84,7 +84,7 @@ export default function Home() {
 
       {/* Hero: asymmetric split */}
       <section className="border-b border-[#262626] bg-[#050505]">
-        <div className="relative min-h-[100vh] sm:min-h-[90vh] md:min-h-[80vh] lg:min-h-[500px] grid grid-cols-12">
+        <div className="relative min-h-[70vh] sm:min-h-[70vh] md:min-h-[65vh] lg:min-h-[500px] grid grid-cols-12">
           <div className="col-span-12 lg:col-span-8 relative border-b lg:border-b-0 lg:border-r border-[#262626] overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black/40 to-transparent" />
             {spotlight?.imageUrl ? (

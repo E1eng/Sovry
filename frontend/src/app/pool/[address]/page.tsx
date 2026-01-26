@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Breadcrumb } from "@/components/ui/breadcrumb"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
 import { useGraduationEvent } from "@/hooks/useGraduationEvent"
-import { TokenHeader } from "@/components/token/TokenHeader"
 import { GraduationModal } from "@/components/token/GraduationModal"
 import { ProgressToGraduation } from "@/components/token/ProgressBar"
 import { SwapInterface } from "@/components/swap/SwapInterface"
@@ -57,6 +56,11 @@ export default function TokenDetailPage() {
   } | null>(null)
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
+  const copyToClipboard = useCallback((text: string, label: string) => {
+    if (!text) return
+    navigator.clipboard?.writeText(text)
+    toast.success(`${label} copied`)
+  }, [])
   
 
   // Validate address format
@@ -285,111 +289,29 @@ export default function TokenDetailPage() {
     { label: ticker },
   ]
 
+  const socials = [
+    { label: "Website", url: (details.launchInfo as any)?.websiteUrl || (details.wrapperMeta as any)?.website },
+    { label: "Twitter", url: (details.launchInfo as any)?.twitterUrl || (details.wrapperMeta as any)?.twitter },
+    { label: "Telegram", url: (details.launchInfo as any)?.telegramUrl || (details.wrapperMeta as any)?.telegram },
+  ].filter((s) => !!s.url)
+
   return (
     <ErrorBoundary>
-      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 py-5 sm:py-8 lg:py-10">
+      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 pt-2 sm:pt-5 lg:pt-6 pb-8">
         <div className="w-full space-y-5 sm:space-y-6">
           {/* Breadcrumbs */}
           <Breadcrumb items={breadcrumbItems} />
 
-          {/* Token Header */}
-          <div
-            style={{
-              animation: "fadeIn 0.5s ease-out 0ms both",
-            }}
-          >
-            <TokenHeader details={details} />
-          </div>
-
           {/* Bento Grid Layout */}
           <div className="grid gap-4 lg:gap-5 lg:grid-cols-12">
-            {/* Media Panel */}
-            <div
-              className="order-1 lg:order-1 lg:col-span-4"
-              style={{
-                animation: "fadeIn 0.5s ease-out 80ms both",
-              }}
-            >
-              <Card className="overflow-hidden">
-                <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-2">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IP Media</span>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                    {mediaTypeLabel}
-                  </span>
-                </div>
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-                  {details.imageUrl ? (
-                    <Image
-                      src={details.imageUrl}
-                      alt={tokenName}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-muted-foreground">
-                        {tokenName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <CardContent className="p-3 space-y-3">
-                  <div className="space-y-1">
-                    <div className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Asset</div>
-                    <div className="text-sm font-semibold text-foreground truncate">{tokenName}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Symbol</div>
-                      <div className="font-mono text-foreground tabular-nums">{ticker}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
-                      <div className="font-mono text-foreground">
-                        {truncateAddress(details.ipId)}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Creator</div>
-                      <div className="font-mono text-foreground">
-                        {truncateAddress(creatorAddress)}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Token</div>
-                      <div className="font-mono text-foreground">
-                        {truncateAddress(details.tokenAddress)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Metadata URI</div>
-                    {metadataUri ? (
-                      <a
-                        href={metadataHref || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-[11px] font-mono text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
-                      >
-                        {metadataUri}
-                      </a>
-                    ) : (
-                      <span className="text-[11px] font-mono text-muted-foreground">—</span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Trading Chart */}
-            <div
-              className="order-3 lg:order-2 lg:col-span-8"
-              style={{
-                animation: "fadeIn 0.5s ease-out 140ms both",
-              }}
-            >
-              <Card>
+            {/* Left Column: Chart -> Media -> Comments */}
+            <div className="lg:col-span-8 space-y-4">
+              {/* Trading Chart */}
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 120ms both",
+                }}
+              >
                 <CardHeader className="border-b border-border bg-muted/60">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -432,32 +354,177 @@ export default function TokenDetailPage() {
                   />
                 </CardContent>
               </Card>
-            </div>
 
-            {/* Swap Interface */}
-            <div
-              className="order-2 lg:order-3 lg:col-span-4"
-              style={{
-                animation: "fadeIn 0.5s ease-out 200ms both",
-              }}
-            >
-              <SwapInterface
-                tokenAddress={address}
-                tokenSymbol={ticker}
-                isGraduated={launchInfo?.graduated || false}
-                piperXPoolAddress={graduationData?.liquidityPoolAddress}
-              />
-            </div>
-
-            {/* Progress to Graduation */}
-            {launchInfo && launchInfo.totalRaised && (
-              <div
-                className="order-4 lg:order-4 lg:col-span-4"
+              {/* IP Media */}
+              <Card
+                className="overflow-hidden"
                 style={{
-                  animation: "fadeIn 0.5s ease-out 260ms both",
+                  animation: "fadeIn 0.5s ease-out 160ms both",
                 }}
               >
-                <Card>
+                <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-2">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IP Media</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                    {mediaTypeLabel}
+                  </span>
+                </div>
+                <div className="relative aspect-square w-full overflow-hidden bg-muted">
+                  {details.imageUrl ? (
+                    <Image
+                      src={details.imageUrl}
+                      alt={tokenName}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xl font-semibold text-muted-foreground">
+                        {tokenName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <CardContent className="p-3 space-y-3">
+                  <div className="space-y-1">
+                    <div className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Asset</div>
+                    <div className="text-sm font-semibold text-foreground truncate">{tokenName}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Symbol</div>
+                      <div className="font-mono text-foreground tabular-nums">{ticker}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(details.ipId, "IPID")}
+                        className="font-mono text-foreground hover:underline decoration-dotted"
+                      >
+                        {truncateAddress(details.ipId)}
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Creator</div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(creatorAddress || "", "Creator")}
+                        className="font-mono text-foreground hover:underline decoration-dotted"
+                      >
+                        {truncateAddress(creatorAddress)}
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Token</div>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(details.tokenAddress, "Token address")}
+                        className="font-mono text-foreground hover:underline decoration-dotted"
+                      >
+                        {truncateAddress(details.tokenAddress)}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Metadata URI</div>
+                    {metadataUri ? (
+                      <a
+                        href={metadataHref || "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-[11px] font-mono text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
+                      >
+                        {metadataUri}
+                      </a>
+                    ) : (
+                      <span className="text-[11px] font-mono text-muted-foreground">—</span>
+                    )}
+                  </div>
+
+                  {socials.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Socials</div>
+                      <div className="flex flex-wrap gap-2 text-[11px]">
+                        {socials.map((s) => (
+                          <a
+                            key={s.label}
+                            href={s.url as string}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 hover:bg-muted/60"
+                          >
+                            {s.label}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Comments */}
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 200ms both",
+                }}
+              >
+                <CardHeader className="border-b border-border bg-muted/60">
+                  <CardTitle className="text-sm font-semibold text-foreground">Comments</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <PoolComments tokenAddress={address} tokenName={tokenName} />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column: sticky swap stack */}
+            <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-4">
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 140ms both",
+                }}
+              >
+                <CardContent className="p-0">
+                  <SwapInterface
+                    tokenAddress={address}
+                    tokenSymbol={ticker}
+                    isGraduated={launchInfo?.graduated || false}
+                    piperXPoolAddress={graduationData?.liquidityPoolAddress}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 160ms both",
+                }}
+              >
+                <CardContent className="p-4 sm:p-5">
+                  <HolderDistribution
+                    tokenAddress={address}
+                    tokenSymbol={ticker}
+                    creatorAddress={creatorAddress || undefined}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 180ms both",
+                }}
+              >
+                <CardContent className="p-4 sm:p-5">
+                  <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
+                </CardContent>
+              </Card>
+
+              {launchInfo && launchInfo.totalRaised && (
+                <Card
+                  style={{
+                    animation: "fadeIn 0.5s ease-out 220ms both",
+                  }}
+                >
                   <CardContent className="p-4 sm:p-5">
                     <ProgressToGraduation
                       totalRaised={launchInfo.totalRaised}
@@ -468,41 +535,7 @@ export default function TokenDetailPage() {
                     />
                   </CardContent>
                 </Card>
-              </div>
-            )}
-
-            {/* Top Holders */}
-            <div
-              className={"order-5 lg:order-5 lg:col-span-4"}
-              style={{
-                animation: "fadeIn 0.5s ease-out 320ms both",
-              }}
-            >
-              <HolderDistribution
-                tokenAddress={address}
-                tokenSymbol={ticker}
-                creatorAddress={creatorAddress || undefined}
-              />
-            </div>
-
-            {/* Activity Feed */}
-            <div
-              className="order-6 lg:order-6 lg:col-span-6"
-              style={{
-                animation: "fadeIn 0.5s ease-out 380ms both",
-              }}
-            >
-              <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
-            </div>
-
-            {/* Comments */}
-            <div
-              className="order-7 lg:order-7 lg:col-span-6"
-              style={{
-                animation: "fadeIn 0.5s ease-out 440ms both",
-              }}
-            >
-              <PoolComments tokenAddress={address} tokenName={tokenName} />
+              )}
             </div>
           </div>
 

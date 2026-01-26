@@ -6,9 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowDownUp, Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
+import { Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
 import { parseEther, formatEther } from "viem"
 import toast from "react-hot-toast"
 import { cn } from "@/lib/utils"
@@ -47,7 +46,7 @@ export interface SwapInterfaceProps {
   tokenAddress?: string
   tokenSymbol?: string
   className?: string
-  onSwap?: (fromToken: string, toToken: string, amount: string) => void
+  onSwap?: (direction: "buy" | "sell", amount: string) => void
   isGraduated?: boolean
   piperXPoolAddress?: string
 }
@@ -63,8 +62,6 @@ function SwapInterfaceComponent({
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy")
   const [fromAmount, setFromAmount] = useState("")
   const [toAmount, setToAmount] = useState("")
-  const [fromToken, setFromToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "IP" : "TOKEN")
-  const [toToken, setToToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "TOKEN" : "IP")
   const [showSlippageSettings, setShowSlippageSettings] = useState(false)
   const [debouncedFromAmount, setDebouncedFromAmount] = useState(fromAmount)
 
@@ -135,11 +132,7 @@ function SwapInterfaceComponent({
   // Calculate output amount with debouncing
   const calculateOutput = useCallback(
     async (amount: string, isBuy: boolean) => {
-      if (
-        !amount ||
-        parseFloat(amount) <= 0 ||
-        !tokenAddress
-      ) {
+      if (!amount || parseFloat(amount) <= 0 || !tokenAddress) {
         setToAmount("")
         setMinReceive(null)
         setPriceImpact(null)
@@ -188,7 +181,7 @@ function SwapInterfaceComponent({
 
           impact = calculateRealPriceImpact(freshParams, tokenAmount, true)
           const rate = expectedTokens / parseFloat(amount)
-          setExchangeRate(`1 IP = ${rate.toFixed(6)} ${toToken}`)
+          setExchangeRate(`1 IP = ${rate.toFixed(6)} ${tokenSymbol}`)
         } else {
           // SELL: convert 18-dec UI amount to 6-dec wrapper units
           const tokenWeiIn = amountBigInt
@@ -237,7 +230,7 @@ function SwapInterfaceComponent({
 
           impact = calculateRealPriceImpact(paramsForSell, wrapperAmount, false)
           const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
-          setExchangeRate(`1 ${fromToken} = ${rate.toFixed(6)} IP`)
+          setExchangeRate(`1 ${tokenSymbol} = ${rate.toFixed(6)} IP`)
         }
         setPriceImpact(impact)
       } catch (error) {
@@ -250,7 +243,7 @@ function SwapInterfaceComponent({
         setIsCalculating(false)
       }
     },
-    [tokenAddress, slippage, fromToken, toToken, FEE_BPS, BPS_DENOMINATOR]
+    [tokenAddress, slippage, tokenSymbol, FEE_BPS, BPS_DENOMINATOR]
   )
 
   // Debounced calculation effect
@@ -298,14 +291,6 @@ function SwapInterfaceComponent({
     const newTab = value as "buy" | "sell"
     setActiveTab(newTab)
 
-    if (newTab === "buy") {
-      setFromToken("IP")
-      setToToken("TOKEN")
-    } else {
-      setFromToken("TOKEN")
-      setToToken("IP")
-    }
-
     // Clear amounts and errors
     setFromAmount("")
     setToAmount("")
@@ -314,12 +299,6 @@ function SwapInterfaceComponent({
     setExchangeRate("")
     setBalanceError(null)
     setSlippageError(null)
-  }
-
-  // Handle swap button click: simply toggle between buy and sell directions
-  const handleSwapTokens = () => {
-    const nextTab = activeTab === "buy" ? "sell" : "buy"
-    handleTabChange(nextTab)
   }
 
   // Create public client for balance checks (memoized)
@@ -410,7 +389,7 @@ function SwapInterfaceComponent({
       return
     }
 
-    if (activeTab === "buy" && fromToken === "IP") {
+    if (activeTab === "buy") {
       // Validate IP balance
       if (!userBalance || parseFloat(userBalance) < parseFloat(fromAmount)) {
         const errorMsg = `Insufficient IP balance. You have ${userBalance || "0"} IP, but need ${fromAmount} IP.`
@@ -604,7 +583,7 @@ function SwapInterfaceComponent({
       } finally {
         setIsTrading(false)
       }
-    } else if (activeTab === "sell" && fromToken === "TOKEN") {
+    } else if (activeTab === "sell") {
       // Validate token balance
       if (!tokenBalance || parseFloat(tokenBalance) < parseFloat(fromAmount)) {
         const errorMsg = `Insufficient token balance. You have ${tokenBalance || "0"} ${tokenSymbol}, but need ${fromAmount} ${tokenSymbol}.`
@@ -1006,28 +985,16 @@ function SwapInterfaceComponent({
               aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
               aria-describedby={balanceError ? "balance-error" : undefined}
             />
-            <Select
-              value={fromToken}
-              disabled
-            >
-              <SelectTrigger className="w-full sm:w-24 rounded-sm font-mono text-[11px] uppercase tracking-[0.2em]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="IP">IP</SelectItem>
-                <SelectItem value="TOKEN">{tokenSymbol}</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           {/* Balance Display - Stack below on mobile */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 pt-1">
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
               Balance:{" "}
               <span className="text-foreground tabular-nums">
-                {fromToken === "IP" 
+                {activeTab === "buy" 
                   ? formatBalance(userBalance, 4)
                   : formatBalance(tokenBalance, 4)
-                } {fromToken === "IP" ? "IP" : tokenSymbol}
+                } {activeTab === "buy" ? "IP" : tokenSymbol}
               </span>
             </span>
             <Button
@@ -1035,87 +1002,40 @@ function SwapInterfaceComponent({
               variant="ghost"
               size="sm"
               onClick={() => {
-                const balance = fromToken === "IP" ? userBalance : tokenBalance
+                const balance = activeTab === "buy" ? userBalance : tokenBalance
                 if (balance && parseFloat(balance) > 0) {
                   setFromAmount(parseFloat(balance).toString())
                 }
               }}
-              disabled={!isConnected || (fromToken === "IP" ? !userBalance : !tokenBalance)}
+              disabled={!isConnected || (activeTab === "buy" ? !userBalance : !tokenBalance)}
               className="h-6 px-2 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:text-primary/80 hover:bg-primary/10"
-              aria-label={`Set maximum ${fromToken} balance`}
+              aria-label="Set maximum balance"
             >
               MAX
             </Button>
           </div>
         </div>
 
-        {/* Swap Arrow Button */}
-        <div className="flex justify-center -my-2 relative z-10">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 rounded-full border border-border bg-card hover:bg-muted/60 touch-manipulation"
-            onClick={handleSwapTokens}
-            aria-label="Swap tokens"
-            disabled={isTrading}
-          >
-            <ArrowDownUp className="h-5 w-5 text-muted-foreground" />
-          </Button>
-        </div>
-
-        {/* You Receive Section */}
+        {/* Estimated Receive */}
         <div className="space-y-2">
-          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Receive</label>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <Input
-                type="text"
-                value={toAmount || (isCalculating ? "..." : "")}
-                readOnly
-                placeholder={detailsLoading ? "Loading..." : "0.0"}
-              disabled={detailsLoading || isTrading}
-              className="flex-1 text-base sm:text-lg font-semibold font-mono tabular-nums pr-10 bg-muted/40"
-              aria-label={`Amount to ${activeTab === "buy" ? "receive" : "receive"}`}
-              aria-live="polite"
-              aria-atomic="true"
-            />
-              {isCalculating && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
-              )}
-            </div>
-            <Select
-              value={toToken}
-              disabled
-            >
-              <SelectTrigger className="w-full sm:w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="IP">IP</SelectItem>
-                <SelectItem value="TOKEN">{tokenSymbol}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {/* Balance Display - Stack below on mobile */}
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Balance:{" "}
-              <span className="text-foreground tabular-nums">
-                {toToken === "IP" 
-                  ? formatBalance(userBalance, 4)
-                  : formatBalance(tokenBalance, 4)
-                } {toToken === "IP" ? "IP" : tokenSymbol}
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Estimated Receive</label>
+          <div className="flex items-center justify-between rounded-sm border border-border bg-muted/30 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold font-mono tabular-nums">
+                {toAmount || (isCalculating ? "…" : "0.0")}
               </span>
-            </span>
+              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                {activeTab === "buy" ? tokenSymbol : "IP"}
+              </span>
+            </div>
+            {isCalculating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
           {minReceive && (
             <div className="pt-1">
               <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                 Min received ({slippage}% slippage):{ " " }
                 <span className="text-foreground tabular-nums">
-                  {minReceive} {toToken === "IP" ? "IP" : tokenSymbol}
+                  {minReceive} {activeTab === "buy" ? tokenSymbol : "IP"}
                 </span>
               </span>
             </div>
