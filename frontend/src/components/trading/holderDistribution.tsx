@@ -141,11 +141,6 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
                         className="text-xs sm:text-sm font-mono text-foreground flex items-center gap-1 hover:text-sky-300 transition-colors"
                       >
                         {isLiquidity ? "Sovry Vault" : shortenAddress(holder.address)}
-                        {isLiquidity && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-[11px] font-semibold text-emerald-400 border border-emerald-500/30">
-                            Liquidity
-                          </span>
-                        )}
                         {isCreator && !isLiquidity && (
                           <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-[11px] font-semibold text-blue-400 border border-blue-500/30">
                             Creator
