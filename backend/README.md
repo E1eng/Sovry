@@ -10,9 +10,9 @@ They can be deployed as separate services.
 
 ## Scripts
 
-- `npm run start:api` - start the API server
-- `npm run start:worker` - start the worker process
-- `node bot.ts` - run keeper bot (harvest + push + sync jobs)
+- `npm run start:api` - start the API server (ts-node server.ts)
+- `npm run start:worker` - start the worker process (ts-node start-worker.ts)
+- `npm run bot` - run keeper bot (harvest + push + sync jobs, ts-node bot.ts)
 
 ## API Endpoints
 
@@ -38,6 +38,7 @@ They can be deployed as separate services.
 - `SUBGRAPH_URL` – same Goldsky endpoint
 - `WEBHOOK_URL` – Next.js webhook endpoint (`/api/webhooks/graph`)
 - `GRAPH_WEBHOOK_SECRET` – same secret as above
+- `DISCORD_WEBHOOK_URL` – for alerts (startup, tx success/fail, low balance)
 - Intervals (optional): `HARVEST_INTERVAL_MS` (default 10m), `PUSH_INTERVAL_MS` (default 1h), `SYNC_INTERVAL_MS` (default 60s)
 
 ### Optional / Recommended
@@ -68,8 +69,8 @@ Create **two Railway services** pointing to the same repo:
 ### 3) Keeper Bot
 
 - Root directory: `backend`
-- Start command: `node bot.ts`
-- Env: `RPC_URL`, `KEEPER_PRIVATE_KEY`, `SOVRY_EXCHANGE_ADDRESS`, `SUBGRAPH_URL`, `WEBHOOK_URL`, `GRAPH_WEBHOOK_SECRET`, optional intervals
+- Start command: `npm run bot`
+- Env: `RPC_URL`, `KEEPER_PRIVATE_KEY`, `SOVRY_EXCHANGE_ADDRESS`, `SUBGRAPH_URL`, `WEBHOOK_URL`, `GRAPH_WEBHOOK_SECRET`, `DISCORD_WEBHOOK_URL` (optional alerts), optional intervals
 
 ## Local Development
 
@@ -82,4 +83,4 @@ If you want to run all locally, in separate terminals:
 
 - `npm run start:api`
 - `npm run start:worker`
-- `node bot.ts`
+- `npm run bot`
