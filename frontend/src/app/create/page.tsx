@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +41,6 @@ import { truncateAddress } from "@/lib/utils";
 
 export default function CreatePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
-  const router = useRouter();
 
   const externalImageLoader = ({ src }: { src: string }) => src;
 

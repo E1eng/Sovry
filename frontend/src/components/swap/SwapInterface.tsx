@@ -94,35 +94,16 @@ function SwapInterfaceComponent({
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
   const [simulationError, setSimulationError] = useState<string | null>(null)
   const [balanceRefreshNonce, setBalanceRefreshNonce] = useState(0)
-  const [curveParams, setCurveParams] = useState<BondingCurveParams | null>(null)
 
-  // Fetch and refresh curve params (single source of truth)
-  useEffect(() => {
-    let cancelled = false
-    let interval: NodeJS.Timeout | null = null
-
-    async function load() {
-      if (!tokenAddress) return
-      try {
-        const { launchpadService } = await import("@/services/launchpadService")
-        const params = await launchpadService.getCurveParams(tokenAddress)
-        if (!cancelled) {
-          setCurveParams(params)
-        }
-      } catch (err) {
-        logger.error("Error loading curve params", err)
-        if (!cancelled) setCurveParams(null)
-      }
+  const curveParams = useMemo<BondingCurveParams | null>(() => {
+    if (!tokenData) return null
+    return {
+      basePrice: tokenData.alpha,
+      priceIncrement: tokenData.beta,
+      currentSupply: tokenData.currentSupply,
+      initialCurveSupply: tokenData.initialCurveSupply,
     }
-
-    load()
-    interval = setInterval(load, 15000)
-
-    return () => {
-      cancelled = true
-      if (interval) clearInterval(interval)
-    }
-  }, [tokenAddress])
+  }, [tokenData])
 
   // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
   const FEE_BPS = 100n
@@ -166,7 +147,7 @@ function SwapInterfaceComponent({
   // Calculate output amount with debouncing
   const calculateOutput = useCallback(
     async (amount: string, isBuy: boolean) => {
-      if (!amount || parseFloat(amount) <= 0 || !tokenAddress || tokenDataLoading || !tokenData) {
+      if (!amount || parseFloat(amount) <= 0 || !tokenAddress || tokenDataLoading || !tokenData || !curveParams) {
         setToAmount("")
         setMinReceive(null)
         setPriceImpact(null)
@@ -265,7 +246,7 @@ function SwapInterfaceComponent({
         setIsCalculating(false)
       }
     },
-    [tokenAddress, slippage, tokenSymbol, FEE_BPS, BPS_DENOMINATOR]
+    [tokenAddress, slippage, tokenSymbol, FEE_BPS, BPS_DENOMINATOR, tokenDataLoading, tokenData, curveParams]
   )
 
   // Debounced calculation effect
@@ -399,7 +380,7 @@ function SwapInterfaceComponent({
   // Handle place trade
   const handlePlaceTrade = async () => {
     if (!fromAmount || parseFloat(fromAmount) <= 0 || !tokenAddress) return
-    if (tokenDataLoading || !tokenData || !tokenData.isActive) {
+    if (tokenDataLoading || !tokenData || !tokenData.isActive || !curveParams) {
       toast.error("Token state unavailable or inactive", { duration: 3000 })
       return
     }
@@ -440,15 +421,8 @@ function SwapInterfaceComponent({
       // Calculate minTokensOut with slippage using real bonding curve math
       const slippagePercent = parseFloat(slippage) || 1
       const ipAmountBigInt = parseEther(fromAmount)
-      const freshParamsForTx = curveParams
-      if (!freshParamsForTx) {
-        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
-          duration: 3000,
-        })
-        return
-      }
 
-      const { amount: tokenAmount } = estimateBuyAmountForIp(freshParamsForTx, ipAmountBigInt)
+      const { amount: tokenAmount } = estimateBuyAmountForIp(curveParams, ipAmountBigInt)
       if (tokenAmount <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,
@@ -642,12 +616,7 @@ function SwapInterfaceComponent({
           throw new Error("Amount too small for current bonding curve")
         }
 
-        const paramsForSell = curveParams
-        if (!paramsForSell) {
-          throw new Error("Bonding curve not available for this token")
-        }
-
-        const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
+        const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
         if (baseProceeds <= 0n) {
           throw new Error("Amount too small for current bonding curve")
         }
@@ -718,7 +687,6 @@ function SwapInterfaceComponent({
     })
 
     try {
-      // Create a sell function that only does the sell (not approval)
       // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell
       const tokenWeiIn = parseEther(fromAmount)
       const wrapperAmount = tokenWeiIn / (10n ** 12n)
@@ -729,15 +697,7 @@ function SwapInterfaceComponent({
         return
       }
 
-      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
-      if (!freshParamsForTx) {
-        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
-          duration: 3000,
-        })
-        return
-      }
-
-      const baseProceeds = calculateBondingCurveSellProceeds(freshParamsForTx, wrapperAmount)
+      const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
       if (baseProceeds <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,
@@ -745,14 +705,10 @@ function SwapInterfaceComponent({
         return
       }
 
-      // Apply 1% trading fee: netProceeds = baseProceeds - fee
       const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
       const netProceeds = baseProceeds - fee
-
-      // Apply slippage in BigInt basis points
       const slippageBps = BigInt(Math.floor(slippagePercent * 100))
       const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
-
       const minIpOutStr = formatEther(minProceeds)
 
       const { launchpadService } = await import("@/services/launchpadService")

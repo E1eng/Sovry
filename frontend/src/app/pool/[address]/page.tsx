@@ -15,6 +15,7 @@ import { useGraduationEvent } from "@/hooks/useGraduationEvent"
 import { GraduationModal } from "@/components/token/GraduationModal"
 import { ProgressToGraduation } from "@/components/token/ProgressBar"
 import { SwapInterface } from "@/components/swap/SwapInterface"
+import { TokenRevenueStats } from "@/components/token/TokenRevenueStats"
 import { TokenDetailSkeleton } from "@/components/token/TokenDetailSkeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -501,6 +502,16 @@ export default function TokenDetailPage() {
                 }}
               >
                 <CardContent className="p-4 sm:p-5">
+                  <TokenRevenueStats tokenAddress={address} />
+                </CardContent>
+              </Card>
+
+              <Card
+                style={{
+                  animation: "fadeIn 0.5s ease-out 180ms both",
+                }}
+              >
+                <CardContent className="p-4 sm:p-5">
                   <HolderDistribution
                     tokenAddress={address}
                     tokenSymbol={ticker}
@@ -511,7 +522,7 @@ export default function TokenDetailPage() {
 
               <Card
                 style={{
-                  animation: "fadeIn 0.5s ease-out 180ms both",
+                  animation: "fadeIn 0.5s ease-out 200ms both",
                 }}
               >
                 <CardContent className="p-4 sm:p-5">

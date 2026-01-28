@@ -59,6 +59,8 @@ export type TokenData = {
   reserveBalance: bigint;
   initialCurveSupply: bigint;
   currentSupply: bigint;
+  alpha: bigint;
+  beta: bigint;
   marketCap: bigint;
   isActive: boolean;
   totalSupply: bigint;
@@ -118,6 +120,8 @@ export function useTokenData(tokenAddress?: string | null) {
     const reserveBalance = BigInt(curve.reserveBalance ?? 0n);
     const initialCurveSupply = BigInt(curve.initialCurveSupply ?? 0n);
     const currentSupply = BigInt(curve.currentSupply ?? 0n);
+    const alpha = BigInt(curve.alpha ?? 0n);
+    const beta = BigInt(curve.beta ?? 0n);
     const marketCap = BigInt((marketCapRes as any).result ?? 0n);
     const totalSupply = BigInt((supplyRes as any).result ?? 0n);
     const isActive = Boolean((activeRes as any).result);
@@ -126,6 +130,8 @@ export function useTokenData(tokenAddress?: string | null) {
       reserveBalance,
       initialCurveSupply,
       currentSupply,
+      alpha,
+      beta,
       marketCap,
       isActive,
       totalSupply,
