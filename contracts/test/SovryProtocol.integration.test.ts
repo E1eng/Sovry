@@ -141,8 +141,8 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     expect(reserveAfter.sub(reserveBefore)).to.equal(baseCost);
   });
 
-  it("Royalty Bot: keeper can call Exchange.depositRoyalties, random user cannot", async function () {
-    const { factory, exchange, wip, rt, creator, keeper, trader } = await deployProtocolFixture();
+  it("Royalty Bot: keeper can call Exchange.pushFeesToVault, random user cannot", async function () {
+    const { factory, exchange, rt, creator, keeper, trader } = await deployProtocolFixture();
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
@@ -161,29 +161,28 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const receipt = await launchTx.wait();
     const wrapperAddress = receipt.events!.find((e) => e.event === "TokenLaunched")!.args!.wrapper;
 
-    // Fund WIP contract with ETH and move WIP to keeper for explicit deposit
-    await wip.connect(creator).deposit({ value: ethers.utils.parseEther("1") });
-    await wip.connect(creator).transfer(keeper.address, ethers.utils.parseEther("1"));
-    await wip.connect(keeper).approve(exchange.address, ethers.utils.parseEther("1"));
+    // Generate royalty fees via a buy (half goes to treasury queue, half to accumulatedRoyaltyNative)
+    const wrapPerRt = await exchange.WRAP_PER_RT();
+    const buyAmount = RT_UNIT.mul(wrapPerRt);
+    const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+    const feeBps = await exchange.TRADE_FEE_BPS();
+    const fee = baseCost.mul(feeBps).add(10000 - 1).div(10000);
+    const totalCost = baseCost.add(fee);
+    const blockNum = await ethers.provider.getBlockNumber();
+    const blockData = await ethers.provider.getBlock(blockNum);
+    const deadline = blockData.timestamp + 3600;
 
-    const treasuryWipBefore = await wip.balanceOf((await exchange.treasury()).toString());
+    await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
+
     const ipAsset = (await exchange.launchedTokens(wrapperAddress)).ipAsset;
-    const ipAssetWipBefore = await wip.balanceOf(ipAsset);
+    const wipBefore = await (await ethers.getContractAt("IWIP", await exchange.wipToken())).balanceOf(ipAsset);
 
-    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 1)).to.emit(
-      exchange,
-      "RoyaltiesHarvested"
-    );
+    await expect(exchange.connect(keeper).pushFeesToVault(wrapperAddress)).to.emit(exchange, "RoyaltyRevenueProcessed");
 
-    const treasuryWipAfter = await wip.balanceOf((await exchange.treasury()).toString());
-    const ipAssetWipAfter = await wip.balanceOf(ipAsset);
+    const wipAfter = await (await ethers.getContractAt("IWIP", await exchange.wipToken())).balanceOf(ipAsset);
+    expect(wipAfter).to.be.gt(wipBefore);
 
-    const half = ethers.utils.parseEther("1").div(2);
-    expect(treasuryWipAfter.sub(treasuryWipBefore)).to.equal(half);
-    expect(ipAssetWipAfter.sub(ipAssetWipBefore)).to.equal(ethers.utils.parseEther("1").sub(half));
-
-    await expect(exchange.connect(trader).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 1)).to.be
-      .revertedWithCustomError(
+    await expect(exchange.connect(trader).pushFeesToVault(wrapperAddress)).to.be.revertedWithCustomError(
       exchange,
       "NotAuthorized"
     );
