@@ -4,12 +4,13 @@
 const config = require('./config/env');
 const storyscanService = require('./services/storyscanService');
 const pricingService = require('./services/pricingService');
-const { runRoyaltyHarvestCycle } = require('./services/royaltyHarvestService');
+const { pushFeesJob, harvestJob } = require('./services/royaltyHarvestService');
 
 class SovryWorker {
   constructor() {
     this.isRunning = false;
     this.intervalId = null;
+    this.pushIntervalId = null;
     this.harvestIntervalId = null;
     this.memoryCache = {
       price: null,
@@ -174,8 +175,11 @@ class SovryWorker {
     console.log('⚡ Running initial IP price update...');
     await this.updateIPPrice();
 
-    console.log('⚡ Running initial royalty harvest cycle...');
-    await runRoyaltyHarvestCycle();
+    console.log('⚡ Running initial push fees cycle...');
+    await pushFeesJob();
+
+    console.log('⚡ Running initial harvest cycle...');
+    await harvestJob();
     
     // Then run periodically for real-time updates
     console.log(`⏰ Scheduling background updates every ${Math.floor(config.scheduler.priceIntervalMs / 1000)}s...`);
@@ -185,11 +189,19 @@ class SovryWorker {
       }
     }, config.scheduler.priceIntervalMs);
 
-    // Schedule royalty harvest cycles (less frequent than price updates)
-    console.log(`⏰ Scheduling royalty harvest cycles every ${Math.floor(config.scheduler.harvestIntervalMs / 1000)}s...`);
+    // Schedule push fees (hourly)
+    console.log(`⏰ Scheduling push fees cycles every ${Math.floor(config.scheduler.pushIntervalMs / 1000)}s...`);
+    this.pushIntervalId = setInterval(async () => {
+      if (this.isRunning) {
+        await pushFeesJob();
+      }
+    }, config.scheduler.pushIntervalMs);
+
+    // Schedule harvest cycles (every 4h)
+    console.log(`⏰ Scheduling harvest cycles every ${Math.floor(config.scheduler.harvestIntervalMs / 1000)}s...`);
     this.harvestIntervalId = setInterval(async () => {
       if (this.isRunning) {
-        await runRoyaltyHarvestCycle();
+        await harvestJob();
       }
     }, config.scheduler.harvestIntervalMs);
 
@@ -213,6 +225,10 @@ class SovryWorker {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+    }
+    if (this.pushIntervalId) {
+      clearInterval(this.pushIntervalId);
+      this.pushIntervalId = null;
     }
     if (this.harvestIntervalId) {
       clearInterval(this.harvestIntervalId);

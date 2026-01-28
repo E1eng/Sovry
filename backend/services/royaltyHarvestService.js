@@ -1,16 +1,13 @@
+const { ethers } = require('ethers');
 const { querySubgraph } = require('./subgraphService');
+const EXCHANGE_ABI = require('../abis/SovryExchange.json');
 
 const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.AENEID_RPC_URL || 'https://aeneid.storyrpc.io';
 const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
 const KEEPER_PRIVATE_KEY = process.env.HARVESTER_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
 
-const EXCHANGE_ABI = [
-  'function harvestDexFees(address wrapperToken, uint256 amountOutMin) external',
-  'function settleRoyaltyRevenue(address wrapperToken) external',
-  'function lpTokenIds(address wrapperToken) view returns (uint256)',
-  'function launchedTokens(address wrapper) view returns (address rt,address wrapperAddress,address creator,address ipAsset,uint256 launchTime,uint256 totalLocked,bool graduated,uint256 totalRoyaltiesHarvested,address vaultAddress,uint256 dexReserve,uint256 initialCurveSupply)',
-  'function accumulatedRoyaltyNative(address wrapperToken) view returns (uint256)',
-];
+const PUSH_THRESHOLD_WEI = ethers.parseEther('0.01');
+const HARVEST_THRESHOLD_WEI = ethers.parseEther('0.01');
 
 let provider;
 let signer;
@@ -18,7 +15,7 @@ let exchange;
 
 function getProvider() {
   if (!provider) {
-    provider = new ethers.providers.JsonRpcProvider(RPC_PROVIDER_URL);
+    provider = new ethers.JsonRpcProvider(RPC_PROVIDER_URL);
   }
   return provider;
 }
@@ -44,13 +41,11 @@ function getExchange() {
   return exchange;
 }
 
-async function fetchGraduatedWrappers() {
+async function fetchWrapperIds() {
   const query = `
-    query GraduatedWrappers($first: Int!, $skip: Int!) {
+    query Wrappers($first: Int!, $skip: Int!) {
       wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
         id
-        graduated
-        lpTokenId
       }
     }
   `;
@@ -61,88 +56,97 @@ async function fetchGraduatedWrappers() {
     throw new Error(first && first.message ? first.message : 'Subgraph query failed');
   }
   const items = (json.data && json.data.wrapperTokens) || [];
-  return items
-    .filter((w) => w.graduated && w.lpTokenId && w.lpTokenId !== '0')
-    .map((w) => w.id);
+  return items.map((w) => w.id);
 }
 
-async function runRoyaltyHarvestCycle() {
+async function fetchUnclaimedRevenue(ipAsset, exchangeAddr, royaltyModuleAddr) {
+  // Placeholder: depends on IRoyaltyModule ABI; ensure module has unclaimedRevenue(ipAsset, recipient)
+  if (!royaltyModuleAddr) return ethers.ZeroBigInt;
+  const royaltyAbi = ['function unclaimedRevenue(address ipAsset,address recipient) view returns (uint256)'];
+  const module = new ethers.Contract(royaltyModuleAddr, royaltyAbi, getProvider());
   try {
-    const wrappers = await fetchGraduatedWrappers();
-    if (!wrappers || wrappers.length === 0) {
-      console.log('[HARVEST] No graduated wrappers with LP NFT found; skipping keeper cycle');
-      return { success: true, processed: 0, harvested: 0, skipped: 0, revenues: 0 };
-    }
-
-    const ex = getExchange();
-    const p = getProvider();
-    const gasPrice = await p.getGasPrice();
-
-    let processed = 0;
-    let harvested = 0;
-    let skipped = 0;
-    let revenuesProcessed = 0;
-
-    for (const wrapper of wrappers) {
-      processed += 1;
-      try {
-        console.log(`[HARVEST] harvestDexFees on ${wrapper}`);
-        const gasEstimate = await ex.estimateGas.harvestDexFees(wrapper, 0);
-        const tx = await ex.harvestDexFees(wrapper, 0, {
-          gasLimit: gasEstimate.mul(120).div(100),
-          gasPrice,
-        });
-        console.log(`[HARVEST] Sent harvestDexFees tx: ${tx.hash}`);
-        const receipt = await tx.wait();
-        console.log(
-          `[HARVEST] harvestDexFees confirmed for ${wrapper}: status=${receipt.status}, gasUsed=${receipt.gasUsed.toString()}`,
-        );
-        harvested += 1;
-      } catch (error) {
-        skipped += 1;
-        console.warn(
-          `[HARVEST] Skipping ${wrapper} for harvestDexFees (maybe no fees):`,
-          error && error.message ? error.message : error,
-        );
-      }
-
-      try {
-        const pendingRoyalty = await ex.accumulatedRoyaltyNative(wrapper);
-        if (pendingRoyalty.gt(0)) {
-          console.log(`[HARVEST] settleRoyaltyRevenue on ${wrapper} (queued ${pendingRoyalty.toString()} wei)`);
-          const gasEstimate = await ex.estimateGas.settleRoyaltyRevenue(wrapper);
-          const tx = await ex.settleRoyaltyRevenue(wrapper, {
-            gasLimit: gasEstimate.mul(120).div(100),
-            gasPrice,
-          });
-          const receipt = await tx.wait();
-          console.log(
-            `[HARVEST] settleRoyaltyRevenue confirmed for ${wrapper}: status=${receipt.status}, gasUsed=${receipt.gasUsed.toString()}`,
-          );
-          revenuesProcessed += 1;
-        }
-      } catch (error) {
-        console.warn(
-          `[HARVEST] settleRoyaltyRevenue failed for ${wrapper}:`,
-          error && error.message ? error.message : error,
-        );
-      }
-    }
-
-    console.log(
-      `[HARVEST] keeper cycle completed. processed=${processed}, harvested=${harvested}, skipped=${skipped}, revenues=${revenuesProcessed}`,
-    );
-
-    return { success: true, processed, harvested, skipped, revenues: revenuesProcessed };
-  } catch (error) {
-    console.error('[HARVEST] Error in collectDexFees cycle:', error);
-    return {
-      success: false,
-      error: error && error.message ? error.message : 'Unknown error in harvest cycle',
-    };
+    return await module.unclaimedRevenue(ipAsset, exchangeAddr);
+  } catch (err) {
+    console.warn('[HARVEST] unclaimedRevenue call failed:', err && err.message ? err.message : err);
+    return ethers.ZeroBigInt;
   }
 }
 
+async function pushFeesJob() {
+  const ex = getExchange();
+  const wrappers = await fetchWrapperIds();
+  if (!wrappers || wrappers.length === 0) {
+    console.log('[PUSH] No wrappers found');
+    return { processed: 0, pushed: 0, skipped: 0 };
+  }
+
+  let processed = 0;
+  let pushed = 0;
+  let skipped = 0;
+
+  for (const wrapper of wrappers) {
+    processed += 1;
+    try {
+      const pending = await ex.accumulatedRoyaltyNative(wrapper);
+      if (pending < PUSH_THRESHOLD_WEI) {
+        skipped += 1;
+        continue;
+      }
+      const gas = await ex.pushFeesToVault.estimateGas(wrapper);
+      const tx = await ex.pushFeesToVault(wrapper, { gasLimit: gas * 120n / 100n });
+      console.log(`[PUSH] pushFeesToVault sent for ${wrapper}: ${tx.hash}`);
+      await tx.wait();
+      pushed += 1;
+    } catch (err) {
+      skipped += 1;
+      console.warn(`[PUSH] pushFeesToVault failed for ${wrapper}:`, err && err.message ? err.message : err);
+    }
+  }
+
+  console.log(`[PUSH] Cycle done. processed=${processed}, pushed=${pushed}, skipped=${skipped}`);
+  return { processed, pushed, skipped };
+}
+
+async function harvestJob() {
+  const ex = getExchange();
+  const wrappers = await fetchWrapperIds();
+  if (!wrappers || wrappers.length === 0) {
+    console.log('[HARVEST] No wrappers found');
+    return { processed: 0, harvested: 0, skipped: 0 };
+  }
+
+  const royaltyModule = await ex.royaltyWorkflows();
+  let processed = 0;
+  let harvested = 0;
+  let skipped = 0;
+
+  for (const wrapper of wrappers) {
+    processed += 1;
+    try {
+      const token = await ex.launchedTokens(wrapper);
+      const ipAsset = token.ipAsset;
+      const unclaimed = await fetchUnclaimedRevenue(ipAsset, EXCHANGE_ADDRESS, royaltyModule);
+      if (unclaimed < HARVEST_THRESHOLD_WEI) {
+        skipped += 1;
+        continue;
+      }
+      const gas = await ex.harvestFromVault.estimateGas(wrapper);
+      const tx = await ex.harvestFromVault(wrapper, { gasLimit: gas * 120n / 100n });
+      console.log(`[HARVEST] harvestFromVault sent for ${wrapper}: ${tx.hash}`);
+      await tx.wait();
+      harvested += 1;
+    } catch (err) {
+      skipped += 1;
+      console.warn(`[HARVEST] harvestFromVault failed for ${wrapper}:`, err && err.message ? err.message : err);
+      // do not throw; continue loop
+    }
+  }
+
+  console.log(`[HARVEST] Cycle done. processed=${processed}, harvested=${harvested}, skipped=${skipped}`);
+  return { processed, harvested, skipped };
+}
+
 module.exports = {
-  runRoyaltyHarvestCycle,
+  pushFeesJob,
+  harvestJob,
 };
