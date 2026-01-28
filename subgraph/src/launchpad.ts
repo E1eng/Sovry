@@ -31,6 +31,7 @@ import {
   ProtocolMetric,
   HarvestEvent,
   BuybackEvent,
+  RevenueEvent,
 } from "../generated/schema";
 import {
   SovryExchange as SovryExchangeTemplate,
@@ -105,6 +106,8 @@ function getOrCreateWrapper(
     wrapper.initialCurveSupply = BigInt.zero();
     wrapper.totalRoyaltiesHarvested = BigInt.zero();
     wrapper.totalFees = BigInt.zero();
+    wrapper.totalHarvestedAmount = BigInt.zero();
+    wrapper.totalFeesPushed = BigInt.zero();
     wrapper.poolAddress = null;
     wrapper.lpTokenId = null;
     wrapper.createdAt = BigInt.zero();
@@ -365,6 +368,18 @@ export function handleRoyaltyRevenueProcessed(event: RoyaltyRevenueProcessedEven
   metric.totalRoyaltiesPushed = metric.totalRoyaltiesPushed.plus(event.params.amount);
   metric.save();
 
+  // Record revenue event (PUSH)
+  let id = event.transaction.hash.toHex().concat("-").concat(event.logIndex.toString());
+  let rev = new RevenueEvent(id);
+  rev.txHash = event.transaction.hash;
+  rev.token = wrapper.id;
+  rev.amount = event.params.amount;
+  rev.type = "PUSH";
+  rev.timestamp = event.block.timestamp;
+  rev.blockNumber = event.block.number;
+  rev.save();
+
+  wrapper.totalFeesPushed = wrapper.totalFeesPushed.plus(event.params.amount);
   wrapper.updatedAt = event.block.timestamp;
   wrapper.save();
   launchpad.save();
@@ -388,6 +403,7 @@ export function handleRevenueHarvested(event: RevenueHarvestedEvent): void {
   metric.save();
 
   wrapper.totalRoyaltiesHarvested = wrapper.totalRoyaltiesHarvested.plus(event.params.amount);
+  wrapper.totalHarvestedAmount = wrapper.totalHarvestedAmount.plus(event.params.amount);
   wrapper.updatedAt = event.block.timestamp;
   wrapper.save();
 
@@ -399,6 +415,15 @@ export function handleRevenueHarvested(event: RevenueHarvestedEvent): void {
   harvested.txHash = event.transaction.hash;
   harvested.timestamp = event.block.timestamp;
   harvested.save();
+
+  let rev = new RevenueEvent(id.concat("-rev"));
+  rev.txHash = event.transaction.hash;
+  rev.token = wrapper.id;
+  rev.amount = event.params.amount;
+  rev.type = event.params.isPostGrad ? "HARVEST_BUYBACK" : "HARVEST_RESERVE";
+  rev.timestamp = event.block.timestamp;
+  rev.blockNumber = event.block.number;
+  rev.save();
 
   launchpad.save();
 }

@@ -1,6 +1,7 @@
 const { ethers } = require('ethers');
 const { querySubgraph } = require('./subgraphService');
 const EXCHANGE_ABI = require('../abis/SovryExchange.json');
+const { supabase } = require('./supabaseClient');
 
 const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.AENEID_RPC_URL || 'https://aeneid.storyrpc.io';
 const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
@@ -97,6 +98,15 @@ async function pushFeesJob() {
       console.log(`[PUSH] pushFeesToVault sent for ${wrapper}: ${tx.hash}`);
       await tx.wait();
       pushed += 1;
+
+      // Persist revenue event (PUSH)
+      const { error: evtErr } = await supabase.from('revenue_events').insert({
+        tx_hash: tx.hash,
+        token_address: wrapper,
+        amount: pending.toString(),
+        type: 'PUSH',
+      });
+      if (evtErr) console.warn('[PUSH][DB] revenue_events insert failed:', evtErr.message || evtErr);
     } catch (err) {
       skipped += 1;
       console.warn(`[PUSH] pushFeesToVault failed for ${wrapper}:`, err && err.message ? err.message : err);
@@ -135,6 +145,28 @@ async function harvestJob() {
       console.log(`[HARVEST] harvestFromVault sent for ${wrapper}: ${tx.hash}`);
       await tx.wait();
       harvested += 1;
+
+      // Persist revenue event (assume post-grad buyback after graduation; mark as HARVEST_BUYBACK for now)
+      const amountStr = unclaimed.toString();
+      const { error: evtErr } = await supabase.from('revenue_events').insert({
+        tx_hash: tx.hash,
+        token_address: wrapper,
+        amount: amountStr,
+        type: 'HARVEST_BUYBACK',
+      });
+      if (evtErr) console.warn('[HARVEST][DB] revenue_events insert failed:', evtErr.message || evtErr);
+
+      const { error: tokErr } = await supabase
+        .from('tokens')
+        .upsert(
+          {
+            token_address: wrapper,
+            total_harvested_amount: amountStr,
+          },
+          { onConflict: 'token_address' },
+        )
+        .select();
+      if (tokErr) console.warn('[HARVEST][DB] tokens upsert failed:', tokErr.message || tokErr);
     } catch (err) {
       skipped += 1;
       console.warn(`[HARVEST] harvestFromVault failed for ${wrapper}:`, err && err.message ? err.message : err);

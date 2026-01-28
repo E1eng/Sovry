@@ -76,7 +76,7 @@ templates:
           handler: handleTokensRedeemed
         - event: RoyaltyRevenueQueued(indexed address,uint256)
           handler: handleRoyaltyRevenueQueued
-        - event: RoyaltyRevenueProcessed(indexed address,uint256,address)
+        - event: RoyaltyRevenueProcessed(indexed address,uint256,indexed address)
           handler: handleRoyaltyRevenueProcessed
         - event: RevenueHarvested(indexed address,uint256,bool)
           handler: handleRevenueHarvested

@@ -1,7 +1,7 @@
 {
-  "network": "aeneid",
-  "chainId": 1315,
-  "deployer": "0x8c317fb91a73E2C8D4883DDED3981982F046F733",
+  "network": "hardhat",
+  "chainId": 31337,
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "config": {
     "treasury": "0x8c317fb91a73e2c8d4883dded3981982f046f733",
     "piperXV3Factory": "0xb8c21e89983B5EcCD841846eA294c4c8a89718f1",
@@ -14,16 +14,16 @@
     "keeper": "0x8c317fb91a73e2c8d4883dded3981982f046f733"
   },
   "contracts": {
-    "BondingCurveLib": "0x092897231f247995BD49B211D3aDB4C28BC9E3a8",
-    "SovryExchange": "0xc7E8fc2C1da57eB7103bdf180B5D82E24e5e3d8D",
-    "SovryFactory": "0xb2B5c668fFEE2d8E9e68eeC6ec41BeBC59989c3e",
-    "SovryRouter": "0xa3B5471F43FFac986E66100E901D6cb4247D12C9"
+    "BondingCurveLib": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "SovryExchange": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "SovryFactory": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "SovryRouter": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
   },
   "blocks": {
-    "BondingCurveLib": null,
-    "SovryExchange": 13791141,
-    "SovryFactory": 13791143,
-    "SovryRouter": 13791145,
-    "subgraphStartBlock": 13791143
+    "BondingCurveLib": 1,
+    "SovryExchange": 2,
+    "SovryFactory": 3,
+    "SovryRouter": 4,
+    "subgraphStartBlock": 3
   }
 }

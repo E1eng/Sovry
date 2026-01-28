@@ -34,6 +34,9 @@ type WrapperToken @entity {
   tokenStat: TokenStat @derivedFrom(field: "wrapper")
   harvestEvents: [HarvestEvent!]! @derivedFrom(field: "wrapper")
   buybackEvents: [BuybackEvent!]! @derivedFrom(field: "wrapper")
+  revenueEvents: [RevenueEvent!]! @derivedFrom(field: "token")
+  totalHarvestedAmount: BigInt!
+  totalFeesPushed: BigInt!
 }
 
 type ProtocolMetric @entity {
@@ -120,6 +123,16 @@ type BuybackEvent @entity {
   amountIn: BigInt!
   txHash: Bytes!
   timestamp: BigInt!
+}
+
+type RevenueEvent @entity {
+  id: ID!
+  txHash: Bytes!
+  token: WrapperToken!
+  amount: BigInt!
+  type: String!
+  timestamp: BigInt!
+  blockNumber: BigInt!
 }
 
 type Graduation @entity {
