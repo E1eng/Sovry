@@ -2,6 +2,9 @@ import 'dotenv/config';
 import axios from 'axios';
 import { ethers } from 'ethers';
 import exchangeAbi from './abis/SovryExchange.json';
+import { txMutex } from './services/mutex';
+import { retryTx } from './services/utils';
+import { AlertLevel, sendDiscordAlert } from './services/alerts';
 
 const RPC_URL = process.env.RPC_URL || process.env.RPC_PROVIDER_URL || process.env.AENEID_RPC_URL;
 const KEEPER_PRIVATE_KEY = process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
@@ -20,6 +23,9 @@ const PUSH_INTERVAL_MS = Number(process.env.PUSH_INTERVAL_MS || 60 * 60 * 1000);
 const SYNC_INTERVAL_MS = Number(process.env.SYNC_INTERVAL_MS || 60 * 1000); // 1 min
 const WEBHOOK_URL = process.env.WEBHOOK_URL || process.env.GRAPH_WEBHOOK_URL || '';
 const WEBHOOK_SECRET = process.env.GRAPH_WEBHOOK_SECRET || '';
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || '';
+
+const LOW_BALANCE_THRESHOLD = ethers.parseEther('0.1');
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const signer = new ethers.Wallet(KEEPER_PRIVATE_KEY, provider);
@@ -137,16 +143,23 @@ async function runHarvestJob() {
         const unclaimed = await getUnclaimed(ipAsset, royaltyModule);
         if (unclaimed < HARVEST_THRESHOLD) continue;
 
-        const gas = await exchange.harvestFromVault.estimateGas(w.id);
-        const tx = await exchange.harvestFromVault(w.id, { gasLimit: (gas * 120n) / 100n });
-        console.log(`[HARVEST] Sent harvestFromVault for ${w.id} tx=${tx.hash}`);
-        await tx.wait();
+        await txMutex.runExclusive(async () => {
+          const tx = await retryTx(async () => {
+            const gas = await exchange.harvestFromVault.estimateGas(w.id);
+            return exchange.harvestFromVault(w.id, { gasLimit: (gas * 120n) / 100n });
+          });
+          console.log(`[HARVEST] Sent harvestFromVault for ${w.id} tx=${tx.hash}`);
+          await tx.wait();
+          await sendDiscordAlert('Harvest success', `Harvested for ${w.id} tx=${tx.hash}`, AlertLevel.INFO);
+        });
       } catch (err) {
         console.warn(`[HARVEST] Harvest failed for ${w.id}:`, err);
+        await sendDiscordAlert('Harvest failed', `Wrapper ${w.id}: ${String(err)}`, AlertLevel.ERROR);
       }
     }
   } catch (err) {
     console.error('[HARVEST] Job error:', err);
+    await sendDiscordAlert('Harvest job error', String(err), AlertLevel.ERROR);
   }
 }
 
@@ -163,16 +176,34 @@ async function runPushJob() {
         const pending: bigint = await exchange.accumulatedRoyaltyNative(w.id);
         if (pending < PUSH_THRESHOLD) continue;
 
-        const gas = await exchange.pushFeesToVault.estimateGas(w.id);
-        const tx = await exchange.pushFeesToVault(w.id, { gasLimit: (gas * 120n) / 100n });
-        console.log(`[PUSH] Sent pushFeesToVault for ${w.id} tx=${tx.hash}`);
-        await tx.wait();
+        await txMutex.runExclusive(async () => {
+          const tx = await retryTx(async () => {
+            const gas = await exchange.pushFeesToVault.estimateGas(w.id);
+            return exchange.pushFeesToVault(w.id, { gasLimit: (gas * 120n) / 100n });
+          });
+          console.log(`[PUSH] Sent pushFeesToVault for ${w.id} tx=${tx.hash}`);
+          await tx.wait();
+          await sendDiscordAlert('Push success', `Pushed fees for ${w.id} tx=${tx.hash}`, AlertLevel.INFO);
+        });
       } catch (err) {
         console.warn(`[PUSH] Push failed for ${w.id}:`, err);
+        await sendDiscordAlert('Push failed', `Wrapper ${w.id}: ${String(err)}`, AlertLevel.ERROR);
       }
     }
   } catch (err) {
     console.error('[PUSH] Job error:', err);
+    await sendDiscordAlert('Push job error', String(err), AlertLevel.ERROR);
+  }
+}
+
+async function checkBalanceAndAlert() {
+  try {
+    const bal = await provider.getBalance(signer.address);
+    if (bal < LOW_BALANCE_THRESHOLD) {
+      await sendDiscordAlert('Low balance warning', `Keeper balance ${ethers.formatEther(bal)} ETH`, AlertLevel.WARNING);
+    }
+  } catch (err) {
+    console.warn('[BALANCE] Failed to fetch balance:', err);
   }
 }
 
@@ -182,6 +213,9 @@ async function main() {
   console.log(`Push interval: ${PUSH_INTERVAL_MS / 1000}s`);
   console.log(`Sync interval: ${SYNC_INTERVAL_MS / 1000}s`);
 
+  await sendDiscordAlert('Keeper bot started', `Harvest ${HARVEST_INTERVAL_MS / 1000}s, Push ${PUSH_INTERVAL_MS / 1000}s, Sync ${SYNC_INTERVAL_MS / 1000}s`, AlertLevel.INFO);
+  await checkBalanceAndAlert();
+
   // run immediately
   runHarvestJob();
   runPushJob();
@@ -190,6 +224,7 @@ async function main() {
   setInterval(runHarvestJob, HARVEST_INTERVAL_MS);
   setInterval(runPushJob, PUSH_INTERVAL_MS);
   setInterval(runSyncJob, SYNC_INTERVAL_MS);
+  setInterval(checkBalanceAndAlert, 5 * 60 * 1000);
 }
 
 main().catch((err) => {

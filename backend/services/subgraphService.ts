@@ -1,8 +1,7 @@
-const axios = require('axios');
+import axios from 'axios';
+import config from '../config/env';
 
-const config = require('../config/env');
-
-async function querySubgraph(query, variables) {
+export async function querySubgraph<T = any>(query: string, variables?: Record<string, unknown>): Promise<T> {
   if (!config.subgraphUrl) {
     throw new Error('SUBGRAPH_URL (or GOLDSKY_ENDPOINT) is not set');
   }
@@ -16,9 +15,5 @@ async function querySubgraph(query, variables) {
     },
   );
 
-  return res.data;
+  return res.data as T;
 }
-
-module.exports = {
-  querySubgraph,
-};

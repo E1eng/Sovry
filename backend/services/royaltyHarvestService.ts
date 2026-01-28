@@ -1,7 +1,7 @@
-const { ethers } = require('ethers');
-const { querySubgraph } = require('./subgraphService');
-const EXCHANGE_ABI = require('../abis/SovryExchange.json');
-const { supabase } = require('./supabaseClient');
+import { ethers } from 'ethers';
+import { querySubgraph } from './subgraphService';
+import EXCHANGE_ABI from '../abis/SovryExchange.json';
+import { supabase } from './supabaseClient';
 
 const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.AENEID_RPC_URL || 'https://aeneid.storyrpc.io';
 const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
@@ -10,9 +10,9 @@ const KEEPER_PRIVATE_KEY = process.env.HARVESTER_PRIVATE_KEY || process.env.KEEP
 const PUSH_THRESHOLD_WEI = ethers.parseEther('0.01');
 const HARVEST_THRESHOLD_WEI = ethers.parseEther('0.01');
 
-let provider;
-let signer;
-let exchange;
+let provider: ethers.JsonRpcProvider | null = null;
+let signer: ethers.Wallet | null = null;
+let exchange: ethers.Contract | null = null;
 
 function getProvider() {
   if (!provider) {
@@ -51,29 +51,28 @@ async function fetchWrapperIds() {
     }
   `;
 
-  const json = await querySubgraph(query, { first: 100, skip: 0 });
+  const json = await querySubgraph<any>(query, { first: 100, skip: 0 });
   if (json.errors && json.errors.length) {
     const first = json.errors[0];
     throw new Error(first && first.message ? first.message : 'Subgraph query failed');
   }
-  const items = (json.data && json.data.wrapperTokens) || [];
-  return items.map((w) => w.id);
+  const items = (json.data && (json.data as any).wrapperTokens) || [];
+  return items.map((w: any) => w.id as string);
 }
 
-async function fetchUnclaimedRevenue(ipAsset, exchangeAddr, royaltyModuleAddr) {
-  // Placeholder: depends on IRoyaltyModule ABI; ensure module has unclaimedRevenue(ipAsset, recipient)
-  if (!royaltyModuleAddr) return ethers.ZeroBigInt;
+async function fetchUnclaimedRevenue(ipAsset: string, exchangeAddr: string, royaltyModuleAddr: string) {
+  if (!royaltyModuleAddr) return 0n;
   const royaltyAbi = ['function unclaimedRevenue(address ipAsset,address recipient) view returns (uint256)'];
   const module = new ethers.Contract(royaltyModuleAddr, royaltyAbi, getProvider());
   try {
     return await module.unclaimedRevenue(ipAsset, exchangeAddr);
   } catch (err) {
-    console.warn('[HARVEST] unclaimedRevenue call failed:', err && err.message ? err.message : err);
-    return ethers.ZeroBigInt;
+    console.warn('[HARVEST] unclaimedRevenue call failed:', err);
+    return 0n;
   }
 }
 
-async function pushFeesJob() {
+export async function pushFeesJob() {
   const ex = getExchange();
   const wrappers = await fetchWrapperIds();
   if (!wrappers || wrappers.length === 0) {
@@ -94,12 +93,11 @@ async function pushFeesJob() {
         continue;
       }
       const gas = await ex.pushFeesToVault.estimateGas(wrapper);
-      const tx = await ex.pushFeesToVault(wrapper, { gasLimit: gas * 120n / 100n });
+      const tx = await ex.pushFeesToVault(wrapper, { gasLimit: (gas * 120n) / 100n });
       console.log(`[PUSH] pushFeesToVault sent for ${wrapper}: ${tx.hash}`);
       await tx.wait();
       pushed += 1;
 
-      // Persist revenue event (PUSH)
       const { error: evtErr } = await supabase.from('revenue_events').insert({
         tx_hash: tx.hash,
         token_address: wrapper,
@@ -109,7 +107,7 @@ async function pushFeesJob() {
       if (evtErr) console.warn('[PUSH][DB] revenue_events insert failed:', evtErr.message || evtErr);
     } catch (err) {
       skipped += 1;
-      console.warn(`[PUSH] pushFeesToVault failed for ${wrapper}:`, err && err.message ? err.message : err);
+      console.warn(`[PUSH] pushFeesToVault failed for ${wrapper}:`, err);
     }
   }
 
@@ -117,7 +115,7 @@ async function pushFeesJob() {
   return { processed, pushed, skipped };
 }
 
-async function harvestJob() {
+export async function harvestJob() {
   const ex = getExchange();
   const wrappers = await fetchWrapperIds();
   if (!wrappers || wrappers.length === 0) {
@@ -134,19 +132,18 @@ async function harvestJob() {
     processed += 1;
     try {
       const token = await ex.launchedTokens(wrapper);
-      const ipAsset = token.ipAsset;
-      const unclaimed = await fetchUnclaimedRevenue(ipAsset, EXCHANGE_ADDRESS, royaltyModule);
+      const ipAsset = token.ipAsset as string;
+      const unclaimed = await fetchUnclaimedRevenue(ipAsset, EXCHANGE_ADDRESS!, royaltyModule);
       if (unclaimed < HARVEST_THRESHOLD_WEI) {
         skipped += 1;
         continue;
       }
       const gas = await ex.harvestFromVault.estimateGas(wrapper);
-      const tx = await ex.harvestFromVault(wrapper, { gasLimit: gas * 120n / 100n });
+      const tx = await ex.harvestFromVault(wrapper, { gasLimit: (gas * 120n) / 100n });
       console.log(`[HARVEST] harvestFromVault sent for ${wrapper}: ${tx.hash}`);
       await tx.wait();
       harvested += 1;
 
-      // Persist revenue event (assume post-grad buyback after graduation; mark as HARVEST_BUYBACK for now)
       const amountStr = unclaimed.toString();
       const { error: evtErr } = await supabase.from('revenue_events').insert({
         tx_hash: tx.hash,
@@ -158,27 +155,15 @@ async function harvestJob() {
 
       const { error: tokErr } = await supabase
         .from('tokens')
-        .upsert(
-          {
-            token_address: wrapper,
-            total_harvested_amount: amountStr,
-          },
-          { onConflict: 'token_address' },
-        )
+        .upsert({ token_address: wrapper, total_harvested_amount: amountStr }, { onConflict: 'token_address' })
         .select();
       if (tokErr) console.warn('[HARVEST][DB] tokens upsert failed:', tokErr.message || tokErr);
     } catch (err) {
       skipped += 1;
-      console.warn(`[HARVEST] harvestFromVault failed for ${wrapper}:`, err && err.message ? err.message : err);
-      // do not throw; continue loop
+      console.warn(`[HARVEST] harvestFromVault failed for ${wrapper}:`, err);
     }
   }
 
   console.log(`[HARVEST] Cycle done. processed=${processed}, harvested=${harvested}, skipped=${skipped}`);
   return { processed, harvested, skipped };
 }
-
-module.exports = {
-  pushFeesJob,
-  harvestJob,
-};

@@ -1,8 +1,6 @@
-#!/usr/bin/env node
-
-// Start worker for VPS deployment
-const config = require('./config/env');
-const worker = require('./worker');
+#!/usr/bin/env ts-node
+import config from './config/env';
+import worker from './worker';
 
 console.log('🚀 Starting Sovry Worker on VPS...');
 console.log('📋 Worker Configuration:');
@@ -11,13 +9,11 @@ console.log(`   - Update Interval: Every ${Math.floor(config.scheduler.priceInte
 console.log(`   - Harvest Interval: Every ${Math.floor(config.scheduler.harvestIntervalMs / 1000)}s`);
 console.log('   - Cache: In-memory');
 
-// Start the worker
-worker.start().catch(error => {
+worker.start().catch((error: any) => {
   console.error('❌ Failed to start worker:', error);
   process.exit(1);
 });
 
-// Handle graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n🛑 Received SIGINT, shutting down worker gracefully...');
   await worker.stop();
