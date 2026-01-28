@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { TopBar } from "@/components/navigation/TopBar";
 import { StatusBar } from "@/components/navigation/StatusBar";
+import LiveTradeNotification from "@/components/ui/LiveTradeNotification";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const jetbrainsMono = JetBrains_Mono({
@@ -37,6 +38,7 @@ export default function RootLayout({
             </main>
             <StatusBar />
           </div>
+          <LiveTradeNotification />
         </Providers>
       </body>
     </html>

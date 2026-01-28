@@ -17,6 +17,7 @@ import {
   estimateBuyAmountForIp,
   calculateRealPriceImpact,
   calculateBondingCurveSellProceeds,
+  type BondingCurveParams,
 } from "@/lib/bondingCurve"
 import { SlippageSettings } from "@/components/swap/SlippageSettings"
 import { erc20Abi } from "viem"
@@ -24,6 +25,7 @@ import { parseTransactionError, logError, isSlippageError } from "@/lib/errorUti
 import { trackTrade, trackEvent } from "@/lib/analytics"
 import { logger } from "@/lib/logger"
 import { memo, useEffect as useReactEffect } from "react"
+import { useTokenData } from "@/hooks/useTokenData"
 
 function trimToDecimals(value: string, maxDecimals: number): string {
   if (!value || maxDecimals < 0) return value
@@ -92,6 +94,35 @@ function SwapInterfaceComponent({
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
   const [simulationError, setSimulationError] = useState<string | null>(null)
   const [balanceRefreshNonce, setBalanceRefreshNonce] = useState(0)
+  const [curveParams, setCurveParams] = useState<BondingCurveParams | null>(null)
+
+  // Fetch and refresh curve params (single source of truth)
+  useEffect(() => {
+    let cancelled = false
+    let interval: NodeJS.Timeout | null = null
+
+    async function load() {
+      if (!tokenAddress) return
+      try {
+        const { launchpadService } = await import("@/services/launchpadService")
+        const params = await launchpadService.getCurveParams(tokenAddress)
+        if (!cancelled) {
+          setCurveParams(params)
+        }
+      } catch (err) {
+        logger.error("Error loading curve params", err)
+        if (!cancelled) setCurveParams(null)
+      }
+    }
+
+    load()
+    interval = setInterval(load, 15000)
+
+    return () => {
+      cancelled = true
+      if (interval) clearInterval(interval)
+    }
+  }, [tokenAddress])
 
   // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
   const FEE_BPS = 100n
@@ -115,6 +146,9 @@ function SwapInterfaceComponent({
   // Fetch launch details (for loading state and auxiliary info)
   const { loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
 
+  // On-chain token state (multicall) for gating
+  const { data: tokenData, isLoading: tokenDataLoading } = useTokenData(tokenAddress)
+
   // Load real  // Loaders and state are handled per-quote and per-tx using fresh curve params
 
   // Debounce timer ref
@@ -132,7 +166,7 @@ function SwapInterfaceComponent({
   // Calculate output amount with debouncing
   const calculateOutput = useCallback(
     async (amount: string, isBuy: boolean) => {
-      if (!amount || parseFloat(amount) <= 0 || !tokenAddress) {
+      if (!amount || parseFloat(amount) <= 0 || !tokenAddress || tokenDataLoading || !tokenData) {
         setToAmount("")
         setMinReceive(null)
         setPriceImpact(null)
@@ -143,13 +177,19 @@ function SwapInterfaceComponent({
       setIsCalculating(true)
 
       try {
-        const { launchpadService } = await import("@/services/launchpadService")
         const amountBigInt = parseEther(amount)
+        const paramsForQuote = curveParams
+        if (!paramsForQuote) {
+          setToAmount("")
+          setMinReceive(null)
+          setPriceImpact(null)
+          setExchangeRate("")
+          return
+        }
         let impact: number
         if (isBuy) {
-          // Always fetch fresh curve params so the quote matches on-chain
-          const freshParams = await launchpadService.getCurveParams(tokenAddress)
-          if (!freshParams) {
+          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(paramsForQuote, amountBigInt)
+          if (tokenAmount === 0n || totalCost === 0n) {
             setToAmount("")
             setMinReceive(null)
             setPriceImpact(null)
@@ -196,16 +236,7 @@ function SwapInterfaceComponent({
 
           // Always fetch fresh curve params for sell quotes so we reflect
           // the latest on-chain state (tokens sold, currentSupply, etc.)
-          const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
-          if (!paramsForSell) {
-            setToAmount("")
-            setMinReceive(null)
-            setPriceImpact(null)
-            setExchangeRate("")
-            return
-          }
-
-          const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
+          const baseProceeds = calculateBondingCurveSellProceeds(paramsForQuote, wrapperAmount)
           if (baseProceeds <= 0n) {
             setToAmount("")
             setMinReceive(null)
@@ -377,8 +408,10 @@ function SwapInterfaceComponent({
   // Handle place trade
   const handlePlaceTrade = async () => {
     if (!fromAmount || parseFloat(fromAmount) <= 0 || !tokenAddress) return
-
-    const { launchpadService } = await import("@/services/launchpadService")
+    if (tokenDataLoading || !tokenData || !tokenData.isActive) {
+      toast.error("Token state unavailable or inactive", { duration: 3000 })
+      return
+    }
 
     // Validation
     setSlippageError(null)
@@ -416,7 +449,7 @@ function SwapInterfaceComponent({
       // Calculate minTokensOut with slippage using real bonding curve math
       const slippagePercent = parseFloat(slippage) || 1
       const ipAmountBigInt = parseEther(fromAmount)
-      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
+      const freshParamsForTx = curveParams
       if (!freshParamsForTx) {
         toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
           duration: 3000,
@@ -618,7 +651,7 @@ function SwapInterfaceComponent({
           throw new Error("Amount too small for current bonding curve")
         }
 
-        const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
+        const paramsForSell = curveParams
         if (!paramsForSell) {
           throw new Error("Bonding curve not available for this token")
         }
@@ -679,8 +712,6 @@ function SwapInterfaceComponent({
   const handleSell = async () => {
     if (!tokenAddress || !primaryWallet || !fromAmount) return
 
-    const { launchpadService } = await import("@/services/launchpadService")
-
     setIsTrading(true)
     setTradeSuccess(false)
 
@@ -733,12 +764,8 @@ function SwapInterfaceComponent({
 
       const minIpOutStr = formatEther(minProceeds)
 
-      const result = await launchpadService.sell(
-        tokenAddress,
-        fromAmount,
-        minIpOutStr,
-        primaryWallet
-      )
+      const { launchpadService } = await import("@/services/launchpadService")
+      const result = await launchpadService.sell(tokenAddress, fromAmount, minIpOutStr, primaryWallet)
 
       if (result.success) {
         setTradeSuccess(true)
@@ -1138,9 +1165,10 @@ function SwapInterfaceComponent({
             }
             className={cn(
               "w-full h-12 sm:h-12 font-semibold font-mono text-sm tracking-[0.08em] touch-manipulation min-h-[44px]",
+              "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
               activeTab === "buy"
-                ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60"
-                : "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60"
+                ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+                : "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
             )}
           >
             {isSimulatingTx ? (

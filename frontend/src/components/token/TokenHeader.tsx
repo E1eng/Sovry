@@ -11,6 +11,7 @@ import toast from "react-hot-toast"
 import { cn, copyToClipboard, truncateAddress } from "@/lib/utils"
 import { IPFS_GATEWAY, STORYSCAN_BASE_URL } from "@/lib/env"
 import type { LaunchDetails } from "@/hooks/useLaunchDetails"
+import { TokenRevenueStats } from "@/components/token/TokenRevenueStats"
 
 export interface TokenHeaderProps {
   details: LaunchDetails
@@ -130,7 +131,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardContent className="p-4 sm:p-6">
-        <div className="flex flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6">
+        <div className="flex flex-row flex-wrap items-start sm:items-start gap-4 sm:gap-6">
           {/* Token Image */}
           <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex-shrink-0 rounded-sm overflow-hidden bg-muted border border-border">
             {imageUrl ? (
@@ -152,7 +153,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
           </div>
 
           {/* Token Info */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 space-y-4">
             <div className="flex items-start justify-between gap-2 sm:gap-3 mb-2">
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-foreground truncate">
@@ -199,6 +200,8 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                 </span>
               </div>
             )}
+
+            <TokenRevenueStats wrapperAddress={details.tokenAddress} className="mt-2" />
 
             {/* Creator Address */}
             {creator && (
