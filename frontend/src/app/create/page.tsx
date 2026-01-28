@@ -754,7 +754,7 @@ export default function CreatePage() {
                               <div className="p-2 space-y-1">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="min-w-0 flex-1">
-                                    <h3 className="font-semibold text-foreground truncate text-[11px] md:text-sm">
+                                    <h3 className="font-semibold text-foreground truncate text-[10px] sm:text-xs md:text-sm leading-tight">
                                       {ipAsset.name}
                                     </h3>
                                   </div>

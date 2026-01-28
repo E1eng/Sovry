@@ -87,6 +87,7 @@ export default function ProfilePage() {
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
+  const [profileBio, setProfileBio] = useState<string | null>(null);
 
   // Load launched tokens & holdings from subgraph + on-chain balances
   useEffect(() => {
@@ -220,6 +221,7 @@ export default function ProfilePage() {
     if (!walletAddress || !supabase) {
       setAvatarUrl(null);
       setProfileUsername(null);
+      setProfileBio(null);
       return;
     }
 
@@ -229,7 +231,7 @@ export default function ProfilePage() {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("avatar_url, username")
+          .select("avatar_url, username, bio")
           .eq("wallet_address", walletAddress.toLowerCase())
           .maybeSingle();
 
@@ -238,18 +240,22 @@ export default function ProfilePage() {
         if (error) {
           setAvatarUrl(null);
           setProfileUsername(null);
+          setProfileBio(null);
           return;
         }
 
-        const url = (data as { avatar_url?: string } | null)?.avatar_url;
-        const username = (data as { username?: string } | null)?.username;
+        const url = (data as { avatar_url?: string; bio?: string } | null)?.avatar_url;
+        const username = (data as { username?: string; bio?: string } | null)?.username;
+        const bio = (data as { bio?: string } | null)?.bio;
 
         setAvatarUrl(url && url.trim().length > 0 ? url : null);
         setProfileUsername(username && username.trim().length > 0 ? username.trim() : null);
+        setProfileBio(bio && bio.trim().length > 0 ? bio.trim() : null);
       } catch {
         if (!cancelled) {
           setAvatarUrl(null);
           setProfileUsername(null);
+          setProfileBio(null);
         }
       }
     };
@@ -335,6 +341,7 @@ export default function ProfilePage() {
               <div className="space-y-1">
                 <p className="text-2xl font-bold leading-tight">{displayName}</p>
                 <p className="text-sm text-white/60 max-w-xl">{displayAddress}</p>
+                {profileBio && <p className="text-xs text-white/60 max-w-xl leading-snug break-words">{profileBio}</p>}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -444,13 +451,26 @@ export default function ProfilePage() {
             {activeAssets.map((asset) => (
               <Card key={asset.id} className="border border-[#262626] bg-black/85 p-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold uppercase tracking-[0.15em]">{asset.symbol}</div>
-                  <div className="text-[11px] text-white/60">{asset.category}</div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="h-10 w-10 rounded-sm border border-[#262626] bg-black/50 overflow-hidden flex items-center justify-center text-[11px] font-semibold text-white/70">
+                      {asset.image ? (
+                        <Image src={asset.image} alt={asset.name} width={40} height={40} className="h-full w-full object-cover" />
+                      ) : (
+                        (asset.symbol || "IP").slice(0, 3).toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold uppercase tracking-[0.15em] truncate">{asset.symbol}</div>
+                      <div className="text-[11px] text-white/60 truncate">{asset.category}</div>
+                    </div>
+                  </div>
+                  <div className="text-sm text-white/60 tabular-nums">{asset.balance.toFixed(2)}</div>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="text-lg font-bold truncate">{asset.name}</div>
                   <div className="text-sm text-white/60 tabular-nums">{asset.balance.toFixed(2)}</div>
                 </div>
+
                 <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.15em] text-white/60">
                   <span>Value</span>
                   <span>

@@ -122,7 +122,7 @@ export default function Home() {
                   href={spotlight ? `/pool/${spotlight.token || spotlight.id}` : "#"}
                   className="rounded-sm border border-[#CCFF00] bg-[#CCFF00] text-black px-4 py-2 text-[10px] md:text-[11px] font-mono uppercase tracking-[0.25em] hover:brightness-110 transition"
                 >
-                  Enter Pool
+                  View Asset
                 </Link>
               </div>
             </div>
@@ -131,7 +131,7 @@ export default function Home() {
           {/* Rising Board */}
           <div className="col-span-12 lg:col-span-4 bg-[#0A0A0A] border-t lg:border-t-0 lg:border-l border-[#262626] flex flex-col">
             <div className="border-b border-[#262626] px-4 py-3 flex items-center justify-between">
-              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Curve_Movers</p>
+              <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Market Movers</p>
               {error && (
                 <button onClick={retry} className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">
                   Retry
@@ -160,7 +160,7 @@ export default function Home() {
                         {loading ? "Booting..." : item.name || "Untitled IP"}
                       </div>
                       <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                        Total bonding volume (IP)
+                        Bonding volume
                       </div>
                     </div>
                     <div className="flex flex-col items-end text-right">
@@ -178,13 +178,13 @@ export default function Home() {
       </div>
       </section>
 
-      {/* Data Terminal */}
+      {/* Market Board */}
       <section className="px-4 sm:px-6 py-8 lg:py-10 bg-[#050505]">
         <div className="border border-[#262626] bg-[#0A0A0A] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
           <div className="flex items-center justify-between px-4 lg:px-6 py-4 border-b border-[#262626]">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-2 w-2 rounded-full bg-[#CCFF00] shadow-[0_0_0_4px_rgba(204,255,0,0.15)]" />
-              <h2 className="text-sm font-semibold tracking-[0.25em] uppercase text-muted-foreground">Data_Terminal</h2>
+              <h2 className="text-sm font-semibold tracking-[0.25em] uppercase text-muted-foreground">Market Board</h2>
             </div>
             {error && (
               <button onClick={retry} className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">
