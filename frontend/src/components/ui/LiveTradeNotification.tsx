@@ -76,7 +76,7 @@ export default function LiveTradeNotification() {
     >
       <div className="pointer-events-auto rounded-lg border border-[#CCFF00] bg-black/90 px-4 py-3 shadow-2xl shadow-[#CCFF00]/40">
         <p className="text-xs font-mono tracking-widest text-[#CCFF00]">[NEW TRADE DETECTED]</p>
-        <p className="text-sm font-semibold text-white">/// $TOKEN BUY /// {formatted} IP</p>
+        <p className="text-sm font-semibold text-white">{`/// BUY /// ${formatted} IP`}</p>
       </div>
     </div>
   );
