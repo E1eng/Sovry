@@ -17,7 +17,7 @@ const config = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 1, // Minimal runs value to reduce bytecode size for Mainnet deployment
+        runs: 10, // Minimal runs value to reduce bytecode size for Mainnet deployment
       },
       viaIR: true, // Enable viaIR to handle stack depth
     },

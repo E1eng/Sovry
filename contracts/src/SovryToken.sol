@@ -188,6 +188,8 @@ contract SovryToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
         return underlyingToken.balanceOf(address(this));
     }
 
+    error CannotRecoverUnderlying();
+
     /**
      * @notice Allows the owner to recover any ERC20 tokens accidentally sent to this contract
      * @param token The address of the token to recover
@@ -199,7 +201,8 @@ contract SovryToken is ERC20, ERC20Burnable, Ownable, ReentrancyGuard {
     function recoverERC20(address token, address to, uint256 amount) external onlyOwner {
         require(to != address(0), "SovryToken: cannot recover to zero address");
         require(amount > 0, "SovryToken: amount must be greater than zero");
-        
+        if (token == address(underlyingToken)) revert CannotRecoverUnderlying();
+
         IERC20(token).safeTransfer(to, amount);
     }
 }

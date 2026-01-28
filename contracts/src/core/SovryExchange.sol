@@ -84,6 +84,9 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     uint256 public totalCurveReserves;
 
+    event GraduationFailed(address indexed wrapperToken, string reason);
+    event BuybackFailed(address indexed wrapperToken, string reason);
+
     struct BondingCurve {
         uint128 basePrice;
         uint128 priceIncrement;
@@ -231,12 +234,15 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             curve.reserveBalance = uint128(newReserve);
             totalCurveReserves += harvestedAmount;
         } else {
-            _buybackAndBurnWIP(wrapperToken, harvestedAmount);
+            bool swapOk = _buybackAndBurnWIP(wrapperToken, harvestedAmount);
+            if (!swapOk) {
+                emit BuybackFailed(wrapperToken, "Swap Error");
+            }
         }
     }
 
-    function _buybackAndBurnWIP(address wrapperToken, uint256 amountWIP) internal {
-        if (amountWIP == 0) return;
+    function _buybackAndBurnWIP(address wrapperToken, uint256 amountWIP) internal returns (bool) {
+        if (amountWIP == 0) return false;
 
         IERC20(wipToken).forceApprove(piperXV3SwapRouter, 0);
         IERC20(wipToken).forceApprove(piperXV3SwapRouter, amountWIP);
@@ -252,7 +258,11 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             sqrtPriceLimitX96: 0
         });
 
-        IPiperXV3SwapRouter(piperXV3SwapRouter).exactInputSingle(params);
+        try IPiperXV3SwapRouter(piperXV3SwapRouter).exactInputSingle(params) {
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     function launchTokenFromFactory(
@@ -411,17 +421,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         IERC20(wrapperToken).safeTransfer(recipient, amount);
 
-        if (feeAmount > 0) {
-            uint256 treasuryShare = feeAmount / 2;
-            uint256 ipaShare = feeAmount - treasuryShare;
-
-            if (treasuryShare > 0) {
-                _enqueuePendingWithdrawal(treasury, treasuryShare);
-            }
-            if (ipaShare > 0) {
-                _accrueRoyalty(wrapperToken, ipaShare);
-            }
-        }
+        _distributeFees(wrapperToken, feeAmount);
 
         if (msg.value > totalCost) {
             _safeTransferETH(payable(recipient), msg.value - totalCost);
@@ -475,17 +475,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         _safeTransferETH(payable(seller), netProceeds);
 
-        if (feeAmount > 0) {
-            uint256 treasuryShare = feeAmount / 2;
-            uint256 ipaShare = feeAmount - treasuryShare;
-
-            if (treasuryShare > 0) {
-                _enqueuePendingWithdrawal(treasury, treasuryShare);
-            }
-            if (ipaShare > 0) {
-                _accrueRoyalty(wrapperToken, ipaShare);
-            }
-        }
+        _distributeFees(wrapperToken, feeAmount);
 
         emit TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, treasury);
     }
@@ -539,50 +529,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 currentPrice = uint256(curve.basePrice) + (soldUnits * uint256(curve.priceIncrement));
 
         return currentPrice * totalSupplyUnits;
-    }
-
-    function getTokenState(address wrapperToken) external view returns (TokenState memory) {
-        LaunchedToken memory token = launchedTokens[wrapperToken];
-        BondingCurve memory curve = bondingCurves[wrapperToken];
-
-        uint256 currentPrice;
-        uint256 marketCap;
-        bool canGraduate;
-        uint256 secondsSinceLaunch;
-        uint256 secondsToGraduationDelay;
-
-        bool isActive = bondingCurveActive[wrapperToken];
-
-        if (token.wrapperAddress != address(0)) {
-            if (token.launchTime > 0 && block.timestamp >= token.launchTime) {
-                secondsSinceLaunch = block.timestamp - token.launchTime;
-            }
-
-            if (isActive) {
-                uint256 soldRaw = token.initialCurveSupply > uint256(curve.currentSupply)
-                    ? (token.initialCurveSupply - uint256(curve.currentSupply))
-                    : 0;
-                uint256 soldUnits = soldRaw / WRAP_UNIT;
-                currentPrice = uint256(curve.basePrice) + (soldUnits * uint256(curve.priceIncrement));
-            }
-
-            marketCap = getMarketCap(wrapperToken);
-
-            if (!token.graduated && isActive && marketCap >= graduationThreshold) {
-                canGraduate = true;
-            }
-        }
-
-        return TokenState({
-            token: token,
-            curve: curve,
-            currentPrice: currentPrice,
-            marketCap: marketCap,
-            canGraduate: canGraduate,
-            secondsSinceLaunch: secondsSinceLaunch,
-            secondsToGraduationDelay: secondsToGraduationDelay,
-            curveActive: isActive
-        });
     }
 
     // ====== Graduation Flow ======
@@ -695,10 +641,13 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             amount1 = _amount1;
         } catch {
             curve.currentSupply = 0;
+            curve.reserveBalance = 0;
+            accumulatedRoyaltyNative[wrapperToken] = 0;
             IERC20(wrapperToken).safeTransfer(treasury, tokenLiquidity);
             IWIP(wipToken).withdraw(nativeAfterFee);
             _safeTransferETH(payable(treasury), nativeAfterFee);
-            emit Graduated(wrapperToken, 0, address(0));
+            bondingCurveActive[wrapperToken] = false;
+            emit GraduationFailed(wrapperToken, "Liquidity sent to Treasury");
             SovryToken(wrapperToken).unlockTransfers();
             SovryToken(wrapperToken).renounceOwnership();
             return;
@@ -746,7 +695,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (token.wrapperAddress == address(0)) revert UnknownToken();
 
         uint256 amount = accumulatedRoyaltyNative[wrapperToken];
-        if (amount == 0) revert NoRoyalties();
+        if (amount == 0) return;
         if (address(this).balance < amount) revert InsufficientReserves();
 
         accumulatedRoyaltyNative[wrapperToken] = 0;
@@ -862,6 +811,19 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (amount == 0) return;
         accumulatedRoyaltyNative[wrapperToken] += amount;
         emit RoyaltyRevenueQueued(wrapperToken, amount);
+    }
+
+    function _distributeFees(address wrapperToken, uint256 feeAmount) private {
+        if (feeAmount == 0) return;
+        uint256 treasuryShare = feeAmount / 2;
+        uint256 ipaShare = feeAmount - treasuryShare;
+
+        if (treasuryShare > 0) {
+            _enqueuePendingWithdrawal(treasury, treasuryShare);
+        }
+        if (ipaShare > 0) {
+            _accrueRoyalty(wrapperToken, ipaShare);
+        }
     }
 
     function _getSqrtPriceX96(uint256 spotPrice, address wrapperToken, address token0) internal pure returns (uint160) {
