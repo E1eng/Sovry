@@ -613,14 +613,15 @@ export default function CreatePage() {
               <header className="border border-[#262626] bg-[#050505] px-4 py-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                    Launch Wizard
+                    Launch Flow
                   </span>
                   <span
                     className={`text-[11px] font-mono uppercase tracking-[0.3em] ${signalTone}`}
                   >
-                    Signal {signalStatus}
+                    Status {signalStatus}
                   </span>
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
                   {["Select IP", "Token & Branding", "Review & Launch"].map((label, idx) => {
                     const stepNumber = (idx + 1) as 1 | 2 | 3;
