@@ -43,7 +43,36 @@
       { "indexed": true, "name": "wrapperToken", "type": "address" },
       { "indexed": false, "name": "amount", "type": "uint256" }
     ],
-    "name": "RoyaltiesHarvested",
+    "name": "RoyaltyRevenueQueued",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "wrapperToken", "type": "address" },
+      { "indexed": false, "name": "amount", "type": "uint256" },
+      { "indexed": true, "name": "ipAsset", "type": "address" }
+    ],
+    "name": "RoyaltyRevenueProcessed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "wrapperToken", "type": "address" },
+      { "indexed": false, "name": "amount", "type": "uint256" },
+      { "indexed": false, "name": "isPostGrad", "type": "bool" }
+    ],
+    "name": "RevenueHarvested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "wrapperToken", "type": "address" },
+      { "indexed": false, "name": "amountIn", "type": "uint256" }
+    ],
+    "name": "BuybackExecuted",
     "type": "event"
   },
   {

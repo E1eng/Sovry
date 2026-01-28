@@ -5,6 +5,7 @@ type Launchpad @entity {
   totalVolume: BigInt!
   totalFees: BigInt!
   wrappers: [WrapperToken!]! @derivedFrom(field: "launchpad")
+  protocolMetric: ProtocolMetric @derivedFrom(field: "launchpad")
 }
 
 type WrapperToken @entity {
@@ -30,6 +31,26 @@ type WrapperToken @entity {
   graduations: [Graduation!]! @derivedFrom(field: "token")
   holders: [Holder!]! @derivedFrom(field: "wrapper")
   redemptions: [Redemption!]! @derivedFrom(field: "wrapper")
+  tokenStat: TokenStat @derivedFrom(field: "wrapper")
+  harvestEvents: [HarvestEvent!]! @derivedFrom(field: "wrapper")
+  buybackEvents: [BuybackEvent!]! @derivedFrom(field: "wrapper")
+}
+
+type ProtocolMetric @entity {
+  id: ID!
+  launchpad: Launchpad!
+  totalRoyaltiesQueued: BigInt!
+  totalRoyaltiesPushed: BigInt!
+  totalHarvestedPreGrad: BigInt!
+  totalHarvestedPostGrad: BigInt!
+  totalBuybacks: BigInt!
+}
+
+type TokenStat @entity {
+  id: ID! # wrapper address
+  wrapper: WrapperToken!
+  accumulatedFeesNative: BigInt!
+  totalHarvested: BigInt!
 }
 
 type Redemption @entity {
@@ -80,6 +101,23 @@ type Harvest @entity {
   id: ID!
   wrapper: WrapperToken!
   amount: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
+type HarvestEvent @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  amount: BigInt!
+  isPostGrad: Boolean!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
+type BuybackEvent @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  amountIn: BigInt!
   txHash: Bytes!
   timestamp: BigInt!
 }
