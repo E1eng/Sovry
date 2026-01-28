@@ -15,7 +15,11 @@ Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** int
   - `SovryRouter.sol` – user gateway for common write actions
   - `SovryToken.sol` – ERC‑20 wrapper token deployed per launch
 - **Deployed Addresses (Aeneid testnet)**
-  - Use env vars (see **Environment Variables**) for `Factory/Exchange/Router` addresses.
+  - Factory (launchpad): `0xb2B5c668fFEE2d8E9e68eeC6ec41BeBC59989c3e`
+  - Exchange: `0xc7E8fc2C1da57eB7103bdf180B5D82E24e5e3d8D`
+  - Router: `0xa3B5471F43FFac986E66100E901D6cb4247D12C9`
+  - Royalty Workflows: `0x9515faE61E0c0447C6AC6dEe5628A2097aFE1890`
+  - PiperX V3 Router: `0x8295c195CEe31404ea082d253a140310b9a0A37e`
 - **Frontend**: Next.js + TypeScript (App Router) in `frontend/`
   - `/` – Launch gallery (from Goldsky subgraph + metadata)
   - `/create` – Launch existing IP from Story (Get RT → Configure → Launch)
@@ -89,15 +93,16 @@ Key on‑chain behaviours:
     - 1% fee split 50/50 treasury/IP Asset, emits `TokensSold(seller, wrapperToken, amount, baseProceeds, feeAmount, feeRecipient)`
   - `calculateBuyPrice` / `calculateSellPrice` are exposed as view helpers
 
-- **Harvest (Royalties / DEX fees)**
-  - Royalties are WIP/ERC20 (Story whitelisted); trade fees originate as native IP/ETH but IP shares accumulate until processed
-  - Keeper calls:
-    - `Exchange.collectDexFees(wrapperToken, 0)` – collects V3 LP fees and splits 50/50 in the collected token(s)
-    - `Exchange.depositRoyalties(wrapperToken, wipAmount, amountOutMin)` – splits WIP 50/50 treasury/IP Asset (keeper supplies WIP already claimed from Story)
-    - `Exchange.processRevenue(wrapperToken)` – wraps queued native IPA fees into WIP and calls Story `payRoyaltyOnBehalf` so the IP Asset receives ERC20 revenue safely
+- **Harvest (Pull Model)**
+  - Native trade fees accrue per token in `accumulatedRoyaltyNative` (IPA share of fees)
+  - Keeper jobs:
+    - `harvestFromVault(wrapperToken)` – pull Story vault revenue + convert IPA share depending on graduation state
+    - `pushFeesToVault(wrapperToken)` – push accumulated native IPA fees to Story vault
+    - (Optional) `collectDexFees` for LP fees when graduated
   - Emits:
-    - `RoyaltiesHarvested(wrapperToken, amount)` whenever WIP is deposited
-    - `RoyaltyRevenueQueued` + `RoyaltyRevenueProcessed` for native fee queueing/settlement
+    - `RoyaltyRevenueQueued` / `RoyaltyRevenueProcessed` (push path)
+    - `RevenueHarvested` (pull harvest, pre/post grad)
+    - `BuybackExecuted` (post-grad buyback of WIP)
 
 - **Redeem (Burn wrapper → withdraw RT)**
   - Users can call `Exchange.redeem(wrapperToken, wrapperAmount, recipient)`
@@ -173,22 +178,18 @@ Directory: `subgraph/`
   - `TokensPurchased(address buyer, address wrapperToken, uint256 amount, uint256 baseCost, uint256 feeAmount, address feeRecipient)`
   - `TokensSold(address seller, address wrapperToken, uint256 amount, uint256 baseProceeds, uint256 feeAmount, address feeRecipient)`
   - `TokensRedeemed(address redeemer, address wrapperToken, uint256 wrapperAmount, uint256 rtAmount, address recipient)`
-  - `RoyaltiesHarvested(address wrapperToken, uint256 amount)`
+  - Pull/Push revenue events: `RoyaltyRevenueQueued`, `RoyaltyRevenueProcessed`, `RevenueHarvested`, `BuybackExecuted`
   - `Graduated(address wrapperToken, uint256 liquidity, address poolAddress)`
   - `GraduationThresholdUpdated(uint256 newThreshold)`
 
 Core entities in `schema.graphql`:
 
 - `Launchpad` – aggregate stats (totalTokens, totalTrades, totalVolume, totalFees)
-- `WrapperToken` – one per launched wrapper (creator, launchTime, totalLocked, dexReserve, initialCurveSupply, totalRoyaltiesHarvested, poolAddress)
-- `User` – wallet addresses interacting with the launchpad
-- `Trade` – all buys/sells on the curve (type BUY/SELL, amount, value, fee)
-- `Deposit` – legacy RT deposit tracking (currently unused in mappings)
-- `Harvest` – `RoyaltiesHarvested` events per wrapper
-- `Graduation` – `Graduated` events per wrapper
-- `GraduationThresholdUpdate` – changes to `graduationThreshold`
-- `Holder` – wrapper holders (used by the frontend profile & analytics)
-- `Candle` – OHLCV candles for charting
+- `WrapperToken` – one per launched wrapper (creator, launchTime, totalLocked, dexReserve, initialCurveSupply, totalRoyaltiesHarvested, poolAddress, totalHarvestedAmount, totalFeesPushed)
+- `RevenueEvent` – normalized push/pull revenue events (type: PUSH / HARVEST_RESERVE / HARVEST_BUYBACK)
+- `HarvestEvent` / `BuybackEvent` – per-harvest and per-buyback details
+- `TokenStat` / `ProtocolMetric` – per-token and protocol aggregates
+- `Trade`, `Holder`, `Candle`, etc. for UI analytics
 
 The Goldsky subgraph is used by the **Home** grid, **Pool** charts, and **Profile** page.
 
@@ -215,29 +216,28 @@ GOLDSKY_ENDPOINT="https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4
 
 ### Frontend `frontend/.env.local` (or `.env`)
 
-Copy from `frontend/.example.env` and fill in your own keys:
+Copy from `frontend/.example.env` and fill:
 
 ```bash
 ## RPC / explorer access
 NEXT_PUBLIC_TENDERLY_RPC_URL="https://story-aeneid.gateway.tenderly.co"
 NEXT_PUBLIC_STORY_RPC_URL="https://aeneid.storyrpc.io"
-NEXT_PUBLIC_STORY_API_KEY=""   # Story API key if you have one
+NEXT_PUBLIC_STORY_API_KEY=""
 
 ## Third-party services
+NEXT_PUBLIC_API_URL="http://localhost:3001"
+GRAPH_WEBHOOK_SECRET=<same secret as keeper bot>
 NEXT_PUBLIC_SUBGRAPH_URL="https://api.goldsky.com/api/public/project_cmhxop6ixrx0301qpd4oi5bb4/subgraphs/sovry-aeneid/1.0.1/gn"
-NEXT_PUBLIC_STORYSCAN_API_KEY=""   # optional
-NEXT_PUBLIC_SUPABASE_URL=""        # optional
-NEXT_PUBLIC_SUPABASE_ANON_KEY=""   # optional
-NEXT_PUBLIC_PINATA_JWT=""          # optional
-NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=""  # required for Dynamic
+NEXT_PUBLIC_SUPABASE_URL="https://cupllnxfdbxfigzrmqjy.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase anon key>
+NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=""   # Dynamic env id
 NEXT_PUBLIC_ENABLE_DEBRIDGE_WIDGET="true"
 
-## Sovry Launchpad (Aeneid)
-NEXT_PUBLIC_EXCHANGE_ADDRESS="0x..."
-NEXT_PUBLIC_ROUTER_ADDRESS="0x..."
-NEXT_PUBLIC_LAUNCHPAD_ADDRESS="0x..."   # legacy fallback (deprecated)
-NEXT_PUBLIC_BASE_PRICE_WEI="100000000000"   # default base price for new launches
-NEXT_PUBLIC_PRICE_INCREMENT_WEI="2000000"   # default linear increment per unit
+## Sovry Factory (Aeneid)
+NEXT_PUBLIC_LAUNCHPAD_ADDRESS="0xb2B5c668fFEE2d8E9e68eeC6ec41BeBC59989c3e"
+NEXT_PUBLIC_BASE_PRICE_WEI="100000000000"
+NEXT_PUBLIC_PRICE_INCREMENT_WEI="2000000"
+NEXT_PUBLIC_DEMO_ROYALTY_AMOUNT_WEI="1000000000000000000"
 ```
 
 > **Tip:** Never commit real API keys or private keys. Only `.example.env` with placeholders is versioned.
@@ -262,7 +262,7 @@ npm run dev:frontend
 npm run dev:backend
 ```
 
-Subgraph (optional, if you’re iterating on mappings/schema):
+Subgraph (Goldsky / The Graph):
 
 > **Node requirement:** Graph CLI requires Node.js **>= 20.18.1** for `subgraph` codegen/build.
 
@@ -270,7 +270,7 @@ Subgraph (optional, if you’re iterating on mappings/schema):
 # from project root
 npm run subgraph:codegen
 npm run subgraph:build
-# deploy is handled via Goldsky UI / CLI using the GOLDSKY_ENDPOINT
+# deploy via Goldsky UI / CLI using the endpoint above
 ```
 
 Contracts (Hardhat, in `contracts/` workspace):

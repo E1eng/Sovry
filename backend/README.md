@@ -1,16 +1,18 @@
-# Sovry Backend (API + Worker)
+# Sovry Backend (API + Worker + Keeper Bot)
 
-This folder contains 2 separate Node.js processes:
+This folder contains:
 
-- API server: Express app exposing HTTP endpoints for the frontend
-- Worker: background scheduler that caches IP price in-memory and aggregates pool data from the subgraph
+- API server: Express app exposing HTTP endpoints for the frontend and webhook ingest for revenue events
+- Worker: background scheduler (price cache, pool data)
+- Keeper bot (`bot.ts`): executes royalty pull/push jobs and syncs revenue events from subgraph to Supabase via webhook
 
-They are designed to be deployed as **two separate services** (e.g. on Railway).
+They can be deployed as separate services.
 
 ## Scripts
 
 - `npm run start:api` - start the API server
 - `npm run start:worker` - start the worker process
+- `node bot.ts` - run keeper bot (harvest + push + sync jobs)
 
 ## API Endpoints
 
@@ -20,42 +22,30 @@ They are designed to be deployed as **two separate services** (e.g. on Railway).
 - `POST /api/refresh-price`
 - `GET /api/worker/status`
 
-## Environment Variables
+## Environment Variables (API + Worker + Bot)
 
-### Required (API + Worker)
+### Required (API)
+- `SUBGRAPH_URL` – Goldsky GraphQL endpoint for pool data
+- `FRONTEND_URLS` – CORS origins
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` – used by webhook to write revenue events/totals
+- `GRAPH_WEBHOOK_SECRET` – shared secret header `x-sovry-secret`
 
-- `SUBGRAPH_URL`
-  - Goldsky GraphQL endpoint used by the worker to fetch `wrapperTokens`.
-- `FRONTEND_URLS`
-  - Comma-separated list of allowed CORS origins.
+### Keeper Bot (bot.ts)
+- `RPC_URL` – Story RPC (Aeneid)
+- `KEEPER_PRIVATE_KEY` – holds `KEEPER_ROLE`
+- `SOVRY_EXCHANGE_ADDRESS` – Exchange contract
+- `SUBGRAPH_URL` – same Goldsky endpoint
+- `WEBHOOK_URL` – Next.js webhook endpoint (`/api/webhooks/graph`)
+- `GRAPH_WEBHOOK_SECRET` – same secret as above
+- Intervals (optional): `HARVEST_INTERVAL_MS` (default 10m), `PUSH_INTERVAL_MS` (default 1h), `SYNC_INTERVAL_MS` (default 60s)
 
 ### Optional / Recommended
+- `PORT` – API port (default 3001)
+- `STORYSCAN_API_KEY` – for price endpoints
 
-- `PORT`
-  - API port (Railway provides this automatically).
-- `RPC_PROVIDER_URL`
-  - Story RPC URL used by onchain services (default: `https://aeneid.storyrpc.io`).
-- `STORYSCAN_API_BASE`
-  - StoryScan base URL (default: `https://aeneid.storyscan.io`).
-- `STORYSCAN_API_KEY`
-  - StoryScan API key (recommended for production stability).
-- `PRICE_INTERVAL_MS`
-  - Worker interval for refreshing IP price (default: `60000`).
-- `HARVEST_INTERVAL_MS`
-  - Worker interval for royalty harvest cycle (default: `300000`).
-- `IP_PRICE_FALLBACK_USD`
-  - Optional numeric fallback price used only if StoryScan fails.
-
-### Keeper / Fee Collection (Worker only)
-
-- `SOVRY_EXCHANGE_ADDRESS`
-  - SovryExchange contract the worker interacts with for `collectDexFees`.
-- `KEEPER_PRIVATE_KEY`
-  - Private key that holds `KEEPER_ROLE` on SovryExchange. **Never reuse creator wallets; restrict to keeper-only account.**
-- `RPC_PROVIDER_URL`
-  - (Inherited from global section) must point to the same chain as SovryExchange.
-
-> Legacy `LAUNCHPAD_ADDRESS` / `HARVEST_PRIVATE_KEY` are deprecated and replaced by the values above.
+Notes:
+- DB access is via Supabase REST (supabase-js); no Drizzle/Postgres drivers used now.
 
 ## Railway Deployment
 
@@ -73,10 +63,13 @@ Create **two Railway services** pointing to the same repo:
 
 - Root directory: `backend`
 - Start command: `npm run start:worker`
-- Set env vars (at least):
-  - `SUBGRAPH_URL`
-  - `STORYSCAN_API_KEY` (recommended)
-  - `LAUNCHPAD_ADDRESS` / `HARVEST_PRIVATE_KEY` (if enabling royalty harvesting)
+- Set env vars: `SUBGRAPH_URL`, `FRONTEND_URLS`, (optional) `STORYSCAN_API_KEY`
+
+### 3) Keeper Bot
+
+- Root directory: `backend`
+- Start command: `node bot.ts`
+- Env: `RPC_URL`, `KEEPER_PRIVATE_KEY`, `SOVRY_EXCHANGE_ADDRESS`, `SUBGRAPH_URL`, `WEBHOOK_URL`, `GRAPH_WEBHOOK_SECRET`, optional intervals
 
 ## Local Development
 
@@ -85,7 +78,8 @@ This backend loads env variables from the first `.env` found in:
 - `backend/.env`
 - `<repo-root>/.env`
 
-If you want to run both processes locally, run them in separate terminals:
+If you want to run all locally, in separate terminals:
 
 - `npm run start:api`
 - `npm run start:worker`
+- `node bot.ts`
