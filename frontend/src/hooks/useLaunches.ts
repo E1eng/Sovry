@@ -75,25 +75,12 @@ export function useLaunches(limit: number = 8) {
         return
       }
 
-      // Enrich launch data
-      const wrapperTokens = basicLaunches.map((l) => l.token || l.id)
-      const { enrichLaunchesData } = await import("@/services/launchDataService")
-      const enrichedData = await enrichLaunchesData(wrapperTokens)
-
-      // Merge basic launch data with enriched data and graduated status from subgraph
-      const merged: LaunchData[] = basicLaunches.map((basic) => {
-        const token = basic.token || basic.id
-        const enriched = enrichedData.get(token) || {}
-
-        const graduatedFromChain = (enriched as any)?.graduated
-        const graduated = typeof graduatedFromChain === "boolean" ? graduatedFromChain : basic.graduated
-
-        return {
-          ...basic,
-          ...enriched,
-          graduated,
-        }
-      })
+      // Subgraph-only data for home list (no RPC)
+      const merged: LaunchData[] = basicLaunches.map((basic) => ({
+        ...basic,
+        marketCap: undefined,
+        bondingProgress: undefined,
+      }))
 
       setLaunches(merged)
     } catch (err) {

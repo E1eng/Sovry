@@ -197,15 +197,6 @@ function SwapInterfaceComponent({
             return
           }
 
-          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(freshParams, amountBigInt)
-          if (tokenAmount === 0n || totalCost === 0n) {
-            setToAmount("")
-            setMinReceive(null)
-            setPriceImpact(null)
-            setExchangeRate("")
-            return
-          }
-
           // Convert 6-decimal wrapper units to 18-decimal token units for display
           const tokenWei = tokenAmount * (10n ** 12n)
           const expectedTokensStr = formatEther(tokenWei)
@@ -219,7 +210,7 @@ function SwapInterfaceComponent({
           const minTokenWei = tokenWei * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
           setMinReceive(trimToDecimals(formatEther(minTokenWei), 6))
 
-          impact = calculateRealPriceImpact(freshParams, tokenAmount, true)
+          impact = calculateRealPriceImpact(paramsForQuote, tokenAmount, true)
           const rate = expectedTokens / parseFloat(amount)
           setExchangeRate(`1 IP = ${rate.toFixed(6)} ${tokenSymbol}`)
         } else {
@@ -259,7 +250,7 @@ function SwapInterfaceComponent({
           setToAmount(trimToDecimals(expectedIpOutStr, 8))
           setMinReceive(trimToDecimals(minIpOutStr, 8))
 
-          impact = calculateRealPriceImpact(paramsForSell, wrapperAmount, false)
+          impact = calculateRealPriceImpact(paramsForQuote, wrapperAmount, false)
           const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
           setExchangeRate(`1 ${tokenSymbol} = ${rate.toFixed(6)} IP`)
         }
