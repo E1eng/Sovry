@@ -202,6 +202,59 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         _enqueuePendingWithdrawal(beneficiary, msg.value);
     }
 
+    // ====== Royalty Harvesting (Pull Model) ======
+
+    /// @dev Keeper harvests from Story Protocol vault into this contract, then routes based on graduation state.
+    function harvestFromVault(address wrapperToken) external nonReentrant override {
+        if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
+        if (wrapperToken == address(0)) revert InvalidAddress();
+
+        LaunchedToken memory token = launchedTokens[wrapperToken];
+        if (token.wrapperAddress == address(0)) revert UnknownToken();
+
+        uint256 balanceBefore = IERC20(wipToken).balanceOf(address(this));
+
+        IRoyaltyModule(royaltyWorkflows).claimAllRevenue(token.ipAsset, address(this));
+
+        uint256 balanceAfter = IERC20(wipToken).balanceOf(address(this));
+        if (balanceAfter <= balanceBefore) return; // nothing harvested
+
+        uint256 harvestedAmount = balanceAfter - balanceBefore;
+
+        if (!token.graduated) {
+            // Pre-graduation: unwrap to ETH and add to curve reserves (raises floor price)
+            IWIP(wipToken).withdraw(harvestedAmount);
+
+            BondingCurve storage curve = bondingCurves[wrapperToken];
+            uint256 newReserve = uint256(curve.reserveBalance) + harvestedAmount;
+            if (newReserve > type(uint128).max) revert ParamsTooLarge();
+            curve.reserveBalance = uint128(newReserve);
+            totalCurveReserves += harvestedAmount;
+        } else {
+            _buybackAndBurnWIP(wrapperToken, harvestedAmount);
+        }
+    }
+
+    function _buybackAndBurnWIP(address wrapperToken, uint256 amountWIP) internal {
+        if (amountWIP == 0) return;
+
+        IERC20(wipToken).forceApprove(piperXV3SwapRouter, 0);
+        IERC20(wipToken).forceApprove(piperXV3SwapRouter, amountWIP);
+
+        IPiperXV3SwapRouter.ExactInputSingleParams memory params = IPiperXV3SwapRouter.ExactInputSingleParams({
+            tokenIn: wipToken,
+            tokenOut: wrapperToken,
+            fee: PIPERX_V3_FEE,
+            recipient: address(0x000000000000000000000000000000000000dEaD),
+            deadline: block.timestamp,
+            amountIn: amountWIP,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+
+        IPiperXV3SwapRouter(piperXV3SwapRouter).exactInputSingle(params);
+    }
+
     function launchTokenFromFactory(
         address rtAddress,
         uint256 amount,
@@ -430,7 +483,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
                 _enqueuePendingWithdrawal(treasury, treasuryShare);
             }
             if (ipaShare > 0) {
-                _safeTransferETH(payable(token.ipAsset), ipaShare);
+                _accrueRoyalty(wrapperToken, ipaShare);
             }
         }
 
@@ -684,7 +737,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     // ====== Keeper Operations ======
 
-    function settleRoyaltyRevenue(address wrapperToken) external nonReentrant {
+    /// @dev Push accumulated native fees into Story Protocol vault as WIP royalties.
+    function pushFeesToVault(address wrapperToken) external nonReentrant override {
         if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
         if (wrapperToken == address(0)) revert InvalidAddress();
 

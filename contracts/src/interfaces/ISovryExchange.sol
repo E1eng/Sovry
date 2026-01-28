@@ -81,15 +81,15 @@ interface ISovryExchange {
 
     function queueLaunchFee(address beneficiary) external payable;
 
-    function processRevenue(address wrapperToken) external;
-
-    function depositRoyalties(address wrapperToken, uint256 wipAmount, uint256 amountOutMin) external;
+    function harvestFromVault(address wrapperToken) external;
 
     function pendingWithdrawals(address beneficiary) external view returns (uint256);
 
     function accumulatedRoyaltyNative(address wrapperToken) external view returns (uint256);
 
     function withdrawPending(address payable to) external;
+
+    function pushFeesToVault(address wrapperToken) external;
 
     function graduate(address wrapperToken) external;
 

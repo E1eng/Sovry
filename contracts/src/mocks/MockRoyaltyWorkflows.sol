@@ -12,6 +12,8 @@ import "../interfaces/IRoyaltyModule.sol";
 contract MockRoyaltyWorkflows is IRoyaltyModule {
     event PayRoyaltyOnBehalfCalled(address indexed childIpId, address indexed payer, address indexed currencyToken, uint256 amount);
 
+    address public wipToken;
+
     address public lastChildIpId;
     address public lastPayer;
     address public lastCurrencyToken;
@@ -19,28 +21,28 @@ contract MockRoyaltyWorkflows is IRoyaltyModule {
     uint256 public totalRoyaltyPaid;
 
     /**
-     * @notice Mock claimAllRevenue that sends 1 ETH to claimer
-     * @dev Returns array of amounts claimed (1 ETH for each currency token)
+     * @notice Mock claimAllRevenue that transfers available WIP (or 1 wei fallback) to claimer and reports the amount
      */
-    function claimAllRevenue(
-        address,
-        address claimer,
-        address[] calldata,
-        address[] calldata,
-        address[] calldata currencyTokens
-    ) external returns (uint256[] memory amountsClaimed) {
-        // Create return array with same length as currencyTokens
-        amountsClaimed = new uint256[](currencyTokens.length);
-        
-        // Send 1 ETH to claimer for each currency token
-        uint256 totalAmount = 1 ether;
-        (bool success, ) = payable(claimer).call{value: totalAmount}("");
-        require(success, "Transfer failed");
-        
-        // Fill return array with 1 ETH for each token
-        for (uint256 i = 0; i < currencyTokens.length; i++) {
-            amountsClaimed[i] = 1 ether;
+    function claimAllRevenue(address, address claimer) external override returns (uint256) {
+        uint256 transferred;
+
+        if (wipToken != address(0)) {
+            IERC20 token = IERC20(wipToken);
+            uint256 bal = token.balanceOf(address(this));
+            if (bal > 0) {
+                token.transfer(claimer, bal);
+                transferred = bal;
+            }
         }
+
+        // Fallback to sending 1 wei native if no WIP configured/funded
+        if (transferred == 0) {
+            (bool success, ) = payable(claimer).call{value: 1}("");
+            require(success, "Transfer failed");
+            transferred = 1;
+        }
+
+        return transferred;
     }
 
     function payRoyaltyOnBehalf(address childIpId, address payer, address currencyToken, uint256 amount) external override {
@@ -53,6 +55,10 @@ contract MockRoyaltyWorkflows is IRoyaltyModule {
         IERC20(currencyToken).transferFrom(payer, childIpId, amount);
 
         emit PayRoyaltyOnBehalfCalled(childIpId, payer, currencyToken, amount);
+    }
+
+    function setWipToken(address _wipToken) external {
+        wipToken = _wipToken;
     }
 
     // Allow contract to receive ETH
