@@ -10,7 +10,7 @@ Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** int
 
 - **Blockchain**: Story Protocol – Aeneid Testnet (chainId `1315`)
 - **Core Contracts** (Aeneid):
-  - `SovryFactory.sol` – launching (collects launch fee, queues to treasury via Exchange, calls Exchange)
+  - `SovryFactory.sol` – launching (nonpayable, no launch fee; delegates to Exchange)
   - `SovryExchange.sol` – bonding curve vault (trading, graduation, keeper harvest, LP NFT custody)
   - `SovryRouter.sol` – user gateway for common write actions
   - `SovryToken.sol` – ERC‑20 wrapper token deployed per launch
@@ -42,7 +42,7 @@ Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** int
 ### Core Contracts
 
 - **Factory – `SovryFactory`**
-  - Collects a fixed **launch fee** (default `1 ether`) and sends to treasury
+  - Nonpayable launch entrypoint (no launch fee)
   - Calls `SovryExchange.launchTokenFromFactory(...)`
   - Emits `TokenLaunched(rt, wrapper, creator, amount, launchTime)`
 
@@ -71,7 +71,6 @@ Key on‑chain behaviours:
 
 - **Launch / Wrapper Pattern**
   - `Factory.launchToken(rtAddress, amount, ipAsset, name, symbol)`
-    - Collects a fixed `launchFee` and queues it to the treasury via `Exchange.queueLaunchFee` (pull-based)
     - Calls `Exchange.launchTokenFromFactory(...)`
     - Exchange enforces a fixed launch lock amount (`amount == 100 RT`)
     - Deploys a new `SovryToken` wrapper (`wrapperAddress`) and mints the fixed wrapper supply (18 decimals)
