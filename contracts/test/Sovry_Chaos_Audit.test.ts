@@ -474,30 +474,4 @@ describe("Sovry Protocol - Chaos Audit", function () {
     expect(tokenAfter.totalLocked.lt(tokenBefore.totalLocked)).to.equal(true);
   });
 
-  it("Admin misconfig: if treasury rejects ETH, launch fee is queued (no launch bricking)", async function () {
-    // WHY: Previously, Factory hard-pushed launchFee to treasury and would revert if treasury rejected ETH.
-    // This test ensures launch is NOT bricked and the fee is queued to pendingWithdrawals instead.
-    const Reject = await ethers.getContractFactory("RejectETHCreator");
-    const rejectTreasury = await Reject.deploy();
-
-    const { factory, exchange, rt, creator } = await deployFixture({ treasuryOverride: rejectTreasury.address });
-
-    const RT_UNIT = ethers.BigNumber.from("1000000");
-    const amountToLock = RT_UNIT.mul(100);
-
-    await rt.transfer(creator.address, amountToLock);
-    await rt.connect(creator).approve(exchange.address, amountToLock);
-
-    const launchFee = await factory.launchFee();
-
-    const tx = await factory
-      .connect(creator)
-      .launchToken(rt.address, amountToLock, rt.address, "Wrapper", "WRP", {
-        value: launchFee,
-      });
-    const receipt = await tx.wait();
-    expect(receipt.status).to.equal(1);
-
-    expect(await exchange.pendingWithdrawals(rejectTreasury.address)).to.equal(launchFee);
-  });
 });

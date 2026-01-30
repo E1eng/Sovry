@@ -5,7 +5,6 @@ This document describes how Sovry Launchpad works on Story Protocol (Aeneid) aft
 ## High-level flow
 
 1) **Launch** via `SovryFactory.launchToken`
-   - Collects a fixed launch fee (1 ETH) and forwards to treasury via `queueLaunchFee`
    - Calls `SovryExchange.launchTokenFromFactory`
    - Deploys a new `SovryToken` wrapper (18 decimals) around 100 locked RT; wrapper transfers are locked until graduation
 
@@ -29,7 +28,7 @@ This document describes how Sovry Launchpad works on Story Protocol (Aeneid) aft
 
 ## Contracts and roles
 
-- **SovryFactory**: collects launch fee; only admin can set fee
+- **SovryFactory**: entrypoint for launching wrappers; only admin can update exchange/router config
 - **SovryExchange**: holds RT reserves, manages curve, graduation, PiperX V3 LP mint + custody (LP NFT), royalties/DEX fee split 50/50 treasury/IP Asset
 - **SovryRouter**: user-friendly gateway for launch / buy / sell / price view
 - **SovryToken**: soulbound until graduation; 18 decimals wrapper around locked RT
@@ -86,10 +85,8 @@ graph LR;
 ```mermaid
 graph TD;
     C["Creator"] --> A1["Approve RT to Exchange"];
-    A1 --> RL["SovryRouter.launchToken (pays launch fee)"];
+    A1 --> RL["SovryRouter.launchToken"];
     RL --> FL["SovryFactory.launchToken"];
-    FL --> A2["Call Exchange.queueLaunchFee(treasury)"];
-    A2 --> TREAS["Fee becomes withdrawable via pendingWithdrawals"];
     FL --> A3["Call SovryExchange.launchTokenFromFactory"];
     A3 --> XLF["SovryExchange.launchTokenFromFactory"];
     XLF --> XRT["Exchange receives RT (transferFrom creator)"];
