@@ -195,16 +195,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         });
     }
 
-    // ====== Launch Lifecycle ======
-
-    function queueLaunchFee(address beneficiary) external payable nonReentrant {
-        if (msg.sender != factory) revert NotAuthorized();
-        if (beneficiary == address(0)) revert InvalidAddress();
-        if (msg.value == 0) revert InvalidAmount();
-
-        _enqueuePendingWithdrawal(beneficiary, msg.value);
-    }
-
     // ====== Royalty Harvesting (Pull Model) ======
 
     /// @dev Keeper harvests from Story Protocol vault into this contract, then routes based on graduation state.

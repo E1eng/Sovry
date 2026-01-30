@@ -79,8 +79,6 @@ interface ISovryExchange {
 
     function redeem(address wrapperToken, uint256 wrapperAmount, address recipient) external returns (uint256 rtAmount);
 
-    function queueLaunchFee(address beneficiary) external payable;
-
     function harvestFromVault(address wrapperToken) external;
 
     function pendingWithdrawals(address beneficiary) external view returns (uint256);
