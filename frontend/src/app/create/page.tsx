@@ -117,7 +117,7 @@ export default function CreatePage() {
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            launchToken(rtAddress, <fixed 100 RT>, ipAsset, name, symbol). Metadata is mocked locally.
+            launchToken(rtAddress, {FIXED_RT_AMOUNT} RT, ipAsset, name, symbol). Metadata is mocked locally.
           </p>
         </header>
 
