@@ -8,7 +8,7 @@ import { z } from "zod"
 import { parseEther } from "viem"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi"
-import { AlertCircle, CheckCircle, Copy, Loader2, Rocket, Terminal } from "lucide-react"
+import { AlertCircle, CheckCircle, Loader2, Rocket, Terminal } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -46,8 +46,6 @@ const formSchema = z.object({
 })
 
 type FormValues = z.infer<typeof formSchema>
-
-const mockCid = "ipfs://bafybeigdummyhash1234567890"
 
 export default function CreatePage() {
   const router = useRouter()
