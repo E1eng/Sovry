@@ -36,16 +36,14 @@ const factoryAbi = [
 
 const formSchema = z.object({
   rtAddress: z.string().min(1, "Required"),
-  amount: z
-    .string()
-    .min(1, "Required")
-    .refine((v) => !Number.isNaN(Number(v)) && Number(v) > 0, "Must be numeric"),
   ipAsset: z.string().min(1, "Required"),
   name: z.string().min(1, "Required"),
   symbol: z.string().min(1, "Required"),
 })
 
 type FormValues = z.infer<typeof formSchema>
+
+const FIXED_RT_AMOUNT = "100"
 
 export default function CreatePage() {
   const router = useRouter()
@@ -61,7 +59,6 @@ export default function CreatePage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       rtAddress: "",
-      amount: "1000000",
       ipAsset: "",
       name: "",
       symbol: "",
@@ -78,7 +75,7 @@ export default function CreatePage() {
     }
     setError(null)
     try {
-      const amountWei = parseEther(values.amount)
+      const amountWei = parseEther(FIXED_RT_AMOUNT)
 
       writeContract(
         {
@@ -120,7 +117,7 @@ export default function CreatePage() {
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            launchToken(rtAddress, amount, ipAsset, name, symbol). Metadata is mocked locally.
+            launchToken(rtAddress, <fixed 100 RT>, ipAsset, name, symbol). Metadata is mocked locally.
           </p>
         </header>
 
@@ -189,19 +186,7 @@ export default function CreatePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount (uint256)</Label>
-                <Input
-                  id="amount"
-                  placeholder="1000000"
-                  {...form.register("amount")}
-                  className="bg-black/60"
-                />
-                {form.formState.errors.amount && (
-                  <p className="text-xs text-red-400">{form.formState.errors.amount.message}</p>
-                )}
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Token Name</Label>
                 <Input
@@ -227,6 +212,7 @@ export default function CreatePage() {
                 )}
               </div>
             </div>
+
             <div className="flex items-center justify-between border-t border-[#1f1f1f] pt-4">
               <div className="text-xs text-muted-foreground">Factory: {truncateAddress(launchpadAddress)}</div>
               <Button
