@@ -14,3 +14,11 @@ export const STORYSCAN_BASE_URL = process.env.NEXT_PUBLIC_STORYSCAN_BASE_URL || 
 
 export const IPFS_GATEWAY =
   process.env.NEXT_PUBLIC_IPFS_GATEWAY?.replace(/\/$/, "") || "https://ipfs.io/ipfs";
+
+export function getLaunchpadAddress(): `0x${string}` {
+  const raw = process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS;
+  if (!raw) {
+    throw new Error("NEXT_PUBLIC_LAUNCHPAD_ADDRESS is required but not set in environment variables");
+  }
+  return raw as `0x${string}`;
+}
