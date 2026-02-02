@@ -18,7 +18,7 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'nft-cdn.alchemy.com',
-        pathname: '/story-aeneid/**',
+        pathname: '/story/**',
       },
       {
         protocol: 'https',

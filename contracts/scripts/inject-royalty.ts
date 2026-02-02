@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import hre from "hardhat";
 
 /**
  * Simple script to inject ERC20 royalties into a Story IP Royalty Vault
@@ -15,6 +16,10 @@ import { ethers } from "hardhat";
  * The keeper then triggers `harvest` on the Exchange.
  */
 async function main() {
+  if (hre.network.name === "mainnet") {
+    throw new Error("Refusing to run inject-royalty.ts on mainnet");
+  }
+
   // TODO: isi semua parameter ini sebelum run
 
   // Alamat kontrak RoyaltyTestHelper yang sudah kamu deploy

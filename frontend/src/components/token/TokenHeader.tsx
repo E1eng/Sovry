@@ -95,7 +95,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
 
   const getIpIdExplorerUrl = (ipId: string | undefined | null) => {
     if (!ipId) return undefined
-    return `https://aeneid.explorer.story.foundation/ipa/${ipId}`
+    return `https://explorer.story.foundation/ipa/${ipId}`
   }
 
   const getAddressExplorerUrl = (address: string | undefined | null) => {

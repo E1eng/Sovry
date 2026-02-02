@@ -6,7 +6,7 @@ import { txMutex } from './services/mutex';
 import { retryTx } from './services/utils';
 import { AlertLevel, sendDiscordAlert } from './services/alerts';
 
-const RPC_URL = process.env.RPC_URL || process.env.RPC_PROVIDER_URL || process.env.AENEID_RPC_URL;
+const RPC_URL = process.env.RPC_URL || process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL;
 const KEEPER_PRIVATE_KEY = process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
 const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
 const SUBGRAPH_URL = process.env.SUBGRAPH_URL || process.env.GOLDSKY_ENDPOINT || '';

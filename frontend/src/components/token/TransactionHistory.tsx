@@ -9,6 +9,7 @@ import { ExternalLink, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
 import { useRawTradeHistory } from "@/hooks/useRawTradeHistory"
 import { getAddressInitials, getAddressGradient } from "@/lib/avatarUtils"
 import { cn, truncateAddress } from "@/lib/utils"
+import { STORYSCAN_BASE_URL } from "@/lib/env"
 
 export interface TransactionHistoryProps {
   tokenAddress: string
@@ -17,8 +18,8 @@ export interface TransactionHistoryProps {
   className?: string
 }
 
-const BLOCK_EXPLORER_URL = "https://aeneid.storyscan.io/tx/"
-const ADDRESS_EXPLORER_URL = "https://aeneid.storyscan.io/address/"
+const BLOCK_EXPLORER_URL = `${STORYSCAN_BASE_URL.replace(/\/$/, "")}/tx/`
+const ADDRESS_EXPLORER_URL = `${STORYSCAN_BASE_URL.replace(/\/$/, "")}/address/`
 
 /**
  * Format timestamp to relative time

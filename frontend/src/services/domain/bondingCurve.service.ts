@@ -6,14 +6,24 @@ import { logger } from "@/lib/logger";
 import type { PrimaryWalletLike } from "./types";
 import { getStoryPublicClient } from "./clients";
 
-export const SOVRY_LAUNCHPAD_ADDRESS =
-  process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS || "0xABddc4817c287cCc6F1a170Fa3C364e9df2464E6";
+const RAW_LAUNCHPAD_ADDRESS = process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS;
+if (!RAW_LAUNCHPAD_ADDRESS) {
+  throw new Error("NEXT_PUBLIC_LAUNCHPAD_ADDRESS is required but not set in environment variables");
+}
 
-export const SOVRY_ROUTER_ADDRESS =
-  process.env.NEXT_PUBLIC_ROUTER_ADDRESS || SOVRY_LAUNCHPAD_ADDRESS;
+const RAW_ROUTER_ADDRESS = process.env.NEXT_PUBLIC_ROUTER_ADDRESS;
+if (!RAW_ROUTER_ADDRESS) {
+  throw new Error("NEXT_PUBLIC_ROUTER_ADDRESS is required but not set in environment variables");
+}
 
-export const SOVRY_EXCHANGE_ADDRESS =
-  process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS || SOVRY_LAUNCHPAD_ADDRESS;
+const RAW_EXCHANGE_ADDRESS = process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS;
+if (!RAW_EXCHANGE_ADDRESS) {
+  throw new Error("NEXT_PUBLIC_EXCHANGE_ADDRESS is required but not set in environment variables");
+}
+
+export const SOVRY_LAUNCHPAD_ADDRESS = RAW_LAUNCHPAD_ADDRESS;
+export const SOVRY_ROUTER_ADDRESS = RAW_ROUTER_ADDRESS;
+export const SOVRY_EXCHANGE_ADDRESS = RAW_EXCHANGE_ADDRESS;
 
 const DEFAULT_BASE_PRICE_WEI = BigInt(process.env.NEXT_PUBLIC_BASE_PRICE_WEI || "100000000000");
 const DEFAULT_PRICE_INCREMENT_WEI = BigInt(process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI || "2000000");

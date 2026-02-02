@@ -38,6 +38,7 @@ import { pinFileToIPFS, pinJSONToIPFS } from "@/services/pinataService";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
 import { truncateAddress } from "@/lib/utils";
+import { STORYSCAN_BASE_URL } from "@/lib/env";
 
 export default function CreatePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
@@ -1186,7 +1187,8 @@ export default function CreatePage() {
                         size="sm"
                         className="text-[11px] font-mono uppercase tracking-[0.2em]"
                         onClick={() => {
-                          const url = `https://aeneid.storyscan.io/address/${launchedTokenAddress}`;
+                          const base = STORYSCAN_BASE_URL.replace(/\/$/, "");
+                          const url = `${base}/address/${launchedTokenAddress}`;
                           window.open(url, "_blank", "noopener,noreferrer");
                         }}
                       >

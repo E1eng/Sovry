@@ -5,11 +5,11 @@ schema:
 dataSources:
   - kind: ethereum
     name: SovryFactory
-    network: story-aeneid
+    network: story
     source:
-      address: "0x2eC6513800426cA9B3530bd04cdB5A8f47c9C038" # Aeneid launchpad (update for mainnet)
+      address: "0x501047D4D5E323DB64855c14557aC1D3B7393298" # mainnet factory (set after deploy)
       abi: SovryFactory
-      startBlock: 13967897
+      startBlock: 0
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -41,7 +41,7 @@ dataSources:
 templates:
   - kind: ethereum
     name: SovryExchange
-    network: story-aeneid
+    network: story
     source:
       abi: SovryExchange
     mapping:
@@ -90,7 +90,7 @@ templates:
 
   - kind: ethereum
     name: WrapperToken
-    network: story-aeneid
+    network: story
     source:
       abi: ERC20
     mapping:

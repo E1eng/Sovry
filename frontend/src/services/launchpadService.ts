@@ -52,7 +52,7 @@ const contractVersionCache = new Map<string, "new" | "old">();
 
 /**
  * Detect which SovryLaunchpad contract version is deployed.
- * For the current Aeneid deployment we always treat it as "new" to avoid
+ * For the current deployment we always treat it as "new" to avoid
  * mis-detecting when probing with dummy wrapper addresses.
  */
 export async function detectContractVersion(

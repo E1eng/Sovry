@@ -7,46 +7,46 @@ import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { Toaster as HotToaster } from "react-hot-toast";
 import { logger } from "@/lib/logger";
-import { STORY_RPC_URL } from "@/lib/env";
+import { STORY_RPC_URL, STORYSCAN_BASE_URL } from "@/lib/env";
 
 const queryClient = new QueryClient();
 
-const storyAeneid = {
-  id: 1315,
-  name: "Story Aeneid Testnet",
+const storyMainnet = {
+  id: 1514,
+  name: "Story Mainnet",
   nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
   rpcUrls: {
     default: { http: [STORY_RPC_URL] },
     public: { http: [STORY_RPC_URL] },
   },
   blockExplorers: {
-    default: { name: "StoryScan", url: "https://aeneid.storyscan.io" },
+    default: { name: "StoryScan", url: STORYSCAN_BASE_URL },
   },
 } as const;
 
 const wagmiConfig = createConfig({
-  chains: [storyAeneid],
+  chains: [storyMainnet],
   transports: {
-    [storyAeneid.id]: http(STORY_RPC_URL),
+    [storyMainnet.id]: http(STORY_RPC_URL),
   },
 });
 
 const evmNetworks = [
   {
-    blockExplorerUrls: ["https://storyscan.xyz/"],
-    chainId: 1315, // Correct Story Aeneid Testnet chain ID
-    chainName: "Story Aeneid Testnet",
+    blockExplorerUrls: [STORYSCAN_BASE_URL],
+    chainId: 1514,
+    chainName: "Story Mainnet",
     iconUrls: ["https://app.dynamic.xyz/assets/networks/eth.svg"],
-    name: "Story Aeneid Testnet",
+    name: "Story Mainnet",
     nativeCurrency: {
       decimals: 18,
       name: "IP",
       symbol: "IP",
       iconUrl: "https://app.dynamic.xyz/assets/networks/eth.svg",
     },
-    networkId: 1315,
+    networkId: 1514,
     rpcUrls: [STORY_RPC_URL],
-    vanityName: "Story Aeneid Testnet",
+    vanityName: "Story Mainnet",
   },
 ];
 

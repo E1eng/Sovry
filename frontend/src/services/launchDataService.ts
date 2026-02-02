@@ -37,7 +37,7 @@ async function detectContractVersion(launchpadAddress: string): Promise<"new" | 
   const cached = contractVersionCache.get(launchpadAddress);
   if (cached) return cached;
 
-  // Frontend is wired against latest SovryLaunchpad deployment on Aeneid
+  // Frontend is wired against latest SovryLaunchpad deployment
   // which exposes getMarketCap/getBondingCurve/getTokenInfo. To avoid
   // false "old" detection from probing a dummy wrapper, we always
   // treat this address as the new contract.

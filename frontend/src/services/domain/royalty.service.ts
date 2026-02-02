@@ -165,8 +165,10 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: Prima
 
     try {
       const client = getStoryPublicClient();
-      const royaltyModuleAddress =
-        process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS || "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086";
+      const royaltyModuleAddress = process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS;
+      if (!royaltyModuleAddress) {
+        throw new Error("NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS is required but not set in environment variables");
+      }
 
       const royaltyVaultAddress = await client.readContract({
         address: royaltyModuleAddress as Address,

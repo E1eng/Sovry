@@ -13,11 +13,11 @@ export async function createStoryProtocolClient(primaryWallet?: PrimaryWalletLik
     return (
       (StoryClient as any).new?.({
         transport: http(STORY_RPC_URL),
-        chainId: 1315,
+        chainId: 1514,
       }) ||
       new (StoryClient as any)({
         transport: http(STORY_RPC_URL),
-        chainId: 1315,
+        chainId: 1514,
       })
     );
   }
@@ -32,7 +32,7 @@ export async function createStoryProtocolClient(primaryWallet?: PrimaryWalletLik
     const config: any = {
       wallet: walletClient,
       transport: custom((walletClient as any).transport),
-      chainId: "aeneid",
+      chainId: process.env.NEXT_PUBLIC_STORY_SDK_CHAIN_ID || "mainnet",
     };
 
     return (StoryClient as any).newClient?.(config) || (StoryClient as any).new?.(config);
@@ -43,12 +43,12 @@ export async function createStoryProtocolClient(primaryWallet?: PrimaryWalletLik
     return (
       (StoryClient as any).new?.({
         transport: http(STORY_RPC_URL),
-        chainId: 1315,
+        chainId: 1514,
         account: walletAddress as Address,
       }) ||
       new (StoryClient as any)({
         transport: http(STORY_RPC_URL),
-        chainId: 1315,
+        chainId: 1514,
         account: walletAddress as Address,
       })
     );

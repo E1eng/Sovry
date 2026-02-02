@@ -25,7 +25,7 @@ async function createStoryProtocolClient(primaryWallet: PrimaryWalletLike) {
     const config: any = {
       wallet: walletClient, // Pass the actual wallet client
       transport: custom((walletClient as any).transport), // Use custom transport
-      chainId: "aeneid",
+      chainId: process.env.NEXT_PUBLIC_STORY_SDK_CHAIN_ID || "mainnet",
     };
     
     const client = (StoryClient as any).newClient?.(config) || (StoryClient as any).new?.(config);
@@ -41,7 +41,7 @@ async function createStoryProtocolClient(primaryWallet: PrimaryWalletLike) {
       
       const config: any = {
         transport: http(STORY_RPC_URL),
-        chainId: "aeneid",
+        chainId: process.env.NEXT_PUBLIC_STORY_SDK_CHAIN_ID || "mainnet",
         account: walletAddress,
       };
       

@@ -8,7 +8,9 @@
     "test": "hardhat test",
     "coverage": "hardhat coverage",
     "deploy:launchpad": "hardhat run scripts/deploy-launchpad.ts --network aeneid",
+    "deploy:mainnet": "hardhat run scripts/deploy-launchpad.ts --network mainnet",
     "verify": "hardhat verify --network aeneid",
+    "verify:mainnet": "hardhat verify --network mainnet",
     "typechain": "hardhat typechain"
   },
   "devDependencies": {

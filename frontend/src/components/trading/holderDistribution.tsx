@@ -6,8 +6,9 @@ import { Loader2 } from "lucide-react";
 import { getHolderDistribution, type HolderDistribution } from "@/services/holderService";
 import { SOVRY_EXCHANGE_ADDRESS } from "@/services/storyProtocolService";
 import { logger } from "@/lib/logger";
+import { STORYSCAN_BASE_URL } from "@/lib/env";
 
-const ADDRESS_EXPLORER_URL = "https://aeneid.storyscan.io/address/";
+const ADDRESS_EXPLORER_URL = `${STORYSCAN_BASE_URL.replace(/\/$/, "")}/address/`;
 
 interface HolderDistributionProps {
   tokenAddress: string;
