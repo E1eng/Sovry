@@ -45,7 +45,7 @@ create table if not exists revenue_events (
 ```
 
 ## Addresses (Aeneid)
-- Factory: `0xb2B5c668fFEE2d8E9e68eeC6ec41BeBC59989c3e`
+- Factory: `0x2eC6513800426cA9B3530bd04cdB5A8f47c9C038`
 - Exchange: `0xc7E8fc2C1da57eB7103bdf180B5D82E24e5e3d8D`
 - Router: `0xa3B5471F43FFac986E66100E901D6cb4247D12C9`
 - Royalty Workflows: `0x9515faE61E0c0447C6AC6dEe5628A2097aFE1890`

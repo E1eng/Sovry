@@ -15,7 +15,7 @@ Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** int
   - `SovryRouter.sol` – user gateway for common write actions
   - `SovryToken.sol` – ERC‑20 wrapper token deployed per launch
 - **Deployed Addresses (Aeneid testnet)**
-  - Factory (launchpad): `0xb2B5c668fFEE2d8E9e68eeC6ec41BeBC59989c3e`
+  - Factory (launchpad): `0x2eC6513800426cA9B3530bd04cdB5A8f47c9C038`
   - Exchange: `0xc7E8fc2C1da57eB7103bdf180B5D82E24e5e3d8D`
   - Router: `0xa3B5471F43FFac986E66100E901D6cb4247D12C9`
   - Royalty Workflows: `0x9515faE61E0c0447C6AC6dEe5628A2097aFE1890`
@@ -233,7 +233,7 @@ NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=""   # Dynamic env id
 NEXT_PUBLIC_ENABLE_DEBRIDGE_WIDGET="true"
 
 ## Sovry Factory (Aeneid)
-NEXT_PUBLIC_LAUNCHPAD_ADDRESS="0xb2B5c668fFEE2d8E9e68eeC6ec41BeBC59989c3e"
+NEXT_PUBLIC_LAUNCHPAD_ADDRESS="0x2eC6513800426cA9B3530bd04cdB5A8f47c9C038"
 NEXT_PUBLIC_BASE_PRICE_WEI="100000000000"
 NEXT_PUBLIC_PRICE_INCREMENT_WEI="2000000"
 NEXT_PUBLIC_DEMO_ROYALTY_AMOUNT_WEI="1000000000000000000"
