@@ -68,6 +68,7 @@ export default function CreatePage() {
   const [twitterUrl, setTwitterUrl] = useState("");
   const [telegramUrl, setTelegramUrl] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [previewImageErrored, setPreviewImageErrored] = useState(false);
 
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchedTokenAddress, setLaunchedTokenAddress] = useState<string | null>(null);
@@ -408,6 +409,11 @@ export default function CreatePage() {
     (selectedIPAsset?.name ? selectedIPAsset.name.slice(0, 4).toUpperCase() : "") ||
     "IPTK";
   const previewImage = launchImageUrl || selectedIPAsset?.imageUrl || "";
+
+  useEffect(() => {
+    setPreviewImageErrored(false);
+  }, [previewImage]);
+
   const vaultAddressLabel = selectedIPAsset?.royaltyVaultAddress
     ? truncateAddress(selectedIPAsset.royaltyVaultAddress, {
         start: 6,
@@ -517,7 +523,7 @@ export default function CreatePage() {
                 </p>
                 <div className="border border-[#262626] bg-[#050505]">
                   <div className="relative aspect-square border-b border-[#262626] bg-black flex items-center justify-center">
-                    {previewImage ? (
+                    {previewImage && !previewImageErrored ? (
                       <Image
                         loader={externalImageLoader}
                         unoptimized
@@ -526,10 +532,7 @@ export default function CreatePage() {
                         fill
                         sizes="360px"
                         className="object-cover"
-                        onError={(e) => {
-                          const target = e.currentTarget as HTMLImageElement;
-                          target.style.display = "none";
-                        }}
+                        onError={() => setPreviewImageErrored(true)}
                       />
                     ) : (
                       <span className="text-[10px] font-mono uppercase tracking-[0.4em] text-muted-foreground">
