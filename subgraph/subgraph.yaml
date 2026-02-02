@@ -7,9 +7,9 @@ dataSources:
     name: SovryFactory
     network: story
     source:
-      address: "0x501047D4D5E323DB64855c14557aC1D3B7393298" # mainnet factory (set after deploy)
+      address: "0x2F11495B20D5f486846F1b1bFB5a3f3b8E492DE0" # mainnet factory (set after deploy)
       abi: SovryFactory
-      startBlock: 0
+      startBlock: 13660158
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

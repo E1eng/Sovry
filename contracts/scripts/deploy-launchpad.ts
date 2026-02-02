@@ -22,8 +22,8 @@ async function main() {
   const wipToken = process.env.WIP_ADDRESS || process.env.WIP_ADDRESS_AENEID;
   const keeperAddress = process.env.KEEPER_ADDRESS || deployer.address;
   const shouldVerify = !!process.env.STORYSCAN_API_KEY && process.env.SKIP_AUTO_VERIFY !== "true";
-  const curveBasePriceWei = process.env.CURVE_BASE_PRICE_WEI || "1000000000000"; // 1e12 wei default
-  const curvePriceIncrementWei = process.env.CURVE_PRICE_INCREMENT_WEI || "1000000000"; // 1e9 wei default
+  const curveBasePriceWei = process.env.CURVE_BASE_PRICE_WEI || "2500000000000000"; // 1e12 wei default
+  const curvePriceIncrementWei = process.env.CURVE_PRICE_INCREMENT_WEI || "11718750000000"; // 1e9 wei default
 
   if (!treasury || !piperXV3Factory || !piperXV3SwapRouter || !piperXV3PositionManager || !royaltyWorkflows || !wipToken) {
     throw new Error(
@@ -32,7 +32,7 @@ async function main() {
   }
 
   // Graduation threshold in ETH (default 1 ETH if not provided)
-  const graduationThresholdEth = process.env.GRADUATION_THRESHOLD_ETH || "2000";
+  const graduationThresholdEth = process.env.GRADUATION_THRESHOLD_ETH || "10000";
   const graduationThreshold = ethers.utils.parseEther(graduationThresholdEth);
 
   console.log("📦 Deploying contracts with args:");
