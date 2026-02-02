@@ -1,6 +1,6 @@
-import { createPublicClient, http } from "viem";
+import { createPublicClient, fallback, http } from "viem";
 
-import { STORY_RPC_URL, STORYSCAN_BASE_URL } from "@/lib/env";
+import { STORY_RPC_URLS, STORYSCAN_BASE_URL } from "@/lib/env";
 
 export type StoryPublicClient = ReturnType<typeof createPublicClient>;
 
@@ -14,13 +14,13 @@ export function getStoryPublicClient(): StoryPublicClient {
         name: "Story Mainnet",
         nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
         rpcUrls: {
-          default: { http: [STORY_RPC_URL] },
+          default: { http: STORY_RPC_URLS },
         },
         blockExplorers: {
           default: { name: "StoryScan", url: STORYSCAN_BASE_URL },
         },
       },
-      transport: http(STORY_RPC_URL),
+      transport: fallback(STORY_RPC_URLS.map((url) => http(url))),
     });
   }
 

@@ -2,10 +2,11 @@
 // For creating new IP assets and getting royalty tokens
 
 import { StoryClient } from '@story-protocol/core-sdk';
-import { http, Address, custom } from 'viem';
+import { fallback, http, Address } from 'viem';
 import { logger } from '@/lib/logger';
-import { STORY_RPC_URL } from "@/lib/env";
+import { STORY_RPC_URLS } from "@/lib/env";
 import type { PrimaryWalletLike } from '@/services/domain/types';
+import { getRoyaltyVaultAddress } from "@/services/domain/royalty.service";
 
 async function getWalletAddress(primaryWallet: PrimaryWalletLike): Promise<Address> {
   return (await primaryWallet.address) as Address;
@@ -24,7 +25,7 @@ async function createStoryProtocolClient(primaryWallet: PrimaryWalletLike) {
     // Create Story SDK client with proper wallet integration
     const config: any = {
       wallet: walletClient, // Pass the actual wallet client
-      transport: custom((walletClient as any).transport), // Use custom transport
+      transport: fallback(STORY_RPC_URLS.map((url) => http(url))),
       chainId: process.env.NEXT_PUBLIC_STORY_SDK_CHAIN_ID || "mainnet",
     };
     
@@ -40,7 +41,7 @@ async function createStoryProtocolClient(primaryWallet: PrimaryWalletLike) {
       const walletAddress = await getWalletAddress(primaryWallet);
       
       const config: any = {
-        transport: http(STORY_RPC_URL),
+        transport: fallback(STORY_RPC_URLS.map((url) => http(url))),
         chainId: process.env.NEXT_PUBLIC_STORY_SDK_CHAIN_ID || "mainnet",
         account: walletAddress,
       };
@@ -128,7 +129,7 @@ export async function transferRoyaltyTokensFromIP(
     const client = await createStoryProtocolClient(primaryWallet);
     
     // Get royalty vault address (ini adalah address dari ERC-20 Royalty Tokens)
-    const royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(ipId as Address);
+    const royaltyVaultAddress = await getRoyaltyVaultAddress(ipId, primaryWallet);
     
     if (!royaltyVaultAddress || royaltyVaultAddress === '0x0000000000000000000000000000000000000000') {
       throw new Error('No royalty vault found for this IP. This IP may not have any royalty tokens yet.');

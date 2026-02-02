@@ -59,11 +59,10 @@ const LAUNCHPAD_VIEW_ABI = [
 
 function mapLaunchError(error: unknown): string {
   const anyErr = error as any;
-  const shortMessage = anyErr && typeof anyErr.shortMessage === "string" ? anyErr.shortMessage : "";
-  const errorName =
+  const _shortMessage = anyErr && typeof anyErr.shortMessage === "string" ? anyErr.shortMessage : "";
+  const _errorName =
     anyErr && anyErr.data && typeof anyErr.data.errorName === "string" ? anyErr.data.errorName : "";
   const message = anyErr && typeof anyErr.message === "string" ? anyErr.message : "";
-  const combined = `${shortMessage} ${message} ${errorName}`;
 
   if (message) {
     return message;
@@ -81,7 +80,7 @@ export async function launchOnBondingCurveDynamic(
   primaryWallet: PrimaryWalletLike,
   tokenName: string,
   tokenSymbol: string,
-  launchPercentage: number,
+  _launchPercentage: number,
 ): Promise<{ success: boolean; approveTxHash?: string; launchTxHash?: string; wrapperAddress?: string; error?: string }> {
   try {
     if (!primaryWallet) {

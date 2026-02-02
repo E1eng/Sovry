@@ -144,7 +144,7 @@ export async function claimRevenueToWalletAndPump(
   }
 }
 
-export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: PrimaryWalletLike): Promise<string | null> {
+export async function getRoyaltyVaultAddress(ipId: string, _primaryWallet?: PrimaryWalletLike): Promise<string | null> {
   try {
     if (
       !ipId ||
@@ -156,33 +156,27 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: Prima
       return null;
     }
 
-    const client = (await createStoryProtocolClient(primaryWallet)) as any;
-    const royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(ipId as Address);
+    const client = getStoryPublicClient();
+    const royaltyModuleAddress = process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS;
+    if (!royaltyModuleAddress) {
+      throw new Error("NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS is required but not set in environment variables");
+    }
+
+    const royaltyVaultAddress = (await client.readContract({
+      address: royaltyModuleAddress as Address,
+      abi: ROYALTY_MODULE_ABI,
+      functionName: "getRoyaltyVaultAddress",
+      args: [ipId as Address],
+    })) as string;
+
+    if (!royaltyVaultAddress || royaltyVaultAddress === "0x0000000000000000000000000000000000000000") {
+      return null;
+    }
 
     return royaltyVaultAddress;
   } catch (error) {
-    logger.error("Error getting royalty vault address from SDK:", error);
-
-    try {
-      const client = getStoryPublicClient();
-      const royaltyModuleAddress = process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS;
-      if (!royaltyModuleAddress) {
-        throw new Error("NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS is required but not set in environment variables");
-      }
-
-      const royaltyVaultAddress = await client.readContract({
-        address: royaltyModuleAddress as Address,
-        abi: ROYALTY_MODULE_ABI,
-        functionName: "getRoyaltyVaultAddress",
-        args: [ipId as Address],
-      });
-
-      return royaltyVaultAddress;
-    } catch (contractError) {
-      logger.error("Contract call also failed:", contractError);
-      logger.error("This IP might not exist or have no royalty vault:", ipId);
-      return null;
-    }
+    logger.warn("Royalty vault lookup failed (treating as no vault)", error);
+    return null;
   }
 }
 

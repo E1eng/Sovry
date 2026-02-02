@@ -28,6 +28,7 @@ import Link from "next/link";
 import {
   fetchWalletIPAssets,
   IPAsset,
+  getRoyaltyVaultAddress,
   getTokenBalance,
   TokenBalance,
   SOVRY_EXCHANGE_ADDRESS,
@@ -42,7 +43,7 @@ import { STORYSCAN_BASE_URL } from "@/lib/env";
 
 export default function CreatePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
-  const router = useRouter();
+  const _router = useRouter();
 
   const externalImageLoader = ({ src }: { src: string }) => src;
 
@@ -178,28 +179,7 @@ export default function CreatePage() {
       try {
         const assets = await fetchWalletIPAssets(walletAddress, primaryWallet);
         setIpAssets(assets);
-
-        const balanceResults = await Promise.all(
-          assets.map(async (asset) => {
-            if (!asset.royaltyVaultAddress) {
-              return { ipId: asset.ipId, balance: null as TokenBalance | null };
-            }
-            try {
-              const balance = await getTokenBalance(walletAddress, asset.royaltyVaultAddress);
-              return { ipId: asset.ipId, balance };
-            } catch {
-              return { ipId: asset.ipId, balance: null };
-            }
-          })
-        );
-
-        const balances: Record<string, TokenBalance> = {};
-        for (const { ipId, balance } of balanceResults) {
-          if (balance) {
-            balances[ipId] = balance;
-          }
-        }
-        setTokenBalances(balances);
+        setTokenBalances({});
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch IP assets");
       } finally {
@@ -209,6 +189,86 @@ export default function CreatePage() {
 
     fetchAssets();
   }, [isConnected, walletAddress, primaryWallet]);
+
+  const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+  useEffect(() => {
+    const hydrateSelectedIp = async () => {
+      if (!walletAddress) return;
+      if (!selectedIP) return;
+
+      const selected = ipAssets.find((asset) => asset.ipId === selectedIP);
+      if (!selected) return;
+
+      const cachedBalance = tokenBalances[selected.ipId];
+      const alreadyHydrated = cachedBalance !== undefined;
+      if (alreadyHydrated) return;
+
+      try {
+        const royaltyVaultAddress = await getRoyaltyVaultAddress(selected.ipId, primaryWallet);
+
+        if (royaltyVaultAddress && royaltyVaultAddress !== ZERO_ADDRESS) {
+          setIpAssets((prev) =>
+            prev.map((asset) =>
+              asset.ipId === selected.ipId
+                ? {
+                    ...asset,
+                    royaltyVaultAddress,
+                    hasRoyaltyTokens: true,
+                  }
+                : asset
+            )
+          );
+
+          const balance = await getTokenBalance(walletAddress, royaltyVaultAddress);
+          if (balance) {
+            setTokenBalances((prev) => ({ ...prev, [selected.ipId]: balance }));
+          } else {
+            setTokenBalances((prev) => ({
+              ...prev,
+              [selected.ipId]: { address: royaltyVaultAddress, balance: "0", decimals: 6, symbol: "RT" },
+            }));
+          }
+          return;
+        }
+
+        setIpAssets((prev) =>
+          prev.map((asset) =>
+            asset.ipId === selected.ipId
+              ? {
+                  ...asset,
+                  royaltyVaultAddress: ZERO_ADDRESS,
+                  hasRoyaltyTokens: false,
+                }
+              : asset
+          )
+        );
+        setTokenBalances((prev) => ({
+          ...prev,
+          [selected.ipId]: { address: ZERO_ADDRESS, balance: "0", decimals: 6, symbol: "RT" },
+        }));
+      } catch (err) {
+        logger.error("Failed to hydrate selected IP royalty info", err);
+        setIpAssets((prev) =>
+          prev.map((asset) =>
+            asset.ipId === selected.ipId
+              ? {
+                  ...asset,
+                  royaltyVaultAddress: ZERO_ADDRESS,
+                  hasRoyaltyTokens: false,
+                }
+              : asset
+          )
+        );
+        setTokenBalances((prev) => ({
+          ...prev,
+          [selected.ipId]: { address: ZERO_ADDRESS, balance: "0", decimals: 6, symbol: "RT" },
+        }));
+      }
+    };
+
+    hydrateSelectedIp();
+  }, [walletAddress, selectedIP, primaryWallet, ipAssets, tokenBalances]);
 
   const handleUnlockTokens = async (ipAsset: IPAsset) => {
     if (!walletAddress || !primaryWallet) return;
@@ -233,12 +293,37 @@ export default function CreatePage() {
 
         // Refresh on-chain royalty token balance for this IP and update local state
         try {
-          const updatedBalance = await getTokenBalance(walletAddress, ipAsset.royaltyVaultAddress);
-          if (updatedBalance) {
-            setTokenBalances((prev) => ({
-              ...prev,
-              [ipAsset.ipId]: updatedBalance,
-            }));
+          const latestAsset = ipAssets.find((a) => a.ipId === ipAsset.ipId) || ipAsset;
+          const resolvedVault =
+            latestAsset.royaltyVaultAddress && latestAsset.royaltyVaultAddress !== ZERO_ADDRESS
+              ? latestAsset.royaltyVaultAddress
+              : (await getRoyaltyVaultAddress(ipAsset.ipId, primaryWallet)) || ZERO_ADDRESS;
+
+          if (resolvedVault !== ZERO_ADDRESS) {
+            setIpAssets((prev) =>
+              prev.map((asset) =>
+                asset.ipId === ipAsset.ipId
+                  ? {
+                      ...asset,
+                      royaltyVaultAddress: resolvedVault,
+                      hasRoyaltyTokens: true,
+                    }
+                  : asset
+              )
+            );
+
+            const updatedBalance = await getTokenBalance(walletAddress, resolvedVault);
+            if (updatedBalance) {
+              setTokenBalances((prev) => ({
+                ...prev,
+                [ipAsset.ipId]: updatedBalance,
+              }));
+            } else {
+              setTokenBalances((prev) => ({
+                ...prev,
+                [ipAsset.ipId]: { address: resolvedVault, balance: "0", decimals: 6, symbol: "RT" },
+              }));
+            }
           }
         } catch (balanceError) {
           logger.error("Failed to refresh royalty token balance after transfer", balanceError);

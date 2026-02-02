@@ -1,7 +1,6 @@
 import { logger } from "@/lib/logger";
 
 import type { PrimaryWalletLike } from "./types";
-import { getRoyaltyVaultAddress } from "./royalty.service";
 
 const STORY_API_KEY =
   process.env.NEXT_PUBLIC_STORY_API_KEY || "MhBsxkU1z9fG6TofE59KqiiWV-YlYE8Q4awlLQehF3U";
@@ -27,7 +26,7 @@ export interface IPAsset {
 const WALLET_IP_ASSETS_CACHE_TTL_MS = 60_000;
 const walletIpAssetsCache = new Map<string, { assets: IPAsset[]; timestamp: number }>();
 
-export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?: PrimaryWalletLike): Promise<IPAsset[]> {
+export async function fetchWalletIPAssets(walletAddress: string, _primaryWallet?: PrimaryWalletLike): Promise<IPAsset[]> {
   try {
     const cacheKey = walletAddress.toLowerCase();
     const cached = walletIpAssetsCache.get(cacheKey);
@@ -127,11 +126,8 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
 
         const ipAssets: IPAsset[] = await Promise.all(
           assets.map(async (asset: any) => {
-            const royaltyVaultAddress = await getRoyaltyVaultAddress(asset.ipId, primaryWallet);
-            const hasRoyaltyTokens =
-              royaltyVaultAddress !== null &&
-              royaltyVaultAddress !== undefined &&
-              royaltyVaultAddress !== "0x0000000000000000000000000000000000000000";
+            const royaltyVaultAddress = "0x0000000000000000000000000000000000000000";
+            const hasRoyaltyTokens = false;
 
             return {
               ipId: asset.ipId,
