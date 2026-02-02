@@ -47,7 +47,31 @@ export default function CreatePage() {
   const externalImageLoader = ({ src }: { src: string }) => src;
 
   const isConnected = !!primaryWallet;
-  const walletAddress = primaryWallet?.address;
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveAddress = async () => {
+      if (!primaryWallet) {
+        setWalletAddress(null);
+        return;
+      }
+
+      try {
+        const resolved = await primaryWallet.address;
+        if (!cancelled) setWalletAddress(resolved);
+      } catch {
+        if (!cancelled) setWalletAddress(null);
+      }
+    };
+
+    resolveAddress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryWallet]);
 
   const [ipAssets, setIpAssets] = useState<IPAsset[]>([]);
   const [loading, setLoading] = useState(false);

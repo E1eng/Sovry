@@ -1,9 +1,15 @@
 import { logger } from "@/lib/logger";
 
 import type { PrimaryWalletLike } from "./types";
-import { checkRoyaltyTokens, getRoyaltyVaultAddress } from "./royalty.service";
+import { getRoyaltyVaultAddress } from "./royalty.service";
 
-const STORY_API_KEY = process.env.NEXT_PUBLIC_STORY_API_KEY || "";
+const STORY_API_KEY =
+  process.env.NEXT_PUBLIC_STORY_API_KEY || "MhBsxkU1z9fG6TofE59KqiiWV-YlYE8Q4awlLQehF3U";
+
+const STORY_API_BASE_URL = (process.env.NEXT_PUBLIC_STORY_API_BASE_URL || "https://api.storyapis.com/api/v4").replace(
+  /\/$/,
+  ""
+);
 
 export interface IPAsset {
   ipId: string;
@@ -29,9 +35,11 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
       return cached.assets;
     }
 
+    const listIpAssetsUrl = `${STORY_API_BASE_URL}/assets`;
+
     const approaches = [
       {
-        url: "https://staging-api.storyprotocol.net/api/v4/assets",
+        url: listIpAssetsUrl,
         body: {
           includeLicenses: true,
           moderated: false,
@@ -42,7 +50,7 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         },
       },
       {
-        url: "https://staging-api.storyprotocol.net/api/v4/assets",
+        url: listIpAssetsUrl,
         body: {
           includeLicenses: true,
           moderated: false,
@@ -53,7 +61,7 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         },
       },
       {
-        url: "https://staging-api.storyprotocol.net/api/v4/assets",
+        url: listIpAssetsUrl,
         body: {
           includeLicenses: false,
           moderated: false,
@@ -64,7 +72,7 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         },
       },
       {
-        url: "https://staging-api.storyprotocol.net/api/v4/assets",
+        url: listIpAssetsUrl,
         body: {
           includeLicenses: true,
           moderated: false,
@@ -74,6 +82,9 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         },
       },
     ];
+
+    let hadOkResponse = false;
+    let lastFailureMessage = "";
 
     for (let i = 0; i < approaches.length; i++) {
       const approach = approaches[i];
@@ -89,9 +100,12 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         });
 
         if (!response.ok) {
+          lastFailureMessage = `Story API request failed (${response.status} ${response.statusText})`;
           logger.log(`Approach ${i + 1} failed:`, response.status, response.statusText);
           continue;
         }
+
+        hadOkResponse = true;
 
         const result = await response.json();
 
@@ -114,7 +128,10 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
         const ipAssets: IPAsset[] = await Promise.all(
           assets.map(async (asset: any) => {
             const royaltyVaultAddress = await getRoyaltyVaultAddress(asset.ipId, primaryWallet);
-            const hasRoyaltyTokens = await checkRoyaltyTokens(asset.ipId, primaryWallet);
+            const hasRoyaltyTokens =
+              royaltyVaultAddress !== null &&
+              royaltyVaultAddress !== undefined &&
+              royaltyVaultAddress !== "0x0000000000000000000000000000000000000000";
 
             return {
               ipId: asset.ipId,
@@ -142,14 +159,19 @@ export async function fetchWalletIPAssets(walletAddress: string, primaryWallet?:
           return ipAssets;
         }
       } catch (error) {
+        lastFailureMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Approach ${i + 1} error:`, error);
       }
     }
 
-    logger.log("All approaches failed - no IP assets with royalty tokens found");
-    return [];
+    if (hadOkResponse) {
+      return [];
+    }
+
+    throw new Error(lastFailureMessage || "Failed to fetch IP assets from Story API");
   } catch (error) {
     logger.error("Error fetching wallet IP assets from Story API:", error);
-    return [];
+
+    throw error instanceof Error ? error : new Error("Failed to fetch IP assets from Story API");
   }
 }
