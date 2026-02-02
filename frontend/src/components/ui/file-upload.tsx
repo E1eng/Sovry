@@ -54,26 +54,26 @@ export function FileUpload({
 
   return (
     <div
-      className={`w-full border border-dashed rounded-lg px-3 py-2 text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 bg-transparent hover:border-neutral-400 dark:hover:border-neutral-500 flex flex-col items-start justify-center cursor-pointer transition-colors ${
-        isDragging ? "border-sovry-green/70 bg-sovry-green/5" : "border-neutral-200 dark:border-neutral-700"
+      className={`w-full rounded-sm border border-dashed border-[#262626] bg-[#050505] px-4 py-4 text-center text-[11px] font-mono text-muted-foreground transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/70 hover:border-primary/50 flex flex-col items-center justify-center gap-2 cursor-pointer ${
+        isDragging ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/60" : ""
       } ${className}`}
       onClick={handleClick}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      <span className="mb-1">
-        Click to upload or drag and drop your file here.
+      <span className="text-[10px] uppercase tracking-[0.3em]">
+        {isDragging ? "Release to upload" : "Drop file or click to upload"}
       </span>
       {selectedFiles.length > 0 ? (
-        <span className="truncate text-neutral-700 dark:text-neutral-200">
+        <span className="truncate text-[11px] text-foreground normal-case tracking-normal">
           {multiple
             ? `${selectedFiles.length} file(s) selected`
             : selectedFiles[0]?.name}
         </span>
       ) : (
-        <span className="truncate text-neutral-400 dark:text-neutral-500">
-          Supported: images (PNG, JPG, GIF, SVG, WebP)
+        <span className="truncate text-[9px] uppercase tracking-[0.25em] text-muted-foreground/70">
+          Supported: PNG, JPG, GIF, SVG, WebP
         </span>
       )}
       <input

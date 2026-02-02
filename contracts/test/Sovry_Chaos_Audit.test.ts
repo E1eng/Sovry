@@ -8,7 +8,7 @@ import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 describe("Sovry Protocol - Chaos Audit", function () {
   async function deployFixture(opts?: {
     graduationThresholdWei?: string;
-    revertAddLiquidity?: boolean;
+    revertMint?: boolean;
     treasuryOverride?: string;
     basePriceWei?: string;
     priceIncrementWei?: string;
@@ -21,11 +21,17 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const MockERC206 = await ethers.getContractFactory("MockERC20_6");
     const rt = await MockERC206.deploy("My Song Royalty", "RT-SONG");
 
-    const MockPiperX = await ethers.getContractFactory("MockPiperXRouter");
-    const piperXRouter = await MockPiperX.deploy();
+    const MockPiperXV3Factory = await ethers.getContractFactory("MockPiperXV3Factory");
+    const piperXV3Factory = await MockPiperXV3Factory.deploy();
 
-    if (opts?.revertAddLiquidity !== undefined) {
-      await piperXRouter.setRevertAddLiquidity(opts.revertAddLiquidity);
+    const MockPiperXV3PositionManager = await ethers.getContractFactory("MockPiperXV3PositionManager");
+    const piperXV3PositionManager = await MockPiperXV3PositionManager.deploy(piperXV3Factory.address);
+
+    const MockPiperXV3Router = await ethers.getContractFactory("MockPiperXV3Router");
+    const piperXV3Router = await MockPiperXV3Router.deploy();
+
+    if (opts?.revertMint !== undefined) {
+      await piperXV3PositionManager.setRevertMint(opts.revertMint);
     }
 
     const MockRoyalty = await ethers.getContractFactory("MockRoyaltyWorkflows");
@@ -38,7 +44,9 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     const exchange = await SovryExchange.deploy(
       treasuryAddr,
-      piperXRouter.address,
+      piperXV3Factory.address,
+      piperXV3Router.address,
+      piperXV3PositionManager.address,
       royaltyWorkflows.address,
       wip.address,
       graduationThreshold,
@@ -52,7 +60,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const SovryFactory = await ethers.getContractFactory("SovryFactory");
     const factory = await SovryFactory.deploy(exchange.address);
 
-    const weth = await piperXRouter.WETH();
+    const weth = wip.address;
     const SovryRouter = await ethers.getContractFactory("SovryRouter");
     const router = await SovryRouter.deploy(factory.address, exchange.address, weth);
 
@@ -62,7 +70,22 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const keeperRole = await exchange.KEEPER_ROLE();
     await exchange.connect(owner).grantRole(keeperRole, keeper.address);
 
-    return { owner, creator, trader, keeper, treasury, wip, rt, piperXRouter, royaltyWorkflows, exchange, factory, router };
+    return {
+      owner,
+      creator,
+      trader,
+      keeper,
+      treasury,
+      wip,
+      rt,
+      piperXV3Factory,
+      piperXV3PositionManager,
+      piperXV3Router,
+      royaltyWorkflows,
+      exchange,
+      factory,
+      router,
+    };
   }
 
   async function launchToken(params: {
@@ -71,6 +94,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     rt: any;
     creator: any;
     amountToLock: any;
+    ipAsset?: string;
   }) {
     await params.rt.transfer(params.creator.address, params.amountToLock);
     await params.rt.connect(params.creator).approve(params.exchange.address, params.amountToLock);
@@ -78,7 +102,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const tx = await params.factory.connect(params.creator).launchToken(
       params.rt.address,
       params.amountToLock,
-      params.rt.address,
+      params.ipAsset ?? params.rt.address,
       "Wrapper",
       "WRP",
       { value: ethers.utils.parseEther("1") }
@@ -142,8 +166,6 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     const curveAfter = await exchange.bondingCurves(wrapperAddress);
 
-    // If fee were injected, reserve would increase by baseCost + fee.
-    // Current behavior: reserve increases by baseCost only.
     expect(curveAfter.reserveBalance.sub(curveBefore.reserveBalance)).to.equal(baseCost);
   });
 
@@ -209,7 +231,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     // graduation becomes impossible and the token remains stuck on the bonding curve.
     const { factory, exchange, rt, creator, trader } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
-      revertAddLiquidity: true,
+      revertMint: true,
       basePriceWei: "0.000000000000000010",
       priceIncrementWei: "0.000000000000000001",
     });
@@ -239,10 +261,8 @@ describe("Sovry Protocol - Chaos Audit", function () {
     await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
   });
 
-  it("MEV surface: post-graduation buyback amountOutMin must be keeper-controlled (slippage protection)", async function () {
-    // WHY: if amountOutMin is too low, sandwich/price manipulation can drain value from royalty buybacks.
-    // This test verifies the keeper can set a non-trivial amountOutMin (not hardcoded to 1).
-    const { factory, exchange, piperXRouter, wip, rt, creator, keeper, trader, owner } = await deployFixture();
+  it("MEV surface: post-graduation buyback uses harvested WIP and routes via keeper", async function () {
+    const { factory, exchange, wip, rt, creator, keeper, trader, owner, royaltyWorkflows } = await deployFixture();
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
@@ -265,21 +285,61 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     await exchange.graduate(wrapperAddress);
 
-    // Fund WIP and deposit royalties after graduation to force _buybackAndBurn.
+    // Fund WIP and deposit royalties after graduation.
+    // Fund mock vault with WIP so harvestFromVault can pull it
     await wip.connect(creator).deposit({ value: ethers.utils.parseEther("1") });
-    await wip.connect(creator).transfer(keeper.address, ethers.utils.parseEther("1") );
-    await wip.connect(keeper).approve(exchange.address, ethers.utils.parseEther("1") );
+    await wip.connect(creator).transfer(royaltyWorkflows.address, ethers.utils.parseEther("1") );
+    await royaltyWorkflows.connect(owner).setWipToken(wip.address);
 
-    // MockPiperXRouter emits:
-    // SwapExactETHForTokensCalled(uint256 amountOutMin, address[] path, address to, uint256 amountIn)
-    await expect(exchange.connect(keeper).depositRoyalties(wrapperAddress, ethers.utils.parseEther("1"), 123))
-      .to.emit(piperXRouter, "SwapExactETHForTokensCalled")
-      .withArgs(
-        123,
-        anyValue,
-        "0x000000000000000000000000000000000000dEaD",
-        ethers.utils.parseEther("1")
-      );
+    const balBefore = await wip.balanceOf(exchange.address);
+
+    await expect(exchange.connect(keeper).harvestFromVault(wrapperAddress)).to.not.be.reverted;
+
+    const balAfter = await wip.balanceOf(exchange.address);
+    expect(balAfter).to.be.gt(balBefore);
+  });
+
+  it("pushFeesToVault: keeper wraps queued native fees into WIP via royalty module", async function () {
+    const { factory, exchange, rt, creator, trader, keeper, royaltyWorkflows, wip } = await deployFixture();
+
+    const RT_UNIT = ethers.BigNumber.from("1000000");
+    const amountToLock = RT_UNIT.mul(100);
+
+    const { wrapperAddress } = await launchToken({ factory, exchange, rt, creator, amountToLock });
+
+    const wrapPerRt = await exchange.WRAP_PER_RT();
+    const buyAmount = RT_UNIT.mul(wrapPerRt);
+    const baseCost = await exchange.calculateBuyPrice(wrapperAddress, buyAmount);
+    const fee = baseCost.mul(await exchange.TRADE_FEE_BPS()).add(10000 - 1).div(10000);
+    const treasuryShare = fee.div(2);
+    const ipaShare = fee.sub(treasuryShare);
+    const totalCost = baseCost.add(fee);
+    const block = await ethers.provider.getBlock("latest");
+    const deadline = block.timestamp + 3600;
+
+    await exchange
+      .connect(trader)
+      .buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
+
+    expect(await exchange.accumulatedRoyaltyNative(wrapperAddress)).to.equal(ipaShare);
+
+    const ipAsset = (await exchange.launchedTokens(wrapperAddress)).ipAsset;
+    const wipBefore = await wip.balanceOf(ipAsset);
+
+    await expect(exchange.connect(keeper).pushFeesToVault(wrapperAddress))
+      .to.emit(exchange, "RoyaltyRevenueProcessed")
+      .withArgs(wrapperAddress, ipaShare, ipAsset);
+
+    expect(await exchange.accumulatedRoyaltyNative(wrapperAddress)).to.equal(0);
+
+    const wipAfter = await wip.balanceOf(ipAsset);
+    expect(wipAfter.sub(wipBefore)).to.equal(ipaShare);
+
+    expect(await royaltyWorkflows.lastChildIpId()).to.equal(ipAsset);
+    expect(await royaltyWorkflows.lastPayer()).to.equal(exchange.address);
+    expect(await royaltyWorkflows.lastCurrencyToken()).to.equal(wip.address);
+    expect(await royaltyWorkflows.lastAmount()).to.equal(ipaShare);
+    expect(await royaltyWorkflows.totalRoyaltyPaid()).to.equal(ipaShare);
   });
 
   it("Redeem: burns wrapper and releases pro-rata RT", async function () {
@@ -339,7 +399,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
   it("Graduation fallback: if addLiquidityETH reverts, wrapper liquidity goes to treasury and wrapper ownership is renounced", async function () {
     const { factory, exchange, rt, creator, trader, treasury } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
-      revertAddLiquidity: true,
+      revertMint: true,
       basePriceWei: "0.000000000000000010",
       priceIncrementWei: "0.000000000000000001",
     });
@@ -414,30 +474,4 @@ describe("Sovry Protocol - Chaos Audit", function () {
     expect(tokenAfter.totalLocked.lt(tokenBefore.totalLocked)).to.equal(true);
   });
 
-  it("Admin misconfig: if treasury rejects ETH, launch fee is queued (no launch bricking)", async function () {
-    // WHY: Previously, Factory hard-pushed launchFee to treasury and would revert if treasury rejected ETH.
-    // This test ensures launch is NOT bricked and the fee is queued to pendingWithdrawals instead.
-    const Reject = await ethers.getContractFactory("RejectETHCreator");
-    const rejectTreasury = await Reject.deploy();
-
-    const { factory, exchange, rt, creator } = await deployFixture({ treasuryOverride: rejectTreasury.address });
-
-    const RT_UNIT = ethers.BigNumber.from("1000000");
-    const amountToLock = RT_UNIT.mul(100);
-
-    await rt.transfer(creator.address, amountToLock);
-    await rt.connect(creator).approve(exchange.address, amountToLock);
-
-    const launchFee = await factory.launchFee();
-
-    const tx = await factory
-      .connect(creator)
-      .launchToken(rt.address, amountToLock, rt.address, "Wrapper", "WRP", {
-        value: launchFee,
-      });
-    const receipt = await tx.wait();
-    expect(receipt.status).to.equal(1);
-
-    expect(await exchange.pendingWithdrawals(rejectTreasury.address)).to.equal(launchFee);
-  });
 });

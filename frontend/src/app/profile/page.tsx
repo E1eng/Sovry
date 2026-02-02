@@ -1,439 +1,178 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { AlertCircle, ArrowUpRight, BarChart3, Database, LayoutGrid, Loader2 } from "lucide-react";
+
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 
-import Image from "next/image";
-import Link from "next/link";
-
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-
-import UserProfile from "@/components/social/UserProfile";
-import { supabase } from "@/lib/supabaseClient";
-import { logger } from "@/lib/logger";
+import { Card } from "@/components/ui/card";
 import { fetchSubgraph } from "@/services/subgraph";
-import {
-  getTokenBalance,
-  type TokenBalance,
-  getClaimableRoyaltyForIp,
-} from "@/services/storyProtocolService";
+import { truncateAddress } from "@/lib/utils";
 
-import { Coins, Copy, AlertCircle } from "lucide-react";
-
-// ===== Holdings (from Portfolio) =====
-interface PortfolioAsset {
+type Holder = {
   id: string;
-  symbol: string;
-  name: string;
-  image: string;
-  balance: number;
-  valueUSD: number;
-  claimableRevenue: number;
-  category: string;
-  ipId?: string;
-}
+  balance: string;
+  wrapper: {
+    id: string;
+    creator: string;
+    ipAsset: string;
+    graduated: boolean;
+    launchTime: string;
+    totalRoyaltiesHarvested: string;
+  };
+};
 
-interface WrapperToken {
+type Wrapper = {
   id: string;
   creator: string;
-  launchTime: number;
+  ipAsset: string;
   graduated: boolean;
-}
+  launchTime: string;
+  totalRoyaltiesHarvested: string;
+};
 
-async function fetchWrapperTokens(first: number = 100, skip: number = 0): Promise<WrapperToken[]> {
-  try {
-    const query = `
-      query GetWrapperTokens($first: Int!, $skip: Int!) {
-        wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
+type RevenueEvent = {
+  id: string;
+  amount: string;
+  timestamp: string;
+  token: { id: string };
+};
+
+type TabKey = "holdings" | "launches" | "yield";
+
+async function fetchHoldings(user: string): Promise<Holder[]> {
+  const query = `
+    query Holdings($user: ID!) {
+      holders(where: { user: $user, balance_gt: 0 }) {
+        id
+        balance
+        wrapper {
           id
           creator
-          launchTime
+          ipAsset
           graduated
+          launchTime
+          totalRoyaltiesHarvested
         }
       }
-    `;
+    }
+  `;
+  const { ok, json } = await fetchSubgraph(query, { user });
+  if (!ok) return [];
+  return (json?.data?.holders as Holder[]) || [];
+}
 
-    const { ok, json } = await fetchSubgraph(query, { first, skip });
+async function fetchLaunches(user: string): Promise<Wrapper[]> {
+  const query = `
+    query MyLaunches($creator: Bytes!) {
+      wrapperTokens(where: { creator: $creator }) {
+        id
+        creator
+        ipAsset
+        graduated
+        launchTime
+        totalRoyaltiesHarvested
+      }
+    }
+  `;
+  const { ok, json } = await fetchSubgraph(query, { creator: user });
+  if (!ok) return [];
+  return (json?.data?.wrapperTokens as Wrapper[]) || [];
+}
 
-    if (!ok) return [];
-    const raw = json?.data?.wrapperTokens || [];
+async function fetchRevenueEvents(user: string): Promise<RevenueEvent[]> {
+  const query = `
+    query RevenueByCreator($creator: Bytes!) {
+      wrapperTokens(where: { creator: $creator }) {
+        id
+        revenueEvents(orderBy: timestamp, orderDirection: desc, first: 25) {
+          id
+          amount
+          timestamp
+          token { id }
+        }
+        totalRoyaltiesHarvested
+      }
+    }
+  `;
+  const { ok, json } = await fetchSubgraph(query, { creator: user });
+  if (!ok) return [];
+  const tokens = (json?.data?.wrapperTokens as any[]) || [];
+  return tokens.flatMap((t) => t.revenueEvents as RevenueEvent[]);
+}
 
-    return raw.map((l: any) => ({
-      id: l.id as string,
-      creator: (l.creator as string) || "",
-      launchTime: Number(l.launchTime || 0),
-      graduated: Boolean(l.graduated),
-    }));
-  } catch (err) {
-    logger.error("Error fetching wrapper tokens from subgraph:", err);
-    return [];
-  }
+function formatEth(value: string | number | bigint) {
+  const num = typeof value === "string" ? Number(value) : Number(value);
+  if (!Number.isFinite(num)) return "0";
+  if (num === 0) return "0";
+  return num.toLocaleString("en-US");
 }
 
 export default function ProfilePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
-  const walletAddress = primaryWallet?.address;
+  const address = primaryWallet?.address;
 
-  // Default to the "tokens" tab; we no longer read `tab` from URL query
-  const initialTab: "tokens" | "holdings" = "tokens";
+  const [activeTab, setActiveTab] = useState<TabKey>("holdings");
+  const [holdings, setHoldings] = useState<Holder[]>([]);
+  const [launches, setLaunches] = useState<Wrapper[]>([]);
+  const [revenues, setRevenues] = useState<RevenueEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Holdings state
-  const [launchedAssets, setLaunchedAssets] = useState<PortfolioAsset[]>([]);
-  const [holdingAssets, setHoldingAssets] = useState<PortfolioAsset[]>([]);
-  const [holdingsLoading, setHoldingsLoading] = useState(true);
+  const isConnected = !!address;
+  const checksum = address?.toLowerCase() || "";
 
-  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
-  const [profileUsername, setProfileUsername] = useState<string | null>(null);
-  const [profileBio, setProfileBio] = useState<string | null>(null);
-  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
-  const [harvestingId, setHarvestingId] = useState<string | null>(null);
-  const [harvestError, setHarvestError] = useState<string | null>(null);
-  const [hasCopiedAddress, setHasCopiedAddress] = useState(false);
-
-  const handleProfileUpdated = (update: {
-    username?: string | null;
-    bio?: string | null;
-    avatarUrl?: string | null;
-  }) => {
-    if (update.username !== undefined) {
-      setProfileUsername(update.username);
-    }
-    if (update.bio !== undefined) {
-      setProfileBio(update.bio);
-    }
-    if (update.avatarUrl !== undefined) {
-      setProfileAvatarUrl(update.avatarUrl);
-    }
-  };
-
-  // Load launched tokens & holdings from subgraph + on-chain balances
   useEffect(() => {
-    const loadHoldings = async () => {
-      setHoldingsLoading(true);
+    const load = async () => {
+      if (!checksum) return;
+      setLoading(true);
+      setError(null);
       try {
-        if (!walletAddress || !primaryWallet) {
-          setLaunchedAssets([]);
-          setHoldingAssets([]);
-          return;
-        }
-
-        const userAddress = walletAddress.toLowerCase();
-
-        // Fetch all launched wrapper tokens from subgraph
-        const wrapperTokens = await fetchWrapperTokens(100, 0);
-        if (!wrapperTokens || wrapperTokens.length === 0) {
-          setLaunchedAssets([]);
-          setHoldingAssets([]);
-          return;
-        }
-
-        const wrapperIds = wrapperTokens.map((w) => w.id);
-        const { enrichLaunchesData } = await import("@/services/launchDataService");
-        const enrichedMap = await enrichLaunchesData(wrapperIds);
-
-        // Fetch balances for all wrapper tokens for this user
-        const balanceResults = await Promise.all(
-          wrapperTokens.map(async (wrapper) => {
-            try {
-              const balanceInfo: TokenBalance | null = await getTokenBalance(
-                userAddress,
-                wrapper.id,
-              );
-              if (!balanceInfo) return null;
-
-              const balanceNum = parseFloat(balanceInfo.balance || "0");
-              if (!isFinite(balanceNum) || balanceNum <= 0) return null;
-
-              return { wrapper, balanceInfo, balanceNum };
-            } catch (err) {
-              logger.error(
-                "Error loading wrapper token balance",
-                wrapper.id,
-                err,
-              );
-              return null;
-            }
-          }),
-        );
-
-        const nonNullBalances = balanceResults.filter(
-          (
-            r,
-          ): r is {
-            wrapper: WrapperToken;
-            balanceInfo: TokenBalance;
-            balanceNum: number;
-          } => !!r,
-        );
-
-        // Build holdings: all tokens with balance > 0
-        const holdings: PortfolioAsset[] = nonNullBalances.map(
-          ({ wrapper, balanceInfo, balanceNum }) => {
-            const enriched = enrichedMap.get(wrapper.id) || {};
-            return {
-              id: wrapper.id,
-              symbol: balanceInfo.symbol || (enriched.symbol as string) || "RT",
-              name:
-                (enriched.name as string) ||
-                balanceInfo.symbol ||
-                `Token ${wrapper.id.slice(0, 8)}`,
-              image:
-                (enriched.imageUrl as string) ||
-                "/Sovry_Logo.png",
-              balance: balanceNum,
-              valueUSD: 0,
-              claimableRevenue: 0,
-              category: (enriched.category as string) || "Launched Token",
-              ipId: enriched.ipId as string | undefined,
-            };
-          },
-        );
-
-        // Launched tokens: all tokens created by this user (regardless of current balance)
-        const launched: PortfolioAsset[] = wrapperTokens
-          .filter((w) => w.creator?.toLowerCase() === userAddress)
-          .map((wrapper) => {
-            const enriched = enrichedMap.get(wrapper.id) || {};
-            const balanceEntry = nonNullBalances.find(
-              (r) => r.wrapper.id === wrapper.id,
-            );
-            const balanceInfo = balanceEntry?.balanceInfo;
-            const balanceNum = balanceEntry?.balanceNum ?? 0;
-
-            return {
-              id: wrapper.id,
-              symbol:
-                balanceInfo?.symbol || (enriched.symbol as string) || "RT",
-              name:
-                (enriched.name as string) ||
-                balanceInfo?.symbol ||
-                `Token ${wrapper.id.slice(0, 8)}`,
-              image:
-                (enriched.imageUrl as string) ||
-                "/Sovry_Logo.png",
-              balance: balanceNum,
-              valueUSD: 0,
-              claimableRevenue: 0,
-              category: (enriched.category as string) || "Launched Token",
-              ipId: enriched.ipId as string | undefined,
-            };
-          });
-
-        // Enrich launched tokens with real onchain royalty data for the
-        // "Available to Harvest" column by reading the WIP balance held in
-        // the Story Protocol royalty vault backing each IP.
-        const launchedWithRevenue: PortfolioAsset[] = await Promise.all(
-          launched.map(async (asset) => {
-            if (!asset.ipId || !asset.ipId.startsWith("0x") || asset.ipId.length !== 42) {
-              return asset;
-            }
-
-            try {
-              const claimable = await getClaimableRoyaltyForIp(asset.ipId, primaryWallet);
-
-              return {
-                ...asset,
-                claimableRevenue: isFinite(claimable) && claimable > 0 ? claimable : 0,
-              };
-            } catch (err) {
-              logger.error("Error loading claimable royalty for IP", asset.ipId, err);
-              return asset;
-            }
-          }),
-        );
-
-        setHoldingAssets(holdings);
-        setLaunchedAssets(launchedWithRevenue);
-      } catch (error) {
-        logger.error("Error loading holdings from subgraph:", error);
-        setLaunchedAssets([]);
-        setHoldingAssets([]);
-      } finally {
-        setHoldingsLoading(false);
-      }
-    };
-
-    if (!walletAddress || !primaryWallet) {
-      setLaunchedAssets([]);
-      setHoldingAssets([]);
-      setHoldingsLoading(false);
-      return;
-    }
-
-    loadHoldings();
-  }, [walletAddress, primaryWallet]);
-
-  // Load profile header (username, bio, avatar)
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadProfileHeader = async () => {
-      if (!walletAddress || !supabase || cancelled) return;
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("username, bio, avatar_url")
-          .eq("wallet_address", walletAddress.toLowerCase())
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (error) {
-          logger.warn("Failed to load profile header", error);
-          return;
-        }
-
-        if (data && typeof data.username === "string") {
-          setProfileUsername(data.username);
-        } else {
-          setProfileUsername(null);
-        }
-
-        if (data && typeof data.bio === "string") {
-          setProfileBio(data.bio);
-        } else {
-          setProfileBio(null);
-        }
-
-        if (
-          data &&
-          typeof (data as any).avatar_url === "string" &&
-          (data as any).avatar_url.trim().length > 0
-        ) {
-          setProfileAvatarUrl((data as any).avatar_url as string);
-        } else {
-          setProfileAvatarUrl(null);
-        }
+        const [h, l, r] = await Promise.all([
+          fetchHoldings(checksum),
+          fetchLaunches(checksum),
+          fetchRevenueEvents(checksum),
+        ]);
+        setHoldings(h);
+        setLaunches(l);
+        setRevenues(r);
       } catch (err) {
-        if (!cancelled) {
-          logger.warn("Failed to load profile header", err);
-        }
+        setError(err instanceof Error ? err.message : "Failed to load profile data");
+      } finally {
+        setLoading(false);
       }
     };
+    load();
+  }, [checksum]);
 
-    loadProfileHeader();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [walletAddress]);
-
-  const handleHarvestAsset = async (assetId: string) => {
-    if (!primaryWallet) return;
-
-    const asset = launchedAssets.find((a) => a.id === assetId);
-    if (!asset) {
-      setHarvestError("Unknown asset for harvest");
-      return;
-    }
-
-    // Require a valid backing IP ID (IP Account) for this wrapper token. This
-    // is the IP that royalties are paid to and must be used when claiming via
-    // Story Protocol.
-    if (!asset.ipId || !asset.ipId.startsWith("0x") || asset.ipId.length !== 42) {
-      setHarvestError("No valid IP ID configured for this token; cannot harvest royalties.");
-      return;
-    }
-
-    setHarvestError(null);
-    setHarvestingId(assetId);
-
-    try {
-      const { launchpadService } = await import("@/services/launchpadService");
-      const result = await launchpadService.harvestAndPump(asset.ipId, asset.id, primaryWallet);
-
-      if (!result.success) {
-        setHarvestError(result.error || "Failed to harvest royalties");
-        return;
-      }
-
-      setLaunchedAssets((prev) =>
-        prev.map((a) =>
-          a.id === assetId ? { ...a, claimableRevenue: 0 } : a,
-        ),
-      );
-    } catch (err: any) {
-      logger.error("Error harvesting royalties from profile page:", err);
-      setHarvestError(err?.message || "Failed to harvest royalties");
-    } finally {
-      setHarvestingId(null);
-    }
-  };
-
-  const displayAddress =
-    walletAddress && walletAddress.length > 10
-      ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-      : walletAddress || "Unknown address";
-
-  const headerName =
-    profileUsername && profileUsername.trim().length > 0
-      ? profileUsername.trim()
-      : displayAddress;
-
-  const headerBio =
-    profileBio && profileBio.trim().length > 0
-      ? profileBio.trim()
-      : "This user has not added a bio yet.";
-
-  const handleCopyAddress = async () => {
-    if (!walletAddress) return;
-    try {
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-        await navigator.clipboard.writeText(walletAddress);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = walletAddress;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        textarea.style.top = "0";
-        textarea.style.opacity = "0";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-
-      setHasCopiedAddress(true);
-      window.setTimeout(() => setHasCopiedAddress(false), 1500);
-    } catch (err) {
-      logger.error("Failed to copy address", err);
-    }
-  };
-
-  const isConnected = !!primaryWallet;
+  const totalHeld = useMemo(() => holdings.length, [holdings]);
+  const totalLaunched = useMemo(() => launches.length, [launches]);
+  const totalYield = useMemo(() => revenues.reduce((acc, ev) => acc + Number(ev.amount || 0), 0), [revenues]);
 
   if (!isConnected) {
     return (
-      <section className="px-2 sm:px-4">
-        <div className="min-h-[calc(100vh-10rem)] flex items-center justify-center">
-          <Card className="w-full max-w-xs sm:max-w-sm">
-            <CardContent className="p-6 text-center space-y-4">
-              <div className="mx-auto w-10 h-10 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-amber-400" />
+      <section className="px-4 sm:px-6">
+        <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+          <Card className="w-full max-w-sm border border-[#262626] bg-black">
+            <div className="p-6 space-y-4 text-center text-white">
+              <div className="mx-auto w-12 h-12 rounded-sm border border-[#262626] bg-black flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-white/70" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-zinc-100">Wallet not connected</p>
-                <p className="text-xs text-zinc-400">Connect your wallet to view your profile.</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/60">Access_Locked</p>
+                <p className="text-sm">Connect wallet to view profile.</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs w-full"
+                className="w-full h-10 text-[11px] font-mono uppercase tracking-[0.25em] border-[#262626] text-white"
                 onClick={() => setShowAuthFlow?.(true)}
               >
                 Connect Wallet
               </Button>
-            </CardContent>
+            </div>
           </Card>
         </div>
       </section>
@@ -441,320 +180,148 @@ export default function ProfilePage() {
   }
 
   return (
-    <>
-      <section className="mb-4 sm:mb-6 px-2 sm:px-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-full border-3 border-zinc-900 shadow-xl overflow-hidden bg-zinc-800 flex-shrink-0">
-              <Image
-                src={profileAvatarUrl || "/Sovry_Logo.png"}
-                alt="Profile picture"
-                fill
-                className="object-cover"
-              />
+    <div className="min-h-screen bg-black text-white">
+      <section className="px-4 sm:px-6 py-4 space-y-6">
+        <div className="border border-[#262626] bg-black p-4 sm:p-6 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/60">Profile</p>
+              <p className="text-xl font-semibold">{truncateAddress(address)}</p>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <h1 className="text-lg sm:text-2xl md:text-3xl font-semibold text-zinc-50 tracking-tight">
-                {headerName}
-              </h1>
-              {walletAddress && (
-                <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-sm text-zinc-100 font-mono bg-zinc-900/80 border border-sovry-crimson/50 rounded-full px-2 py-0.5 sm:px-3 sm:py-1 mt-1 shadow-sm">
-                  <span className="truncate max-w-[120px] sm:max-w-[260px] md:max-w-[420px]">
-                    {walletAddress}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyAddress}
-                    className="inline-flex items-center gap-1 text-sovry-crimson hover:text-sovry-crimson/80 cursor-pointer"
-                    aria-label={hasCopiedAddress ? "Address copied" : "Copy address"}
-                  >
-                    <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
-                    <span className="hidden sm:inline whitespace-nowrap">
-                      {hasCopiedAddress ? "Copied" : "Copy address"}
-                    </span>
-                  </button>
-                </div>
-              )}
-              <p className="mt-2 text-sm sm:text-lg text-zinc-300 max-w-xl">
-                {headerBio}
-              </p>
+            <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-white/70">
+              <div className="inline-flex items-center gap-1 border border-[#262626] px-3 py-2">
+                <LayoutGrid className="h-4 w-4" /> Hold {totalHeld}
+              </div>
+              <div className="inline-flex items-center gap-1 border border-[#262626] px-3 py-2">
+                <Database className="h-4 w-4" /> Launch {totalLaunched}
+              </div>
+              <div className="inline-flex items-center gap-1 border border-[#262626] px-3 py-2">
+                <BarChart3 className="h-4 w-4" /> Yield {formatEth(totalYield)}
+              </div>
             </div>
           </div>
-          <div className="flex justify-start sm:justify-end">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-3 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium"
-              onClick={() => setIsProfileDialogOpen(true)}
-            >
-              Edit profile
-            </Button>
+
+          <div className="flex gap-3 text-[11px] font-mono uppercase tracking-[0.18em] overflow-x-auto">
+            {(["holdings", "launches", "yield"] as TabKey[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`pb-2 border-b ${activeTab === tab ? "border-[#CCFF00] text-[#CCFF00]" : "border-transparent text-white/60 hover:text-white"}`}
+              >
+                {tab === "holdings" ? "[ Holdings ]" : tab === "launches" ? "[ My Launches ]" : "[ Real Yield ]"}
+              </button>
+            ))}
           </div>
         </div>
-      </section>
 
-      <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit your profile</DialogTitle>
-            <DialogDescription>
-              Update your profile information
-            </DialogDescription>
-          </DialogHeader>
+        {error && (
+          <Card className="border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100">
+            {error}
+          </Card>
+        )}
 
-          <UserProfile
-            onClose={() => setIsProfileDialogOpen(false)}
-            onProfileUpdated={handleProfileUpdated}
-          />
-        </DialogContent>
-      </Dialog>
-
-      <section className="px-2 sm:px-4">
-        <Tabs defaultValue={initialTab} className="space-y-4 sm:space-y-6">
-          <TabsList className="inline-flex w-fit h-auto rounded-lg p-0.5 sm:p-1">
-            <TabsTrigger
-              value="tokens"
-              className="text-[11px] sm:text-sm font-medium px-3 sm:px-4 py-1 sm:py-1.5 rounded-md data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 hover:bg-zinc-800/40 hover:text-zinc-100"
-            >
-              <span className="sm:hidden">Tokens</span>
-              <span className="hidden sm:inline">Tokens launched</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="holdings"
-              className="text-[11px] sm:text-sm font-medium px-3 sm:px-4 py-1 sm:py-1.5 rounded-md data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50 hover:bg-zinc-800/40 hover:text-zinc-100"
-            >
-              <span className="sm:hidden">Holdings</span>
-              <span className="hidden sm:inline">Your holdings</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* My Tokens Tab */}
-          <TabsContent value="tokens" className="space-y-6">
-            {holdingsLoading ? (
-              <div className="py-10 sm:py-16 text-center">
-                <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-                <p className="text-zinc-400">Loading your tokens...</p>
-              </div>
-            ) : (
-              <>
-                {harvestError && (
-                  <p className="text-sm text-red-400">{harvestError}</p>
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-white/70">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading profile data...
+          </div>
+        ) : (
+          <>
+            {activeTab === "holdings" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {holdings.length === 0 ? (
+                  <Card className="border border-dashed border-[#262626] bg-black/40 p-6 text-center text-xs font-mono uppercase tracking-[0.25em] text-white/60">
+                    NO_HOLDINGS
+                  </Card>
+                ) : (
+                  holdings.map((h) => (
+                    <Card key={h.id} className="border border-[#262626] bg-black/85 p-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.2em] text-white/60">
+                        <span>Wrapper</span>
+                        <Link href={`/pool/${h.wrapper.id}`} className="text-white hover:text-[#CCFF00] inline-flex items-center gap-1">
+                          {truncateAddress(h.wrapper.id)} <ArrowUpRight className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <div className="text-lg font-semibold text-white">Balance: {formatEth(h.balance)}</div>
+                      <div className="text-xs text-white/60">Creator: {truncateAddress(h.wrapper.creator)}</div>
+                      <div className="text-xs text-white/60">IP: {truncateAddress(h.wrapper.ipAsset)}</div>
+                      <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-white/60 flex items-center gap-2">
+                        <span className={h.wrapper.graduated ? "text-[#CCFF00]" : "text-white/70"}>
+                          {h.wrapper.graduated ? "Graduated" : "Live"}
+                        </span>
+                        <span className="text-white/50">Harvested: {formatEth(h.wrapper.totalRoyaltiesHarvested)}</span>
+                      </div>
+                    </Card>
+                  ))
                 )}
-                <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-                  <CardHeader>
-                    <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
-                      Launched Tokens
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-zinc-800">
-                            <th className="text-left py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Asset
-                            </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Balance
-                            </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Value
-                            </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Available to Harvest
-                            </th>
-                            <th className="text-right py-2 px-2 text-[10px] sm:py-2.5 sm:px-3 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                              Harvest
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {launchedAssets.length === 0 ? (
-                            <tr>
-                              <td
-                                colSpan={5}
-                                className="py-4 px-3 text-center text-xs text-zinc-500"
-                              >
-                                {`You haven't launched any tokens yet.`}
-                              </td>
-                            </tr>
-                          ) : (
-                            launchedAssets.map((asset) => (
-                              <tr
-                                key={asset.id}
-                                className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                              >
-                                <td className="py-2 px-2 sm:py-3 sm:px-3">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                                      <Image
-                                        src={asset.image}
-                                        alt={asset.name}
-                                        width={40}
-                                        height={40}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                    <div>
-                                      <p className="text-xs sm:text-base font-medium text-zinc-50">
-                                        {asset.symbol}
-                                      </p>
-                                      <p className="text-[10px] sm:text-sm text-zinc-400">
-                                        {asset.name}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
-                                  {asset.balance.toFixed(2)}
-                                </td>
-                                <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
-                                  {new Intl.NumberFormat("en-US", {
-                                    style: "currency",
-                                    currency: "USD",
-                                  }).format(asset.valueUSD)}
-                                </td>
-                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                                  {asset.claimableRevenue > 0 ? (
-                                    <span className="inline-flex items-center gap-1 bg-sovry-crimson/25 text-sovry-crimson px-2.5 py-0.5 rounded-full text-[10px] sm:text-sm font-medium border border-sovry-crimson/40">
-                                      {asset.claimableRevenue.toLocaleString("en-US", {
-                                        maximumFractionDigits: 4,
-                                      })}
-                                      <span className="text-[9px] sm:text-[11px] font-normal text-zinc-300 ml-1">
-                                        WIP
-                                      </span>
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] text-zinc-500">-</span>
-                                  )}
-                                </td>
-                                <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
-                                    onClick={() => handleHarvestAsset(asset.id)}
-                                    disabled={!primaryWallet || harvestingId === asset.id}
-                                  >
-                                    {harvestingId === asset.id
-                                      ? "Harvesting..."
-                                      : "Harvest"}
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </TabsContent>
-
-          {/* Holdings Tab */}
-          <TabsContent value="holdings" className="space-y-6">
-            {holdingsLoading ? (
-              <div className="py-10 sm:py-16 text-center">
-                <Coins className="h-10 w-10 text-sovry-crimson mx-auto mb-4 animate-pulse" />
-                <p className="text-zinc-400">Loading your holdings...</p>
               </div>
-            ) : (
-              <Card className="bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-xl">
-                <CardHeader>
-                  <CardTitle className="text-base sm:text-lg font-semibold text-zinc-50">
-                    Holdings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-zinc-800">
-                          <th className="text-left py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                            Asset
-                          </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                            Balance
-                          </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                            Value
-                          </th>
-                          <th className="text-right py-2 px-2 text-[10px] sm:py-4 sm:px-4 sm:text-base font-medium text-zinc-400 uppercase tracking-wide">
-                            Trade
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {holdingAssets.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={4}
-                              className="py-4 px-3 text-center text-xs text-zinc-500"
-                            >
-                              {`You don't hold any assets yet.`}
-                            </td>
-                          </tr>
-                        ) : (
-                          holdingAssets.map((asset) => (
-                            <tr
-                              key={asset.id}
-                              className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                            >
-                              <td className="py-2 px-2 sm:py-4 sm:px-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-zinc-800/30 rounded-lg overflow-hidden border border-zinc-700">
-                                    <Image
-                                      src={asset.image}
-                                      alt={asset.name}
-                                      width={40}
-                                      height={40}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                  <div>
-                                    <p className="text-xs sm:text-base font-medium text-zinc-50">
-                                      {asset.symbol}
-                                    </p>
-                                    <p className="text-[10px] sm:text-sm text-zinc-400">
-                                      {asset.name}
-                                    </p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
-                                {asset.balance.toFixed(2)}
-                              </td>
-                              <td className="text-right py-2 px-2 text-[11px] sm:py-4 sm:px-4 sm:text-base text-zinc-50">
-                                {new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: "USD",
-                                }).format(asset.valueUSD)}
-                              </td>
-                              <td className="text-right py-2 px-2 sm:py-4 sm:px-4">
-                                <Link href={`/pool/${asset.id}`}>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-[10px] sm:h-9 sm:px-4 sm:text-sm font-medium cursor-pointer"
-                                  >
-                                    Trade
-                                  </Button>
-                                </Link>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
             )}
-          </TabsContent>
-        </Tabs>
+
+            {activeTab === "launches" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {launches.length === 0 ? (
+                  <Card className="border border-dashed border-[#262626] bg-black/40 p-6 text-center text-xs font-mono uppercase tracking-[0.25em] text-white/60">
+                    NO_LAUNCHES
+                  </Card>
+                ) : (
+                  launches.map((w) => (
+                    <Card key={w.id} className="border border-[#262626] bg-black/85 p-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.2em] text-white/60">
+                        <span>Wrapper</span>
+                        <Link href={`/pool/${w.id}`} className="text-white hover:text-[#CCFF00] inline-flex items-center gap-1">
+                          {truncateAddress(w.id)} <ArrowUpRight className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <div className="text-sm text-white/60">IP: {truncateAddress(w.ipAsset)}</div>
+                      <div className="text-xs text-white/60">Launched: {new Date(Number(w.launchTime) * 1000).toLocaleString()}</div>
+                      <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-white/60 flex items-center gap-2">
+                        <span className={w.graduated ? "text-[#CCFF00]" : "text-white/70"}>
+                          {w.graduated ? "Graduated" : "Live"}
+                        </span>
+                        <span className="text-white/50">Harvested: {formatEth(w.totalRoyaltiesHarvested)}</span>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activeTab === "yield" && (
+              <div className="space-y-3">
+                <Card className="border border-[#262626] bg-black/85 p-4 flex items-center justify-between text-sm text-white/80">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/60">Total Yield</p>
+                    <p className="text-2xl font-semibold text-white">{formatEth(totalYield)}</p>
+                  </div>
+                  <Button asChild size="sm" className="text-[11px] font-mono uppercase tracking-[0.2em] bg-[#CCFF00] text-black">
+                    <Link href="/create">Launch More</Link>
+                  </Button>
+                </Card>
+
+                {revenues.length === 0 ? (
+                  <Card className="border border-dashed border-[#262626] bg-black/40 p-6 text-center text-xs font-mono uppercase tracking-[0.25em] text-white/60">
+                    NO_REVENUE_EVENTS
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {revenues.map((ev) => (
+                      <Card key={ev.id} className="border border-[#262626] bg-black/85 p-4 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.2em] text-white/60">
+                          <span>Wrapper</span>
+                          <Link href={`/pool/${ev.token.id}`} className="text-white hover:text-[#CCFF00] inline-flex items-center gap-1">
+                            {truncateAddress(ev.token.id)} <ArrowUpRight className="h-3 w-3" />
+                          </Link>
+                        </div>
+                        <div className="text-lg font-semibold text-white">Amount: {formatEth(ev.amount)}</div>
+                        <div className="text-xs text-white/60">Timestamp: {new Date(Number(ev.timestamp) * 1000).toLocaleString()}</div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </section>
-    </>
+    </div>
   );
 }

@@ -7,12 +7,8 @@ import "../interfaces/ISovryExchange.sol";
 
 error InvalidAddress();
 error NotAuthorized();
-error TransferFailed();
-error LaunchFeeTooLow();
 
 contract SovryFactory is AccessControl, ISovryFactory {
-    uint256 public launchFee = 1 ether;
-
     ISovryExchange public immutable exchange;
 
     constructor(address exchangeAddress) {
@@ -21,33 +17,17 @@ contract SovryFactory is AccessControl, ISovryFactory {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function setLaunchFee(uint256 newFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        launchFee = newFee;
-    }
-
     function launchToken(
         address rtAddress,
         uint256 amount,
         address ipAsset,
         string calldata name,
         string calldata symbol
-    ) external payable returns (address wrapperAddress) {
-        uint256 fee = launchFee;
-        if (msg.value < fee) revert LaunchFeeTooLow();
-
+    ) external returns (address wrapperAddress) {
         if (ipAsset == address(0)) revert InvalidAddress();
 
         address treasury = exchange.treasury();
         if (treasury == address(0)) revert InvalidAddress();
-
-        if (fee > 0) {
-            exchange.queueLaunchFee{value: fee}(treasury);
-        }
-
-        if (msg.value > fee) {
-            (bool refundOk, ) = payable(msg.sender).call{value: msg.value - fee}("");
-            if (!refundOk) revert TransferFailed();
-        }
 
         wrapperAddress = exchange.launchTokenFromFactory(
             rtAddress,

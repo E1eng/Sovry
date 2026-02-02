@@ -10,15 +10,11 @@ interface ISovryFactory {
         uint256 launchTime
     );
 
-    function launchFee() external view returns (uint256);
-
-    function setLaunchFee(uint256 newFee) external;
-
     function launchToken(
         address rtAddress,
         uint256 amount,
         address ipAsset,
         string calldata name,
         string calldata symbol
-    ) external payable returns (address wrapperAddress);
+    ) external returns (address wrapperAddress);
 }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
+import { truncateAddress } from "@/lib/utils";
 import type { RealtimePostgresInsertPayload } from "@supabase/supabase-js";
 import type { Comment as DbComment, Profile } from "@/types/supabase";
 
@@ -24,7 +25,7 @@ interface CommentSectionProps {
 }
 
 const shortenAddress = (addr: string) =>
-  addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "Unknown";
+  truncateAddress(addr, { separator: "…", fallback: "Unknown" });
 
 const formatTime = (iso: string) => {
   try {
@@ -321,7 +322,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
           </span>
           {tokenAddress && (
             <span className="text-xs sm:text-sm font-normal text-muted-foreground">
-              Thread for {tokenName || `${tokenAddress.slice(0, 6)}…${tokenAddress.slice(-4)}`}
+              Thread for {tokenName || truncateAddress(tokenAddress, { separator: "…" })}
             </span>
           )}
         </CardTitle>

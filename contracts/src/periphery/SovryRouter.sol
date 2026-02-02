@@ -40,14 +40,8 @@ contract SovryRouter is ISovryRouter {
         address ipAsset,
         string calldata name,
         string calldata symbol
-    ) external payable returns (address wrapperAddress) {
-        wrapperAddress = factory_.launchToken{value: msg.value}(
-            rtAddress,
-            amount,
-            ipAsset,
-            name,
-            symbol
-        );
+    ) external returns (address wrapperAddress) {
+        wrapperAddress = factory_.launchToken(rtAddress, amount, ipAsset, name, symbol);
     }
 
     function buyETH(

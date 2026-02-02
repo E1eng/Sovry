@@ -15,10 +15,10 @@ contract RejectETHCreator {
         address ipAsset,
         string calldata name,
         string calldata symbol
-    ) external payable returns (address wrapper) {
+    ) external returns (address wrapper) {
         IERC20(rt).approve(exchange, amount);
 
-        wrapper = ISovryFactory(factory).launchToken{value: msg.value}(
+        wrapper = ISovryFactory(factory).launchToken(
             rt,
             amount,
             ipAsset,

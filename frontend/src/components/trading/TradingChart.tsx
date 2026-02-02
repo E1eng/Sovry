@@ -189,21 +189,21 @@ function TradingChartComponent({
 
     const container = containerRef.current
 
-    // Create chart with dark theme
+    // Create chart with Swiss-style palette
     const chart = createChart(container, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#e5e7eb", // zinc-200
+        textColor: "#d4d4d4", // zinc-300
       },
       grid: {
         vertLines: {
           visible: true,
-          color: "rgba(255, 255, 255, 0.1)",
+          color: "rgba(255, 255, 255, 0.08)",
           style: LineStyle.Solid,
         },
         horzLines: {
           visible: true,
-          color: "rgba(255, 255, 255, 0.1)",
+          color: "rgba(255, 255, 255, 0.08)",
           style: LineStyle.Solid,
         },
       },
@@ -223,13 +223,13 @@ function TradingChartComponent({
       height: height,
     })
 
-    // Create candlestick series with green/red colors (v5 API)
+    // Create candlestick series with Swiss palette (v5 API)
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e", // green-500
-      downColor: "#ef4444", // red-500
+      upColor: "#ccff00", // lime
+      downColor: "#ff4d00", // orange
       borderVisible: false,
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
+      wickUpColor: "#ccff00",
+      wickDownColor: "#ff4d00",
       // Show more precision for tiny IP-denominated prices
       priceFormat: {
         type: "price",
@@ -342,7 +342,7 @@ function TradingChartComponent({
       try {
         const priceLine = candlestickSeriesRef.current.createPriceLine({
           price: lastPrice,
-          color: "#3b82f6", // blue-500
+          color: "#ccff00", // lime
           lineWidth: 2,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -372,18 +372,18 @@ function TradingChartComponent({
   }
 
   return (
-    <div className={cn("relative w-full space-y-3", className)}>
+    <div className={cn("relative w-full space-y-4", className)}>
       {/* Price / Market Cap / 24h High-Low */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Price</div>
+        <div className="rounded-sm border border-border bg-card/60 px-3 py-2">
+          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price</div>
           <div className="flex items-baseline gap-2">
-            <span className="text-base sm:text-lg font-semibold text-zinc-50">
+            <span className="text-base sm:text-lg font-semibold text-foreground font-mono">
               {formatPrice(effectivePrice)}
             </span>
             <span
               className={cn(
-                "inline-flex items-center gap-1 text-sm sm:text-base font-medium text-zinc-400",
+                "inline-flex items-center gap-1 text-sm sm:text-base font-medium text-muted-foreground",
               )}
             >
               <Image
@@ -395,15 +395,15 @@ function TradingChartComponent({
             </span>
           </div>
         </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Market Cap</div>
-          <div className="text-base sm:text-lg font-semibold text-zinc-50">
+        <div className="rounded-sm border border-border bg-card/60 px-3 py-2">
+          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Market Cap</div>
+          <div className="text-base sm:text-lg font-semibold text-foreground font-mono">
             {formatMarketCap(marketCap)}
           </div>
         </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">24h Volume</div>
-          <div className="text-base sm:text-lg font-semibold text-emerald-400">
+        <div className="rounded-sm border border-border bg-card/60 px-3 py-2">
+          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">24h Volume</div>
+          <div className="text-base sm:text-lg font-semibold text-primary font-mono">
             {formatMarketCap(
               dailyVolume !== null && isFinite(dailyVolume)
                 ? dailyVolume.toString()
@@ -411,23 +411,28 @@ function TradingChartComponent({
             )}
           </div>
         </div>
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Reserve Balance</div>
-          <div className="text-base sm:text-lg font-semibold text-zinc-50">
+        <div className="rounded-sm border border-border bg-card/60 px-3 py-2">
+          <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Reserve</div>
+          <div className="text-base sm:text-lg font-semibold text-foreground font-mono">
             {formatMarketCap(reserveBalance)}
           </div>
         </div>
       </div>
 
       {/* Timeframe Selector */}
-      <div className="flex gap-2 justify-end items-center">
+      <div className="flex flex-wrap gap-2 justify-end items-center">
         {TIMEFRAMES.map((tf) => (
           <Button
             key={tf}
-            variant={timeframe === tf ? "default" : "outline"}
+            variant="outline"
             size="sm"
             onClick={() => setTimeframe(tf)}
-            className="h-8 sm:h-7 text-xs px-3 touch-manipulation min-h-[32px]"
+            className={cn(
+              "h-8 sm:h-7 text-[11px] px-3 font-mono uppercase tracking-[0.2em] touch-manipulation min-h-[32px]",
+              timeframe === tf
+                ? "bg-primary text-primary-foreground border-primary/60"
+                : "bg-transparent text-muted-foreground border-border hover:text-foreground"
+            )}
             disabled={isLoading}
           >
             {TIMEFRAME_LABELS[tf]}
@@ -436,21 +441,21 @@ function TradingChartComponent({
       </div>
 
       {/* Chart Container */}
-      <div className="relative overflow-x-auto">
+      <div className="relative overflow-x-auto rounded-sm border border-border bg-card/40">
         {/* Loading State */}
         {isLoading && !chartInitialized && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50 rounded-lg z-10">
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-sm z-10">
             <div className="flex flex-col items-center gap-2">
-              <Loader2 className="h-6 w-6 animate-spin text-sovry-green" />
-              <p className="text-xs text-zinc-400">Loading chart data...</p>
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Loading chart data</p>
             </div>
           </div>
         )}
 
         {/* Error State */}
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50 rounded-lg z-10">
-            <Alert variant="destructive" className="max-w-md">
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-sm z-10">
+            <Alert variant="destructive" className="max-w-md border border-destructive/40 bg-destructive/15">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="flex items-center gap-2">
                 <span>Failed to load trade data: {error instanceof Error ? error.message : "Unknown error"}</span>
@@ -458,7 +463,7 @@ function TradingChartComponent({
                   variant="outline"
                   size="sm"
                   onClick={() => refetch()}
-                  className="h-6 px-2 text-xs touch-manipulation"
+                  className="h-6 px-2 text-xs font-mono uppercase tracking-[0.2em] touch-manipulation"
                 >
                   <RefreshCw className="h-3 w-3 mr-1" />
                   Retry
@@ -478,9 +483,9 @@ function TradingChartComponent({
         {/* Loading overlay for data refresh */}
         {isLoading && chartInitialized && (
           <div className="absolute top-2 right-2 z-10">
-            <div className="flex items-center gap-2 px-2 py-1 bg-zinc-900/90 backdrop-blur-sm rounded border border-zinc-800">
-              <Loader2 className="h-3 w-3 animate-spin text-sovry-green" />
-              <span className="text-xs text-zinc-400">Refreshing...</span>
+            <div className="flex items-center gap-2 px-2 py-1 bg-background/90 backdrop-blur-sm rounded-sm border border-border">
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Refreshing</span>
             </div>
           </div>
         )}

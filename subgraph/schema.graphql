@@ -5,6 +5,7 @@ type Launchpad @entity {
   totalVolume: BigInt!
   totalFees: BigInt!
   wrappers: [WrapperToken!]! @derivedFrom(field: "launchpad")
+  protocolMetric: ProtocolMetric @derivedFrom(field: "launchpad")
 }
 
 type WrapperToken @entity {
@@ -21,6 +22,7 @@ type WrapperToken @entity {
   totalRoyaltiesHarvested: BigInt!
   totalFees: BigInt!
   poolAddress: Bytes
+  lpTokenId: BigInt
   createdAt: BigInt!
   updatedAt: BigInt!
 
@@ -29,6 +31,29 @@ type WrapperToken @entity {
   graduations: [Graduation!]! @derivedFrom(field: "token")
   holders: [Holder!]! @derivedFrom(field: "wrapper")
   redemptions: [Redemption!]! @derivedFrom(field: "wrapper")
+  tokenStat: TokenStat @derivedFrom(field: "wrapper")
+  harvestEvents: [HarvestEvent!]! @derivedFrom(field: "wrapper")
+  buybackEvents: [BuybackEvent!]! @derivedFrom(field: "wrapper")
+  revenueEvents: [RevenueEvent!]! @derivedFrom(field: "token")
+  totalHarvestedAmount: BigInt!
+  totalFeesPushed: BigInt!
+}
+
+type ProtocolMetric @entity {
+  id: ID!
+  launchpad: Launchpad!
+  totalRoyaltiesQueued: BigInt!
+  totalRoyaltiesPushed: BigInt!
+  totalHarvestedPreGrad: BigInt!
+  totalHarvestedPostGrad: BigInt!
+  totalBuybacks: BigInt!
+}
+
+type TokenStat @entity {
+  id: ID! # wrapper address
+  wrapper: WrapperToken!
+  accumulatedFeesNative: BigInt!
+  totalHarvested: BigInt!
 }
 
 type Redemption @entity {
@@ -83,11 +108,39 @@ type Harvest @entity {
   timestamp: BigInt!
 }
 
+type HarvestEvent @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  amount: BigInt!
+  isPostGrad: Boolean!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
+type BuybackEvent @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  amountIn: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
+type RevenueEvent @entity {
+  id: ID!
+  txHash: Bytes!
+  token: WrapperToken!
+  amount: BigInt!
+  type: String!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+}
+
 type Graduation @entity {
   id: ID!
   token: WrapperToken!
   totalLiquidity: BigInt!
   pool: Bytes!
+  lpTokenId: BigInt
   txHash: Bytes!
   timestamp: BigInt!
 }

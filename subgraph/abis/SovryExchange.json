@@ -1,84 +1,21 @@
-[
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": true, "name": "buyer", "type": "address" },
-      { "indexed": true, "name": "wrapperToken", "type": "address" },
-      { "indexed": false, "name": "amount", "type": "uint256" },
-      { "indexed": false, "name": "cost", "type": "uint256" },
-      { "indexed": false, "name": "feeAmount", "type": "uint256" },
-      { "indexed": false, "name": "feeRecipient", "type": "address" }
-    ],
-    "name": "TokensPurchased",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": true, "name": "seller", "type": "address" },
-      { "indexed": true, "name": "wrapperToken", "type": "address" },
-      { "indexed": false, "name": "amount", "type": "uint256" },
-      { "indexed": false, "name": "proceeds", "type": "uint256" },
-      { "indexed": false, "name": "feeAmount", "type": "uint256" },
-      { "indexed": false, "name": "feeRecipient", "type": "address" }
-    ],
-    "name": "TokensSold",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": true, "name": "redeemer", "type": "address" },
-      { "indexed": true, "name": "wrapperToken", "type": "address" },
-      { "indexed": false, "name": "wrapperAmount", "type": "uint256" },
-      { "indexed": false, "name": "rtAmount", "type": "uint256" },
-      { "indexed": true, "name": "recipient", "type": "address" }
-    ],
-    "name": "TokensRedeemed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": true, "name": "wrapperToken", "type": "address" },
-      { "indexed": false, "name": "amount", "type": "uint256" }
-    ],
-    "name": "RoyaltiesHarvested",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      { "indexed": true, "name": "wrapperToken", "type": "address" },
-      { "indexed": false, "name": "liquidity", "type": "uint256" },
-      { "indexed": true, "name": "poolAddress", "type": "address" }
-    ],
-    "name": "Graduated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [{ "indexed": false, "name": "newThreshold", "type": "uint256" }],
-    "name": "GraduationThresholdUpdated",
-    "type": "event"
-  },
-  {
-    "inputs": [{ "name": "", "type": "address" }],
-    "name": "launchedTokens",
-    "outputs": [
-      { "name": "rtAddress", "type": "address" },
-      { "name": "wrapperAddress", "type": "address" },
-      { "name": "creator", "type": "address" },
-      { "name": "ipAsset", "type": "address" },
-      { "name": "launchTime", "type": "uint256" },
-      { "name": "totalLocked", "type": "uint256" },
-      { "name": "graduated", "type": "bool" },
-      { "name": "totalRoyaltiesHarvested", "type": "uint256" },
-      { "name": "vaultAddress", "type": "address" },
-      { "name": "dexReserve", "type": "uint256" },
-      { "name": "initialCurveSupply", "type": "uint256" }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  }
-]
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "SovryExchange",
+  "sourceName": "src/core/SovryExchange.sol",
+  "abi": [
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"buyer","type":"address"},{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":false,"name":"cost","type":"uint256"},{"indexed":false,"name":"feeAmount","type":"uint256"},{"indexed":false,"name":"feeRecipient","type":"address"}],"name":"TokensPurchased","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"seller","type":"address"},{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":false,"name":"proceeds","type":"uint256"},{"indexed":false,"name":"feeAmount","type":"uint256"},{"indexed":false,"name":"feeRecipient","type":"address"}],"name":"TokensSold","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"redeemer","type":"address"},{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"wrapperAmount","type":"uint256"},{"indexed":false,"name":"rtAmount","type":"uint256"},{"indexed":true,"name":"recipient","type":"address"}],"name":"TokensRedeemed","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"RoyaltyRevenueQueued","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":true,"name":"ipAsset","type":"address"}],"name":"RoyaltyRevenueProcessed","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":false,"name":"isPostGrad","type":"bool"}],"name":"RevenueHarvested","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amountIn","type":"uint256"}],"name":"BuybackExecuted","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"liquidity","type":"uint256"},{"indexed":true,"name":"poolAddress","type":"address"}],"name":"Graduated","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":false,"name":"newThreshold","type":"uint256"}],"name":"GraduationThresholdUpdated","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"RoyaltiesHarvested","type":"event"},
+    {"inputs":[{"name":"","type":"address"}],"name":"launchedTokens","outputs":[{"name":"rtAddress","type":"address"},{"name":"wrapperAddress","type":"address"},{"name":"creator","type":"address"},{"name":"ipAsset","type":"address"},{"name":"launchTime","type":"uint256"},{"name":"totalLocked","type":"uint256"},{"name":"graduated","type":"bool"},{"name":"totalRoyaltiesHarvested","type":"uint256"},{"name":"vaultAddress","type":"address"},{"name":"dexReserve","type":"uint256"},{"name":"initialCurveSupply","type":"uint256"}],"stateMutability":"view","type":"function"},
+    {"inputs":[{"name":"","type":"address"}],"name":"lpTokenIds","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"}
+  ],
+  "bytecode": "",
+  "deployedBytecode": ""
+}

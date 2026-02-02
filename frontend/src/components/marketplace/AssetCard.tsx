@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { formatMarketCapIP } from "@/lib/utils";
+import { formatMarketCapIP, truncateAddress } from "@/lib/utils";
 
 export interface AssetCardData {
   id: string;
@@ -38,89 +38,101 @@ function timeAgo(timestamp: number): string {
   return "just now";
 }
 
-// Helper to truncate address
-function truncateAddress(address: string): string {
-  if (!address || address.length < 10) return address;
-  return `${address.slice(2, 8)}`;
-}
-
 export default function AssetCard({ launch }: AssetCardProps) {
   const address = launch.token || launch.id;
   const bondingProgress = launch.bondingProgress || 0;
-  const displaySymbol = launch.symbol || address.slice(2, 6).toUpperCase();
-  const displayName = launch.name || `Token ${address.slice(0, 6)}`;
+  const symbolFallback = truncateAddress(address, {
+    start: 4,
+    end: 0,
+    stripPrefix: true,
+    minLength: 4,
+  }).toUpperCase();
+  const nameFallback = truncateAddress(address, { start: 6, end: 0, minLength: 6 });
+  const displaySymbol = launch.symbol || symbolFallback;
+  const displayName = launch.name || `Token ${nameFallback}`;
   const formattedMarketCap = formatMarketCapIP(launch.marketCap);
-  const creatorShort = truncateAddress(launch.creator);
+  const creatorShort = truncateAddress(launch.creator, {
+    start: 6,
+    end: 0,
+    stripPrefix: true,
+    minLength: 6,
+  });
   const timeAgoStr = launch.createdAt ? timeAgo(launch.createdAt) : "";
+  const statusLabel = launch.graduated ? "Graduated" : "Live";
+  const statusClasses = launch.graduated
+    ? "border-secondary/60 text-secondary bg-secondary/10"
+    : "border-primary/60 text-primary bg-primary/10";
+  const shortId = truncateAddress(address);
 
   return (
     <Link
       href={`/pool/${address}`}
-      className="group relative flex flex-row items-stretch rounded-xl border border-zinc-800 bg-zinc-900/50 backdrop-blur-sm overflow-hidden hover:border-sovry-green/70 hover:shadow-[0_0_40px_rgba(34,197,94,0.25)] hover:bg-zinc-900/80 transition-all duration-200"
+      className="group flex flex-col overflow-hidden rounded-sm border border-border bg-card transition-colors hover:border-primary/50"
     >
-      {/* Left - Image Section (square) */}
-      <div className="relative w-28 sm:w-32 lg:w-36 aspect-square bg-zinc-900/80 overflow-hidden flex-shrink-0">
+      {/* Media */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
         {launch.imageUrl ? (
           <Image
             src={launch.imageUrl}
             alt={displayName}
-            width={144}
-            height={144}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
             onError={(e) => {
               const target = e.currentTarget;
               target.style.display = "none";
             }}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-sovry-green/20 via-zinc-800 to-sovry-pink/20 flex items-center justify-center">
-            <span className="text-2xl font-bold text-zinc-500">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xl font-semibold text-muted-foreground">
               {displayName.charAt(0).toUpperCase()}
             </span>
           </div>
         )}
       </div>
 
-      {/* Right - Content Section */}
-      <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between min-w-0 gap-2">
-        {/* Top: Name + Symbol */}
-        <div className="space-y-0.5">
-          <h3 className="text-sm sm:text-base font-semibold text-zinc-50 truncate leading-snug">
-            {displayName}
-          </h3>
-          <p className="text-[11px] sm:text-xs text-zinc-500 font-medium uppercase">
-            {displaySymbol}
-          </p>
-        </div>
-
-        {/* Middle: Creator + Time */}
-        <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-zinc-500 mt-1">
-          <div className="h-4 w-4 rounded-full bg-sovry-green/20 flex items-center justify-center">
-            <span className="text-[8px] text-sovry-green font-bold">
-              {creatorShort.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <span className="truncate">{creatorShort}</span>
-          <span className="text-zinc-600">•</span>
-          <span>{timeAgoStr}</span>
-        </div>
-
-        {/* Bottom: MC + Bonding Progress */}
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-[11px] sm:text-xs text-zinc-400 font-medium whitespace-nowrap">
-            MC {formattedMarketCap}
-          </span>
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <div className="flex-1 h-1.5 rounded-full bg-zinc-800/80 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-sovry-green transition-all duration-300"
-                style={{ width: `${Math.max(0, Math.min(100, bondingProgress))}%` }}
-              />
+      {/* Metadata */}
+      <div className="flex flex-col gap-2 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-foreground truncate">
+              {displayName}
             </div>
-            <span className="text-[11px] sm:text-xs font-semibold text-zinc-100 whitespace-nowrap">
-              {Math.max(0, Math.min(100, bondingProgress)).toFixed(1)}%
-            </span>
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              {displaySymbol}
+            </div>
           </div>
+          <span
+            className={
+              `inline-flex items-center border px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${statusClasses}`
+            }
+          >
+            {statusLabel}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span className="font-mono tabular-nums">ID {shortId}</span>
+          <span className="font-mono tabular-nums">MC {formattedMarketCap}</span>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span className="font-mono">{creatorShort}</span>
+          <span className="font-mono tabular-nums">
+            {timeAgoStr || "—"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="h-1 w-full bg-muted">
+            <div
+              className="h-full bg-primary"
+              style={{ width: `${Math.max(0, Math.min(100, bondingProgress))}%` }}
+            />
+          </div>
+          <span className="text-[11px] font-mono text-foreground tabular-nums">
+            {Math.max(0, Math.min(100, bondingProgress)).toFixed(1)}%
+          </span>
         </div>
       </div>
     </Link>

@@ -19,6 +19,7 @@
     "subgraph:build": "npm run build --workspace subgraph",
     "build": "npm run build --workspace frontend",
     "start": "npm run start --workspace frontend",
+    "lint": "npm run lint --workspace frontend",
     "install:all": "npm install"
   },
   "keywords": [],

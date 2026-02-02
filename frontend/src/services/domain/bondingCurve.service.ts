@@ -18,6 +18,8 @@ export const SOVRY_EXCHANGE_ADDRESS =
 const DEFAULT_BASE_PRICE_WEI = BigInt(process.env.NEXT_PUBLIC_BASE_PRICE_WEI || "100000000000");
 const DEFAULT_PRICE_INCREMENT_WEI = BigInt(process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI || "2000000");
 
+const LAUNCH_RT_AMOUNT_WEI = 100n * 10n ** 18n;
+
 const SOVRY_LAUNCHPAD_ABI = [
   {
     inputs: [
@@ -53,10 +55,6 @@ function mapLaunchError(error: unknown): string {
   const message = anyErr && typeof anyErr.message === "string" ? anyErr.message : "";
   const combined = `${shortMessage} ${message} ${errorName}`;
 
-  if (combined.includes("MinListingRequired") || errorName === "MinListingRequired") {
-    return "Minimal launch 25 RT. Please increase the launch percentage or acquire more royalty tokens.";
-  }
-
   if (message) {
     return message;
   }
@@ -86,7 +84,6 @@ export async function launchOnBondingCurveDynamic(
       launchpad: SOVRY_LAUNCHPAD_ADDRESS,
       name: tokenName,
       symbol: tokenSymbol,
-      percentage: launchPercentage,
     });
 
     const publicClient = getStoryPublicClient();
@@ -133,12 +130,9 @@ export async function launchOnBondingCurveDynamic(
       throw new Error("You have no royalty tokens to launch. Please Get Royalty Tokens first.");
     }
 
-    const pct = BigInt(Math.min(Math.max(Math.floor(launchPercentage || 0), 25), 100));
-
-    const amountToLock = (userBalance * pct) / 100n;
-
-    if (amountToLock === 0n) {
-      throw new Error("Amount to lock is too small for the selected percentage.");
+    const amountToLock = LAUNCH_RT_AMOUNT_WEI;
+    if (userBalance < amountToLock) {
+      throw new Error("Insufficient royalty token balance.");
     }
 
     const approveData = encodeFunctionData({

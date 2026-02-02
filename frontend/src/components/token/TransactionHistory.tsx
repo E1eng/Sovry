@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ExternalLink, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
 import { useRawTradeHistory } from "@/hooks/useRawTradeHistory"
 import { getAddressInitials, getAddressGradient } from "@/lib/avatarUtils"
-import { cn } from "@/lib/utils"
+import { cn, truncateAddress } from "@/lib/utils"
 
 export interface TransactionHistoryProps {
   tokenAddress: string
@@ -38,14 +38,6 @@ function formatRelativeTime(timestamp: number): string {
     day: "numeric",
     year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
   })
-}
-
-/**
- * Truncate address
- */
-function truncateAddress(address: string): string {
-  if (!address || address.length < 10) return address
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
 export function TransactionHistory({
@@ -92,8 +84,11 @@ export function TransactionHistory({
   if (isLoading && trades.length === 0) {
     return (
       <Card className={cn("overflow-hidden", className)}>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+        <CardHeader className="border-b border-border bg-muted/60">
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Activity</div>
+            <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -116,12 +111,15 @@ export function TransactionHistory({
   if (error) {
     return (
       <Card className={cn("overflow-hidden", className)}>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+        <CardHeader className="border-b border-border bg-muted/60">
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Activity</div>
+            <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <p className="text-sm text-red-400 mb-4">
+            <p className="text-sm text-destructive mb-4">
               {error instanceof Error ? error.message : "Failed to load transactions"}
             </p>
             <Button onClick={() => refetch()} variant="outline" size="sm">
@@ -137,12 +135,15 @@ export function TransactionHistory({
   if (trades.length === 0) {
     return (
       <Card className={cn("overflow-hidden", className)}>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+        <CardHeader className="border-b border-border bg-muted/60">
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Activity</div>
+            <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <p className="text-sm text-zinc-400">No transactions yet</p>
+            <p className="text-sm text-muted-foreground">No transactions yet</p>
           </div>
         </CardContent>
       </Card>
@@ -151,21 +152,29 @@ export function TransactionHistory({
 
   return (
     <Card className={cn("overflow-hidden", className)}>
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+      <CardHeader className="border-b border-border bg-muted/60">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Activity</div>
+            <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+          </div>
+          <Badge variant="outline" className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground border-border">
+            Live
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent className={cn("overflow-hidden", className)}>
         <div className="max-h-[600px] overflow-y-auto no-scrollbar">
-          <div className="divide-y divide-zinc-800">
+          <div className="divide-y divide-border">
             {displayedTrades.map((trade, index) => (
               <div
                 key={`${trade.txHash}-${trade.timestamp}-${index}`}
-                className="p-4 hover:bg-zinc-900/50 transition-colors"
+                className="p-4 sm:p-5 hover:bg-muted/40 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   {/* User Avatar */}
                   <div
-                    className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold text-white border-2 border-zinc-800"
+                    className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-[11px] font-semibold text-white border border-border"
                     style={{
                       background: getAddressGradient(trade.trader),
                     }}
@@ -179,18 +188,19 @@ export function TransactionHistory({
                     {/* Top row: amount + type badge */}
                     <div className="flex items-center justify-between gap-2 mb-1">
                       {/* Amount */}
-                      <p className="text-sm text-zinc-50 truncate">
-                        {trade.formattedTokens} {symbolLabel} for {trade.formattedIP} IP
+                      <p className="text-sm text-foreground font-medium truncate">
+                        {trade.formattedTokens} {symbolLabel}
+                        <span className="text-xs text-muted-foreground"> · {trade.formattedIP} IP</span>
                       </p>
 
                       {/* Trade Type Badge */}
                       <Badge
-                        variant={trade.isBuy ? "default" : "destructive"}
+                        variant="outline"
                         className={cn(
-                          "text-[11px] px-2 py-0.5 font-semibold",
+                          "text-[10px] px-2 py-0.5 font-mono uppercase tracking-[0.2em]",
                           trade.isBuy
-                            ? "bg-green-500/15 text-green-400 border-green-500/40"
-                            : "bg-red-500/15 text-red-400 border-red-500/40"
+                            ? "bg-primary/10 text-primary border-primary/40"
+                            : "bg-secondary/10 text-secondary border-secondary/40"
                         )}
                       >
                         {trade.isBuy ? (
@@ -209,7 +219,7 @@ export function TransactionHistory({
                         href={`${ADDRESS_EXPLORER_URL}${trade.trader}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-zinc-400 hover:text-zinc-200 font-mono transition-colors"
+                        className="text-[11px] text-muted-foreground hover:text-foreground font-mono transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {truncateAddress(trade.trader)}
@@ -217,7 +227,7 @@ export function TransactionHistory({
 
                       {/* Timestamp and Explorer Link */}
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                           {formatRelativeTime(trade.timestamp)}
                         </span>
                         {trade.txHash && (
@@ -225,7 +235,7 @@ export function TransactionHistory({
                             href={`${BLOCK_EXPLORER_URL}${trade.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-zinc-400 hover:text-zinc-300 transition-colors inline-flex items-center gap-1"
+                            className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <ExternalLink className="h-3 w-3" />

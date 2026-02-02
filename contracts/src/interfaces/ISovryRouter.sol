@@ -14,7 +14,7 @@ interface ISovryRouter {
         address ipAsset,
         string calldata name,
         string calldata symbol
-    ) external payable returns (address wrapperAddress);
+    ) external returns (address wrapperAddress);
 
     function buyETH(
         address wrapperToken,

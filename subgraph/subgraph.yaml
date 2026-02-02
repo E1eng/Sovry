@@ -7,9 +7,9 @@ dataSources:
     name: SovryFactory
     network: story-aeneid
     source:
-      address: "0x96Ca2E66d0ae229B16EE9aCbBA9B96470b28c8D4" # Aeneid launchpad (update for mainnet)
+      address: "0x2eC6513800426cA9B3530bd04cdB5A8f47c9C038" # Aeneid launchpad (update for mainnet)
       abi: SovryFactory
-      startBlock: 12093886
+      startBlock: 13967897
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -21,10 +21,15 @@ dataSources:
         - Trade
         - Deposit
         - Harvest
+        - HarvestEvent
+        - BuybackEvent
+        - TokenStat
+        - ProtocolMetric
         - Graduation
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
+        - Candle
       abis:
         - name: SovryFactory
           file: ./abis/SovryFactory.json
@@ -50,8 +55,11 @@ templates:
         - Trade
         - Deposit
         - Harvest
+        - HarvestEvent
+        - BuybackEvent
+        - TokenStat
+        - ProtocolMetric
         - Graduation
-        - Redemption
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
@@ -66,8 +74,14 @@ templates:
           handler: handleTokensSold
         - event: TokensRedeemed(indexed address,indexed address,uint256,uint256,indexed address)
           handler: handleTokensRedeemed
-        - event: RoyaltiesHarvested(indexed address,uint256)
-          handler: handleRoyaltiesHarvested
+        - event: RoyaltyRevenueQueued(indexed address,uint256)
+          handler: handleRoyaltyRevenueQueued
+        - event: RoyaltyRevenueProcessed(indexed address,uint256,indexed address)
+          handler: handleRoyaltyRevenueProcessed
+        - event: RevenueHarvested(indexed address,uint256,bool)
+          handler: handleRevenueHarvested
+        - event: BuybackExecuted(indexed address,uint256)
+          handler: handleBuybackExecuted
         - event: Graduated(indexed address,uint256,indexed address)
           handler: handleGraduated
         - event: GraduationThresholdUpdated(uint256)

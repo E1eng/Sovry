@@ -3,21 +3,32 @@
   "version": "1.0.0",
   "private": true,
   "description": "Sovry API server and background worker",
-  "main": "server.js",
+  "main": "server.ts",
   "scripts": {
-    "dev": "node server.js",
-    "start:api": "node server.js",
-    "start:worker": "node start-worker.js",
-    "dev:worker": "nodemon start-worker.js"
+    "dev": "ts-node server.ts",
+    "start": "ts-node server.ts",
+    "start:api": "ts-node server.ts",
+    "start:worker": "ts-node start-worker.ts",
+    "dev:worker": "nodemon start-worker.ts",
+    "bot": "ts-node bot.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "ethers": "^5.7.2",
+    "ethers": "^6.12.0",
     "express": "^5.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.10",
+    "nodemon": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

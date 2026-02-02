@@ -6,9 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowDownUp, Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
+import { Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
 import { parseEther, formatEther } from "viem"
 import toast from "react-hot-toast"
 import { cn } from "@/lib/utils"
@@ -18,6 +17,7 @@ import {
   estimateBuyAmountForIp,
   calculateRealPriceImpact,
   calculateBondingCurveSellProceeds,
+  type BondingCurveParams,
 } from "@/lib/bondingCurve"
 import { SlippageSettings } from "@/components/swap/SlippageSettings"
 import { erc20Abi } from "viem"
@@ -25,6 +25,7 @@ import { parseTransactionError, logError, isSlippageError } from "@/lib/errorUti
 import { trackTrade, trackEvent } from "@/lib/analytics"
 import { logger } from "@/lib/logger"
 import { memo, useEffect as useReactEffect } from "react"
+import { useTokenData } from "@/hooks/useTokenData"
 
 function trimToDecimals(value: string, maxDecimals: number): string {
   if (!value || maxDecimals < 0) return value
@@ -47,7 +48,7 @@ export interface SwapInterfaceProps {
   tokenAddress?: string
   tokenSymbol?: string
   className?: string
-  onSwap?: (fromToken: string, toToken: string, amount: string) => void
+  onSwap?: (direction: "buy" | "sell", amount: string) => void
   isGraduated?: boolean
   piperXPoolAddress?: string
 }
@@ -63,8 +64,6 @@ function SwapInterfaceComponent({
   const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy")
   const [fromAmount, setFromAmount] = useState("")
   const [toAmount, setToAmount] = useState("")
-  const [fromToken, setFromToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "IP" : "TOKEN")
-  const [toToken, setToToken] = useState<"IP" | "TOKEN">(activeTab === "buy" ? "TOKEN" : "IP")
   const [showSlippageSettings, setShowSlippageSettings] = useState(false)
   const [debouncedFromAmount, setDebouncedFromAmount] = useState(fromAmount)
 
@@ -96,6 +95,16 @@ function SwapInterfaceComponent({
   const [simulationError, setSimulationError] = useState<string | null>(null)
   const [balanceRefreshNonce, setBalanceRefreshNonce] = useState(0)
 
+  const curveParams = useMemo<BondingCurveParams | null>(() => {
+    if (!tokenData) return null
+    return {
+      basePrice: tokenData.alpha,
+      priceIncrement: tokenData.beta,
+      currentSupply: tokenData.currentSupply,
+      initialCurveSupply: tokenData.initialCurveSupply,
+    }
+  }, [tokenData])
+
   // Match SovryLaunchpad trading fee for sells (1% of baseProceeds)
   const FEE_BPS = 100n
   const BPS_DENOMINATOR = 10_000n
@@ -118,6 +127,9 @@ function SwapInterfaceComponent({
   // Fetch launch details (for loading state and auxiliary info)
   const { loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
 
+  // On-chain token state (multicall) for gating
+  const { data: tokenData, isLoading: tokenDataLoading } = useTokenData(tokenAddress)
+
   // Load real  // Loaders and state are handled per-quote and per-tx using fresh curve params
 
   // Debounce timer ref
@@ -135,11 +147,7 @@ function SwapInterfaceComponent({
   // Calculate output amount with debouncing
   const calculateOutput = useCallback(
     async (amount: string, isBuy: boolean) => {
-      if (
-        !amount ||
-        parseFloat(amount) <= 0 ||
-        !tokenAddress
-      ) {
+      if (!amount || parseFloat(amount) <= 0 || !tokenAddress || tokenDataLoading || !tokenData || !curveParams) {
         setToAmount("")
         setMinReceive(null)
         setPriceImpact(null)
@@ -150,21 +158,18 @@ function SwapInterfaceComponent({
       setIsCalculating(true)
 
       try {
-        const { launchpadService } = await import("@/services/launchpadService")
         const amountBigInt = parseEther(amount)
+        const paramsForQuote = curveParams
+        if (!paramsForQuote) {
+          setToAmount("")
+          setMinReceive(null)
+          setPriceImpact(null)
+          setExchangeRate("")
+          return
+        }
         let impact: number
         if (isBuy) {
-          // Always fetch fresh curve params so the quote matches on-chain
-          const freshParams = await launchpadService.getCurveParams(tokenAddress)
-          if (!freshParams) {
-            setToAmount("")
-            setMinReceive(null)
-            setPriceImpact(null)
-            setExchangeRate("")
-            return
-          }
-
-          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(freshParams, amountBigInt)
+          const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(paramsForQuote, amountBigInt)
           if (tokenAmount === 0n || totalCost === 0n) {
             setToAmount("")
             setMinReceive(null)
@@ -186,9 +191,9 @@ function SwapInterfaceComponent({
           const minTokenWei = tokenWei * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
           setMinReceive(trimToDecimals(formatEther(minTokenWei), 6))
 
-          impact = calculateRealPriceImpact(freshParams, tokenAmount, true)
+          impact = calculateRealPriceImpact(paramsForQuote, tokenAmount, true)
           const rate = expectedTokens / parseFloat(amount)
-          setExchangeRate(`1 IP = ${rate.toFixed(6)} ${toToken}`)
+          setExchangeRate(`1 IP = ${rate.toFixed(6)} ${tokenSymbol}`)
         } else {
           // SELL: convert 18-dec UI amount to 6-dec wrapper units
           const tokenWeiIn = amountBigInt
@@ -203,16 +208,7 @@ function SwapInterfaceComponent({
 
           // Always fetch fresh curve params for sell quotes so we reflect
           // the latest on-chain state (tokens sold, currentSupply, etc.)
-          const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
-          if (!paramsForSell) {
-            setToAmount("")
-            setMinReceive(null)
-            setPriceImpact(null)
-            setExchangeRate("")
-            return
-          }
-
-          const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
+          const baseProceeds = calculateBondingCurveSellProceeds(paramsForQuote, wrapperAmount)
           if (baseProceeds <= 0n) {
             setToAmount("")
             setMinReceive(null)
@@ -235,9 +231,9 @@ function SwapInterfaceComponent({
           setToAmount(trimToDecimals(expectedIpOutStr, 8))
           setMinReceive(trimToDecimals(minIpOutStr, 8))
 
-          impact = calculateRealPriceImpact(paramsForSell, wrapperAmount, false)
+          impact = calculateRealPriceImpact(paramsForQuote, wrapperAmount, false)
           const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
-          setExchangeRate(`1 ${fromToken} = ${rate.toFixed(6)} IP`)
+          setExchangeRate(`1 ${tokenSymbol} = ${rate.toFixed(6)} IP`)
         }
         setPriceImpact(impact)
       } catch (error) {
@@ -250,7 +246,7 @@ function SwapInterfaceComponent({
         setIsCalculating(false)
       }
     },
-    [tokenAddress, slippage, fromToken, toToken, FEE_BPS, BPS_DENOMINATOR]
+    [tokenAddress, slippage, tokenSymbol, FEE_BPS, BPS_DENOMINATOR, tokenDataLoading, tokenData, curveParams]
   )
 
   // Debounced calculation effect
@@ -298,14 +294,6 @@ function SwapInterfaceComponent({
     const newTab = value as "buy" | "sell"
     setActiveTab(newTab)
 
-    if (newTab === "buy") {
-      setFromToken("IP")
-      setToToken("TOKEN")
-    } else {
-      setFromToken("TOKEN")
-      setToToken("IP")
-    }
-
     // Clear amounts and errors
     setFromAmount("")
     setToAmount("")
@@ -314,12 +302,6 @@ function SwapInterfaceComponent({
     setExchangeRate("")
     setBalanceError(null)
     setSlippageError(null)
-  }
-
-  // Handle swap button click: simply toggle between buy and sell directions
-  const handleSwapTokens = () => {
-    const nextTab = activeTab === "buy" ? "sell" : "buy"
-    handleTabChange(nextTab)
   }
 
   // Create public client for balance checks (memoized)
@@ -398,8 +380,10 @@ function SwapInterfaceComponent({
   // Handle place trade
   const handlePlaceTrade = async () => {
     if (!fromAmount || parseFloat(fromAmount) <= 0 || !tokenAddress) return
-
-    const { launchpadService } = await import("@/services/launchpadService")
+    if (tokenDataLoading || !tokenData || !tokenData.isActive || !curveParams) {
+      toast.error("Token state unavailable or inactive", { duration: 3000 })
+      return
+    }
 
     // Validation
     setSlippageError(null)
@@ -410,7 +394,7 @@ function SwapInterfaceComponent({
       return
     }
 
-    if (activeTab === "buy" && fromToken === "IP") {
+    if (activeTab === "buy") {
       // Validate IP balance
       if (!userBalance || parseFloat(userBalance) < parseFloat(fromAmount)) {
         const errorMsg = `Insufficient IP balance. You have ${userBalance || "0"} IP, but need ${fromAmount} IP.`
@@ -437,15 +421,8 @@ function SwapInterfaceComponent({
       // Calculate minTokensOut with slippage using real bonding curve math
       const slippagePercent = parseFloat(slippage) || 1
       const ipAmountBigInt = parseEther(fromAmount)
-      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
-      if (!freshParamsForTx) {
-        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
-          duration: 3000,
-        })
-        return
-      }
 
-      const { amount: tokenAmount } = estimateBuyAmountForIp(freshParamsForTx, ipAmountBigInt)
+      const { amount: tokenAmount } = estimateBuyAmountForIp(curveParams, ipAmountBigInt)
       if (tokenAmount <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,
@@ -604,7 +581,7 @@ function SwapInterfaceComponent({
       } finally {
         setIsTrading(false)
       }
-    } else if (activeTab === "sell" && fromToken === "TOKEN") {
+    } else if (activeTab === "sell") {
       // Validate token balance
       if (!tokenBalance || parseFloat(tokenBalance) < parseFloat(fromAmount)) {
         const errorMsg = `Insufficient token balance. You have ${tokenBalance || "0"} ${tokenSymbol}, but need ${fromAmount} ${tokenSymbol}.`
@@ -639,12 +616,7 @@ function SwapInterfaceComponent({
           throw new Error("Amount too small for current bonding curve")
         }
 
-        const paramsForSell = await launchpadService.getCurveParams(tokenAddress)
-        if (!paramsForSell) {
-          throw new Error("Bonding curve not available for this token")
-        }
-
-        const baseProceeds = calculateBondingCurveSellProceeds(paramsForSell, wrapperAmount)
+        const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
         if (baseProceeds <= 0n) {
           throw new Error("Amount too small for current bonding curve")
         }
@@ -700,8 +672,6 @@ function SwapInterfaceComponent({
   const handleSell = async () => {
     if (!tokenAddress || !primaryWallet || !fromAmount) return
 
-    const { launchpadService } = await import("@/services/launchpadService")
-
     setIsTrading(true)
     setTradeSuccess(false)
 
@@ -717,7 +687,6 @@ function SwapInterfaceComponent({
     })
 
     try {
-      // Create a sell function that only does the sell (not approval)
       // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell
       const tokenWeiIn = parseEther(fromAmount)
       const wrapperAmount = tokenWeiIn / (10n ** 12n)
@@ -728,15 +697,7 @@ function SwapInterfaceComponent({
         return
       }
 
-      const freshParamsForTx = await launchpadService.getCurveParams(tokenAddress)
-      if (!freshParamsForTx) {
-        toast.error("Bonding curve data not loaded yet. Please wait and try again.", {
-          duration: 3000,
-        })
-        return
-      }
-
-      const baseProceeds = calculateBondingCurveSellProceeds(freshParamsForTx, wrapperAmount)
+      const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
       if (baseProceeds <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,
@@ -744,22 +705,14 @@ function SwapInterfaceComponent({
         return
       }
 
-      // Apply 1% trading fee: netProceeds = baseProceeds - fee
       const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
       const netProceeds = baseProceeds - fee
-
-      // Apply slippage in BigInt basis points
       const slippageBps = BigInt(Math.floor(slippagePercent * 100))
       const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
-
       const minIpOutStr = formatEther(minProceeds)
 
-      const result = await launchpadService.sell(
-        tokenAddress,
-        fromAmount,
-        minIpOutStr,
-        primaryWallet
-      )
+      const { launchpadService } = await import("@/services/launchpadService")
+      const result = await launchpadService.sell(tokenAddress, fromAmount, minIpOutStr, primaryWallet)
 
       if (result.success) {
         setTradeSuccess(true)
@@ -871,19 +824,29 @@ function SwapInterfaceComponent({
   if (isGraduated) {
     return (
       <Card className={cn("overflow-hidden", className)}>
-        <CardHeader className="relative pb-4">
-          <h3 className="text-lg font-semibold text-zinc-50">Swap</h3>
+        <CardHeader className="border-b border-border bg-muted/60">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                Trade Console
+              </div>
+              <h3 className="text-lg font-semibold text-foreground">Swap</h3>
+            </div>
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              Graduated
+            </span>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert variant="default" className="bg-zinc-800/50 border-zinc-700">
-            <AlertTriangle className="h-4 w-4 text-yellow-400" />
-            <AlertDescription className="text-zinc-300">
+          <Alert variant="default" className="border-border bg-muted/40">
+            <AlertTriangle className="h-4 w-4 text-secondary" />
+            <AlertDescription className="text-muted-foreground">
               This token has graduated to PiperX
             </AlertDescription>
           </Alert>
           <Button
             onClick={handleTradeOnPiperX}
-            className="w-full h-12 sm:h-12 font-semibold bg-green-500 hover:bg-green-500/90 text-white touch-manipulation min-h-[44px]"
+            className="w-full h-12 font-mono text-xs uppercase tracking-[0.2em] bg-primary text-primary-foreground hover:bg-primary/90 touch-manipulation min-h-[44px]"
           >
             <ExternalLink className="h-5 w-5 mr-2" />
             Trade on PiperX
@@ -895,13 +858,18 @@ function SwapInterfaceComponent({
 
   return (
     <Card className={cn("overflow-hidden", className)}>
-      <CardHeader className="relative pb-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-zinc-50">Swap</h3>
+      <CardHeader className="border-b border-border bg-muted/60">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              Trade Console
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">Swap</h3>
+          </div>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
             onClick={() => {
               setShowSlippageSettings(true)
               trackEvent("slippage_changed", { action: "open_settings" })
@@ -909,7 +877,7 @@ function SwapInterfaceComponent({
             aria-label="Slippage settings"
             title="Slippage tolerance settings"
           >
-            <Settings className="h-4 w-4 text-zinc-400" />
+            <Settings className="h-4 w-4" />
           </Button>
         </div>
 
@@ -917,21 +885,22 @@ function SwapInterfaceComponent({
         <div className="flex items-center justify-end">
           <button
             onClick={() => setShowSlippageSettings(true)}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Slippage tolerance settings"
           >
-            Slippage: <span className="text-zinc-300 font-medium">{slippage}%</span>
+            Slippage: <span className="text-foreground tabular-nums">{slippage}%</span>
           </button>
         </div>
 
         {/* Buy/Sell Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-2 rounded-sm border border-border bg-background/40 p-1">
             <TabsTrigger
               value="buy"
               className={cn(
-                "data-[state=active]:bg-green-500 data-[state=active]:text-white",
-                "data-[state=active]:hover:bg-green-500/90"
+                "rounded-sm text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground",
+                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+                "data-[state=active]:hover:bg-primary/90"
               )}
               aria-label="Buy tokens"
             >
@@ -940,8 +909,9 @@ function SwapInterfaceComponent({
             <TabsTrigger
               value="sell"
               className={cn(
-                "data-[state=active]:bg-red-500 data-[state=active]:text-white",
-                "data-[state=active]:hover:bg-red-500/90"
+                "rounded-sm text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground",
+                "data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground",
+                "data-[state=active]:hover:bg-secondary/90"
               )}
               aria-label="Sell tokens"
             >
@@ -954,7 +924,7 @@ function SwapInterfaceComponent({
       <CardContent className="space-y-4">
         {/* You Pay Section */}
         <div className="space-y-2">
-          <label className="text-xs text-zinc-400 font-medium">You Pay</label>
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
           <div className="flex flex-col sm:flex-row gap-2">
             <Input
               type="text"
@@ -985,112 +955,62 @@ function SwapInterfaceComponent({
               }}
               placeholder={detailsLoading ? "Loading..." : "0.0"}
               disabled={detailsLoading || !tokenAddress || isTrading}
-              className="flex-1 text-base sm:text-lg font-semibold"
+              className="flex-1 text-base sm:text-lg font-semibold font-mono tabular-nums"
               aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
               aria-describedby={balanceError ? "balance-error" : undefined}
             />
-            <Select
-              value={fromToken}
-              disabled
-            >
-              <SelectTrigger className="w-full sm:w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="IP">IP</SelectItem>
-                <SelectItem value="TOKEN">{tokenSymbol}</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           {/* Balance Display - Stack below on mobile */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 pt-1">
-            <span className="text-xs text-zinc-500">
-              Balance: {fromToken === "IP" 
-                ? formatBalance(userBalance, 4)
-                : formatBalance(tokenBalance, 4)
-              } {fromToken === "IP" ? "IP" : tokenSymbol}
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              Balance:{" "}
+              <span className="text-foreground tabular-nums">
+                {activeTab === "buy" 
+                  ? formatBalance(userBalance, 4)
+                  : formatBalance(tokenBalance, 4)
+                } {activeTab === "buy" ? "IP" : tokenSymbol}
+              </span>
             </span>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => {
-                const balance = fromToken === "IP" ? userBalance : tokenBalance
+                const balance = activeTab === "buy" ? userBalance : tokenBalance
                 if (balance && parseFloat(balance) > 0) {
                   setFromAmount(parseFloat(balance).toString())
                 }
               }}
-              disabled={!isConnected || (fromToken === "IP" ? !userBalance : !tokenBalance)}
-              className="h-6 px-2 text-xs text-sovry-green hover:text-sovry-green/80 hover:bg-sovry-green/10"
-              aria-label={`Set maximum ${fromToken} balance`}
+              disabled={!isConnected || (activeTab === "buy" ? !userBalance : !tokenBalance)}
+              className="h-6 px-2 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:text-primary/80 hover:bg-primary/10"
+              aria-label="Set maximum balance"
             >
               MAX
             </Button>
           </div>
         </div>
 
-        {/* Swap Arrow Button */}
-        <div className="flex justify-center -my-2 relative z-10">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 rounded-full border-2 border-zinc-800 bg-zinc-900 hover:bg-zinc-800 hover:border-zinc-700 touch-manipulation"
-            onClick={handleSwapTokens}
-            aria-label="Swap tokens"
-            disabled={isTrading}
-          >
-            <ArrowDownUp className="h-5 w-5 text-zinc-400" />
-          </Button>
-        </div>
-
-        {/* You Receive Section */}
+        {/* Estimated Receive */}
         <div className="space-y-2">
-          <label className="text-xs text-zinc-400 font-medium">You Receive</label>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <Input
-                type="text"
-                value={toAmount || (isCalculating ? "..." : "")}
-                readOnly
-                placeholder={detailsLoading ? "Loading..." : "0.0"}
-              disabled={detailsLoading || isTrading}
-              className="flex-1 text-base sm:text-lg font-semibold pr-10 bg-zinc-800/50"
-              aria-label={`Amount to ${activeTab === "buy" ? "receive" : "receive"}`}
-              aria-live="polite"
-              aria-atomic="true"
-            />
-              {isCalculating && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
-                </div>
-              )}
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Estimated Receive</label>
+          <div className="flex items-center justify-between rounded-sm border border-border bg-muted/30 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold font-mono tabular-nums">
+                {toAmount || (isCalculating ? "…" : "0.0")}
+              </span>
+              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                {activeTab === "buy" ? tokenSymbol : "IP"}
+              </span>
             </div>
-            <Select
-              value={toToken}
-              disabled
-            >
-              <SelectTrigger className="w-full sm:w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="IP">IP</SelectItem>
-                <SelectItem value="TOKEN">{tokenSymbol}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {/* Balance Display - Stack below on mobile */}
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-zinc-500">
-              Balance: {toToken === "IP" 
-                ? formatBalance(userBalance, 4)
-                : formatBalance(tokenBalance, 4)
-              } {toToken === "IP" ? "IP" : tokenSymbol}
-            </span>
+            {isCalculating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
           {minReceive && (
             <div className="pt-1">
-              <span className="text-xs text-zinc-500">
-                Min received ({slippage}% slippage): {minReceive} {toToken === "IP" ? "IP" : tokenSymbol}
+              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                Min received ({slippage}% slippage):{ " " }
+                <span className="text-foreground tabular-nums">
+                  {minReceive} {activeTab === "buy" ? tokenSymbol : "IP"}
+                </span>
               </span>
             </div>
           )}
@@ -1098,24 +1018,32 @@ function SwapInterfaceComponent({
 
         {/* Exchange Rate and Price Impact */}
         {(exchangeRate || priceImpact !== null) && (
-          <div className="pt-2 border-t border-zinc-800 space-y-2">
+          <div className="pt-3 border-t border-border space-y-2">
             {exchangeRate && (
-              <p className="text-xs text-zinc-400 text-center">{exchangeRate}</p>
+              <p className="text-[11px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
             )}
             {priceImpact !== null && priceImpact > 0 && (
               <div className="flex items-center justify-center gap-2">
-                <span className="text-xs text-zinc-400">
-                  Price Impact: <span className={cn(priceImpact > 5 ? "text-red-400 font-semibold" : "text-zinc-300")}>{priceImpact.toFixed(2)}%</span>
+                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                  Price Impact
+                </span>
+                <span
+                  className={cn(
+                    "text-[11px] font-mono tabular-nums",
+                    priceImpact > 5 ? "text-secondary" : "text-foreground"
+                  )}
+                >
+                  {priceImpact.toFixed(2)}%
                 </span>
                 {priceImpact > 5 && (
-                  <AlertTriangle className="h-3 w-3 text-red-400" aria-hidden="true" />
+                  <AlertTriangle className="h-3 w-3 text-secondary" aria-hidden="true" />
                 )}
               </div>
             )}
             {priceImpact !== null && priceImpact > 5 && (
-              <Alert variant="destructive" className="py-2" role="alert">
+              <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10" role="alert">
                 <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                <AlertDescription className="text-xs">
+                <AlertDescription className="text-[11px] text-secondary">
                   High price impact! This trade will significantly affect the token price.
                 </AlertDescription>
               </Alert>
@@ -1125,23 +1053,23 @@ function SwapInterfaceComponent({
 
         {/* Error Messages */}
         {balanceError && (
-          <Alert variant="destructive" className="py-2">
+          <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10">
             <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-xs">
+            <AlertDescription className="text-[11px] text-secondary">
               {balanceError}
             </AlertDescription>
           </Alert>
         )}
 
         {slippageError && (
-          <Alert variant="destructive" className="py-2">
+          <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10">
             <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-xs">
+            <AlertDescription className="text-[11px] text-secondary">
               {slippageError}
               <Button
                 variant="link"
                 size="sm"
-                className="h-auto p-0 ml-1 text-xs underline"
+                className="h-auto p-0 ml-1 text-[10px] font-mono uppercase tracking-[0.2em] text-secondary underline"
                 onClick={() => setShowSlippageSettings(true)}
               >
                 Increase slippage
@@ -1152,17 +1080,17 @@ function SwapInterfaceComponent({
 
         {/* Simulation feedback */}
         {simulationStatus && (
-          <Alert className="mt-2 border-sovry-green/40 bg-sovry-green/10">
-            <CheckCircle className="h-3 w-3 text-sovry-green" />
-            <AlertDescription className="text-xs text-zinc-200">
+          <Alert className="mt-2 border-primary/40 bg-primary/10">
+            <CheckCircle className="h-3 w-3 text-primary" />
+            <AlertDescription className="text-[11px] font-mono text-primary">
               {simulationStatus}
             </AlertDescription>
           </Alert>
         )}
         {simulationError && (
-          <Alert variant="destructive" className="mt-2 py-2">
+          <Alert variant="destructive" className="mt-2 py-2 border-secondary/40 bg-secondary/10">
             <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-xs">
+            <AlertDescription className="text-[11px] text-secondary">
               {simulationError}
             </AlertDescription>
           </Alert>
@@ -1183,10 +1111,11 @@ function SwapInterfaceComponent({
               !!balanceError
             }
             className={cn(
-              "w-full h-12 sm:h-12 font-semibold touch-manipulation min-h-[44px]",
+              "w-full h-12 sm:h-12 font-semibold font-mono text-sm tracking-[0.08em] touch-manipulation min-h-[44px]",
+              "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
               activeTab === "buy"
-                ? "bg-green-500 hover:bg-green-500/90 text-white disabled:opacity-50"
-                : "bg-red-500 hover:bg-red-500/90 text-white disabled:opacity-50"
+                ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+                : "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
             )}
           >
             {isSimulatingTx ? (
