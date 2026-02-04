@@ -92,21 +92,53 @@ async function fetchTokenState(
 
     const { newLaunchpadAbi } = await import("./launchpadService");
 
-    const rawState = await publicClient.readContract({
-      address: launchpadAddress as Address,
-      abi: newLaunchpadAbi,
-      functionName: "getTokenState",
-      args: [wrapperToken as Address],
-    });
+    const [tokenInfoRaw, curveRaw, marketCapRaw] = await Promise.all([
+      publicClient.readContract({
+        address: launchpadAddress as Address,
+        abi: newLaunchpadAbi,
+        functionName: "launchedTokens",
+        args: [wrapperToken as Address],
+      }),
+      publicClient.readContract({
+        address: launchpadAddress as Address,
+        abi: newLaunchpadAbi,
+        functionName: "bondingCurves",
+        args: [wrapperToken as Address],
+      }),
+      publicClient.readContract({
+        address: launchpadAddress as Address,
+        abi: newLaunchpadAbi,
+        functionName: "getMarketCap",
+        args: [wrapperToken as Address],
+      }),
+    ]);
 
-    const state = rawState as any;
-    const marketCap = state?.marketCap as bigint | undefined;
-    const currentPrice = state?.currentPrice as bigint | undefined;
-    const graduatedRaw = state?.token?.graduated as boolean | undefined;
+    const tokenInfo = tokenInfoRaw as any;
+    const curve = curveRaw as any;
+
+    const wrapperAddress = (tokenInfo?.wrapperAddress ?? tokenInfo?.[1]) as string | undefined;
+    if (!wrapperAddress || wrapperAddress === "0x0000000000000000000000000000000000000000") {
+      return { marketCap: null, currentPrice: null, graduated: null };
+    }
+
+    const graduatedRaw = (tokenInfo?.graduated ?? tokenInfo?.[6]) as boolean | undefined;
+
+    const basePrice = BigInt(curve?.basePrice ?? curve?.[0] ?? 0n);
+    const priceIncrement = BigInt(curve?.priceIncrement ?? curve?.[1] ?? 0n);
+    const currentSupply = BigInt(curve?.currentSupply ?? curve?.[2] ?? 0n);
+    const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? tokenInfo?.[10] ?? 0n);
+
+    // Mirror the Exchange math: WRAP_UNIT = 1e18 because wrapper token uses 18 decimals.
+    const WRAP_UNIT_EXCHANGE = 10n ** 18n;
+    const soldRaw = initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
+    const soldUnits = soldRaw / WRAP_UNIT_EXCHANGE;
+    const currentPriceWei = basePrice + soldUnits * priceIncrement;
+
+    const marketCapWei = BigInt((marketCapRaw as bigint | undefined) ?? 0n);
 
     return {
-      marketCap: marketCap !== undefined ? formatEther(marketCap) : null,
-      currentPrice: currentPrice !== undefined ? formatEther(currentPrice) : null,
+      marketCap: formatEther(marketCapWei),
+      currentPrice: currentPriceWei > 0n ? formatEther(currentPriceWei) : null,
       graduated: graduatedRaw !== undefined ? Boolean(graduatedRaw) : null,
     };
   } catch (error) {

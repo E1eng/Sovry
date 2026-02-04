@@ -95,6 +95,9 @@ function SwapInterfaceComponent({
   const [simulationError, setSimulationError] = useState<string | null>(null)
   const [balanceRefreshNonce, setBalanceRefreshNonce] = useState(0)
 
+  // On-chain token state (multicall) for gating
+  const { data: tokenData, isLoading: tokenDataLoading } = useTokenData(tokenAddress)
+
   const curveParams = useMemo<BondingCurveParams | null>(() => {
     if (!tokenData) return null
     return {
@@ -126,9 +129,6 @@ function SwapInterfaceComponent({
 
   // Fetch launch details (for loading state and auxiliary info)
   const { loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
-
-  // On-chain token state (multicall) for gating
-  const { data: tokenData, isLoading: tokenDataLoading } = useTokenData(tokenAddress)
 
   // Load real  // Loaders and state are handled per-quote and per-tx using fresh curve params
 

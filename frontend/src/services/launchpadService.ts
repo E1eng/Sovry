@@ -93,41 +93,47 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
     const version = await detectContractVersion(SOVRY_ROUTER_ADDRESS);
     if (version === "new") {
       try {
-        // Read consolidated TokenState from the new SovryLaunchpad contract.
-        const rawState = (await publicClient.readContract({
-          address: SOVRY_EXCHANGE_ADDRESS as Address,
-          abi: newLaunchpadAbi,
-          functionName: "getTokenState",
-          args: [tokenAddress as Address],
-        })) as any;
+        const [tokenInfoRaw, curveRaw, marketCapRaw] = await Promise.all([
+          publicClient.readContract({
+            address: SOVRY_EXCHANGE_ADDRESS as Address,
+            abi: newLaunchpadAbi,
+            functionName: "launchedTokens",
+            args: [tokenAddress as Address],
+          }),
+          publicClient.readContract({
+            address: SOVRY_EXCHANGE_ADDRESS as Address,
+            abi: newLaunchpadAbi,
+            functionName: "bondingCurves",
+            args: [tokenAddress as Address],
+          }),
+          publicClient.readContract({
+            address: SOVRY_EXCHANGE_ADDRESS as Address,
+            abi: newLaunchpadAbi,
+            functionName: "getMarketCap",
+            args: [tokenAddress as Address],
+          }),
+        ]);
 
-        const tokenState = rawState as any;
-        const tokenInfo = tokenState.token as any;
-        const curve = tokenState.curve as any;
+        const tokenInfo = tokenInfoRaw as any;
+        const curve = curveRaw as any;
 
-        const wrapperAddress = tokenInfo.wrapperAddress as string;
-
-        // If the wrapper was never launched, wrapperAddress will be zero
+        const wrapperAddress = tokenInfo?.wrapperAddress as string | undefined;
         if (!wrapperAddress || wrapperAddress === "0x0000000000000000000000000000000000000000") {
           return null;
         }
 
-        const rtAddress = tokenInfo.rtAddress as string;
-        const creator = tokenInfo.creator as string;
-        const graduated = Boolean(tokenInfo.graduated);
-        const vaultAddress = tokenInfo.vaultAddress as string;
+        const rtAddress = tokenInfo?.rtAddress as string;
+        const creator = tokenInfo?.creator as string;
+        const graduated = Boolean(tokenInfo?.graduated);
+        const vaultAddress = tokenInfo?.vaultAddress as string;
 
-        const reserveBalance = BigInt(curve.reserveBalance ?? 0n);
-        const initialCurveSupply = BigInt(tokenInfo.initialCurveSupply ?? 0n);
-        const currentSupply = BigInt(curve.currentSupply ?? 0n);
+        const reserveBalance = BigInt(curve?.reserveBalance ?? 0n);
+        const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? 0n);
+        const currentSupply = BigInt(curve?.currentSupply ?? 0n);
 
-        // tokensSold = initialCurveSupply - currentSupply (never negative)
-        const tokensSold =
-          initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
+        const tokensSold = initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
 
-        // For the purposes of the current UI, "totalRaised" is approximated by
-        // the current market cap of the token.
-        const totalRaised = BigInt(tokenState.marketCap ?? 0n);
+        const totalRaised = BigInt((marketCapRaw as bigint | undefined) ?? 0n);
 
         return {
           creator,
@@ -489,23 +495,36 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
     const version = await detectContractVersion(SOVRY_ROUTER_ADDRESS);
     if (version !== "new") return null;
 
-    const rawState = (await publicClient.readContract({
-      address: SOVRY_EXCHANGE_ADDRESS as Address,
-      abi: newLaunchpadAbi,
-      functionName: "getTokenState",
-      args: [tokenAddress as Address],
-    })) as any;
+    const [curveActive, curveRaw, tokenInfoRaw] = await Promise.all([
+      publicClient.readContract({
+        address: SOVRY_EXCHANGE_ADDRESS as Address,
+        abi: newLaunchpadAbi,
+        functionName: "bondingCurveActive",
+        args: [tokenAddress as Address],
+      }),
+      publicClient.readContract({
+        address: SOVRY_EXCHANGE_ADDRESS as Address,
+        abi: newLaunchpadAbi,
+        functionName: "bondingCurves",
+        args: [tokenAddress as Address],
+      }),
+      publicClient.readContract({
+        address: SOVRY_EXCHANGE_ADDRESS as Address,
+        abi: newLaunchpadAbi,
+        functionName: "launchedTokens",
+        args: [tokenAddress as Address],
+      }),
+    ]);
 
-    const state = rawState as any;
-    const curve = state.curve as any;
-    const tokenInfo = state.token as any;
+    if (!curveActive) return null;
 
-    if (!state.curveActive) return null;
+    const curve = curveRaw as any;
+    const tokenInfo = tokenInfoRaw as any;
 
-    const basePrice = BigInt(curve.basePrice ?? 0);
-    const priceIncrement = BigInt(curve.priceIncrement ?? 0);
-    const currentSupply = BigInt(curve.currentSupply ?? 0);
-    const initialCurveSupply = BigInt(tokenInfo.initialCurveSupply ?? 0);
+    const basePrice = BigInt(curve?.basePrice ?? 0);
+    const priceIncrement = BigInt(curve?.priceIncrement ?? 0);
+    const currentSupply = BigInt(curve?.currentSupply ?? 0);
+    const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? 0);
 
     if (basePrice === 0n && priceIncrement === 0n) {
       return null;
@@ -679,51 +698,39 @@ export const newLaunchpadAbi = [
     type: "function",
   },
   {
-    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
-    name: "getTokenState",
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "bondingCurveActive",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "bondingCurves",
     outputs: [
-      {
-        components: [
-          {
-            components: [
-              { internalType: "address", name: "rtAddress", type: "address" },
-              { internalType: "address", name: "wrapperAddress", type: "address" },
-              { internalType: "address", name: "creator", type: "address" },
-              { internalType: "address", name: "ipAsset", type: "address" },
-              { internalType: "uint256", name: "launchTime", type: "uint256" },
-              { internalType: "uint256", name: "totalLocked", type: "uint256" },
-              { internalType: "bool", name: "graduated", type: "bool" },
-              { internalType: "uint256", name: "totalRoyaltiesHarvested", type: "uint256" },
-              { internalType: "address", name: "vaultAddress", type: "address" },
-              { internalType: "uint256", name: "dexReserve", type: "uint256" },
-              { internalType: "uint256", name: "initialCurveSupply", type: "uint256" },
-            ],
-            internalType: "struct SovryExchange.LaunchedToken",
-            name: "token",
-            type: "tuple",
-          },
-          {
-            components: [
-              { internalType: "uint256", name: "basePrice", type: "uint256" },
-              { internalType: "uint256", name: "priceIncrement", type: "uint256" },
-              { internalType: "uint256", name: "currentSupply", type: "uint256" },
-              { internalType: "uint256", name: "reserveBalance", type: "uint256" },
-            ],
-            internalType: "struct SovryExchange.BondingCurve",
-            name: "curve",
-            type: "tuple",
-          },
-          { internalType: "uint256", name: "currentPrice", type: "uint256" },
-          { internalType: "uint256", name: "marketCap", type: "uint256" },
-          { internalType: "bool", name: "canGraduate", type: "bool" },
-          { internalType: "uint256", name: "secondsSinceLaunch", type: "uint256" },
-          { internalType: "uint256", name: "secondsToGraduationDelay", type: "uint256" },
-          { internalType: "bool", name: "curveActive", type: "bool" },
-        ],
-        internalType: "struct SovryExchange.TokenState",
-        name: "",
-        type: "tuple",
-      },
+      { internalType: "uint128", name: "basePrice", type: "uint128" },
+      { internalType: "uint128", name: "priceIncrement", type: "uint128" },
+      { internalType: "uint128", name: "currentSupply", type: "uint128" },
+      { internalType: "uint128", name: "reserveBalance", type: "uint128" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "launchedTokens",
+    outputs: [
+      { internalType: "address", name: "rtAddress", type: "address" },
+      { internalType: "address", name: "wrapperAddress", type: "address" },
+      { internalType: "address", name: "creator", type: "address" },
+      { internalType: "address", name: "ipAsset", type: "address" },
+      { internalType: "uint256", name: "launchTime", type: "uint256" },
+      { internalType: "uint256", name: "totalLocked", type: "uint256" },
+      { internalType: "bool", name: "graduated", type: "bool" },
+      { internalType: "uint256", name: "totalRoyaltiesHarvested", type: "uint256" },
+      { internalType: "address", name: "vaultAddress", type: "address" },
+      { internalType: "uint256", name: "dexReserve", type: "uint256" },
+      { internalType: "uint256", name: "initialCurveSupply", type: "uint256" },
     ],
     stateMutability: "view",
     type: "function",
