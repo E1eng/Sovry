@@ -65,7 +65,7 @@ const ERC20_ABI = [
 const ROYALTY_MODULE_ABI = [
   {
     inputs: [{ internalType: "address", name: "ipId", type: "address" }],
-    name: "getRoyaltyVaultAddress",
+    name: "ipRoyaltyVaults",
     outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
@@ -157,23 +157,28 @@ export async function getRoyaltyVaultAddress(ipId: string, _primaryWallet?: Prim
     }
 
     const client = getStoryPublicClient();
-    const royaltyModuleAddress = process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS;
-    if (!royaltyModuleAddress) {
-      throw new Error("NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS is required but not set in environment variables");
+    const royaltyModuleAddress =
+      (process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS as Address | undefined) ||
+      ("0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086" as Address);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const royaltyVaultAddress = (await client.readContract({
+        address: royaltyModuleAddress,
+        abi: ROYALTY_MODULE_ABI,
+        functionName: "ipRoyaltyVaults",
+        args: [ipId as Address],
+      })) as string;
+
+      if (royaltyVaultAddress && royaltyVaultAddress !== "0x0000000000000000000000000000000000000000") {
+        return royaltyVaultAddress;
+      }
+
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
     }
 
-    const royaltyVaultAddress = (await client.readContract({
-      address: royaltyModuleAddress as Address,
-      abi: ROYALTY_MODULE_ABI,
-      functionName: "getRoyaltyVaultAddress",
-      args: [ipId as Address],
-    })) as string;
-
-    if (!royaltyVaultAddress || royaltyVaultAddress === "0x0000000000000000000000000000000000000000") {
-      return null;
-    }
-
-    return royaltyVaultAddress;
+    return null;
   } catch (error) {
     logger.warn("Royalty vault lookup failed (treating as no vault)", error);
     return null;

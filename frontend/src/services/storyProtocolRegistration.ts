@@ -83,7 +83,7 @@ export async function mintLicenseToken(
       receiver: walletAddress,
       royaltyContext: "0x", // Empty royalty context
       maxMintingFee: BigInt(0), // disabled
-      maxRevenueShare: 100, // cap only
+      maxRevenueShare: 100_000_000, // cap only
     });
     
     logger.log('✅ License token minted successfully!');

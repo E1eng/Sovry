@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
@@ -96,6 +96,11 @@ export default function CreatePage() {
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [previewImageErrored, setPreviewImageErrored] = useState(false);
 
+  const lastAutofillIpIdRef = useRef<string | null>(null);
+  const tokenNameTouchedRef = useRef(false);
+  const launchDescriptionTouchedRef = useRef(false);
+  const launchImageTouchedRef = useRef(false);
+
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchedTokenAddress, setLaunchedTokenAddress] = useState<string | null>(null);
   const [launchedTokenSymbol, setLaunchedTokenSymbol] = useState<string | null>(null);
@@ -129,6 +134,7 @@ export default function CreatePage() {
   );
 
   const handleLogoFileChange = (file: File | null) => {
+    launchImageTouchedRef.current = true;
     setLaunchLogoFile(file);
   };
 
@@ -151,22 +157,36 @@ export default function CreatePage() {
 
   // Auto-populate fields from Story Protocol when IP is selected
   useEffect(() => {
-    if (!selectedIP) return;
+    if (!selectedIP) {
+      lastAutofillIpIdRef.current = null;
+      tokenNameTouchedRef.current = false;
+      launchDescriptionTouchedRef.current = false;
+      launchImageTouchedRef.current = false;
+      return;
+    }
 
     const asset = displayIPAssets.find((a) => a.ipId === selectedIP);
     if (!asset) return;
 
-    if (asset.imageUrl) {
+    // Only autofill once per selected IP, and never overwrite manual user edits.
+    if (lastAutofillIpIdRef.current !== selectedIP) {
+      lastAutofillIpIdRef.current = selectedIP;
+      tokenNameTouchedRef.current = false;
+      launchDescriptionTouchedRef.current = false;
+      launchImageTouchedRef.current = false;
+    }
+
+    if (!launchImageTouchedRef.current && asset.imageUrl) {
       setLaunchImageUrl(asset.imageUrl);
       // Clear manual upload when auto-populating from Story Protocol
       setLaunchLogoFile(null);
     }
 
-    if (asset.name) {
+    if (!tokenNameTouchedRef.current && asset.name) {
       setTokenName(asset.name);
     }
 
-    if (asset.description) {
+    if (!launchDescriptionTouchedRef.current && asset.description) {
       setLaunchDescription(asset.description);
     }
   }, [selectedIP, displayIPAssets]);
@@ -355,6 +375,10 @@ export default function CreatePage() {
       setError(null);
       setSuccess(null);
 
+      const normalizedTwitterUrl = normalizeTwitterUrl(twitterUrl);
+      const normalizedTelegramUrl = normalizeTelegramUrl(telegramUrl);
+      const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+
       if (!primaryWallet) {
         throw new Error("Please connect your wallet first");
       }
@@ -375,6 +399,7 @@ export default function CreatePage() {
         nameForLaunch,
         symbolForLaunch,
         launchPercentage,
+        ipAsset.ipId,
       );
 
       if (!result.success) {
@@ -420,7 +445,7 @@ export default function CreatePage() {
           symbol: symbolForLaunch,
           description:
             launchDescription || selectedIPAsset?.description || "",
-          external_url: websiteUrl || undefined,
+          external_url: normalizedWebsiteUrl || undefined,
           image: imageUrl || undefined,
           attributes: [
             {
@@ -433,9 +458,9 @@ export default function CreatePage() {
             },
           ],
           links: {
-            twitter: twitterUrl || undefined,
-            telegram: telegramUrl || undefined,
-            website: websiteUrl || undefined,
+            twitter: normalizedTwitterUrl || undefined,
+            telegram: normalizedTelegramUrl || undefined,
+            website: normalizedWebsiteUrl || undefined,
           },
         };
 
@@ -453,9 +478,9 @@ export default function CreatePage() {
             symbol: symbolForLaunch,
             description: launchDescription || null,
             image_url: imageUrl || null,
-            twitter_url: twitterUrl.trim() || null,
-            telegram_url: telegramUrl.trim() || null,
-            website_url: websiteUrl.trim() || null,
+            twitter_url: normalizedTwitterUrl || null,
+            telegram_url: normalizedTelegramUrl || null,
+            website_url: normalizedWebsiteUrl || null,
             metadata_uri: ipAsset.metadataUri || null,
           });
         }
@@ -947,10 +972,14 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={tokenName}
-                          onChange={(e) => setTokenName(e.target.value)}
+                          onChange={(e) => {
+                            tokenNameTouchedRef.current = true;
+                            setTokenName(e.target.value);
+                          }}
                           placeholder={selectedIPAsset?.name || "Super Meme"}
                           className={inputClassName}
                         />
+
                         <p className="text-[11px] text-muted-foreground">May differ from the original IP name.</p>
                       </div>
                       <div className="space-y-1.5">
@@ -1006,6 +1035,7 @@ export default function CreatePage() {
                           multiple={false}
                           onChange={(files) => {
                             const file = files?.[0] || null;
+                            launchImageTouchedRef.current = true;
                             handleLogoFileChange(file);
                           }}
                         />
@@ -1029,7 +1059,10 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={launchDescription}
-                          onChange={(e) => setLaunchDescription(e.target.value)}
+                          onChange={(e) => {
+                            launchDescriptionTouchedRef.current = true;
+                            setLaunchDescription(e.target.value);
+                          }}
                           placeholder="Short description for this wrapped IP token"
                           className={inputClassName}
                         />
@@ -1043,10 +1076,11 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={twitterUrl}
-                          onChange={(e) => setTwitterUrl(normalizeTwitterUrl(e.target.value))}
-                          placeholder="https://twitter.com/username"
+                          onChange={(e) => setTwitterUrl(e.target.value)}
+                          placeholder="twitter.com/username"
                           className={inputClassNameSm}
                         />
+
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -1054,10 +1088,11 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={telegramUrl}
-                          onChange={(e) => setTelegramUrl(normalizeTelegramUrl(e.target.value))}
-                          placeholder="https://t.me/channel"
+                          onChange={(e) => setTelegramUrl(e.target.value)}
+                          placeholder="t.me/channel"
                           className={inputClassNameSm}
                         />
+
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -1065,10 +1100,11 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={websiteUrl}
-                          onChange={(e) => setWebsiteUrl(normalizeWebsiteUrl(e.target.value))}
-                          placeholder="https://project.site"
+                          onChange={(e) => setWebsiteUrl(e.target.value)}
+                          placeholder="project.site"
                           className={inputClassNameSm}
                         />
+
                       </div>
                     </div>
 
