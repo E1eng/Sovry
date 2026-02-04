@@ -33,6 +33,8 @@ dataSources:
       abis:
         - name: SovryFactory
           file: ./abis/SovryFactory.json
+        - name: SovryExchange
+          file: ./abis/SovryExchange.json
       eventHandlers:
         - event: TokenLaunched(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleTokenLaunched
@@ -78,10 +80,8 @@ templates:
           handler: handleRoyaltyRevenueQueued
         - event: RoyaltyRevenueProcessed(indexed address,uint256,indexed address)
           handler: handleRoyaltyRevenueProcessed
-        - event: RevenueHarvested(indexed address,uint256,bool)
-          handler: handleRevenueHarvested
-        - event: BuybackExecuted(indexed address,uint256)
-          handler: handleBuybackExecuted
+        - event: RoyaltiesHarvested(indexed address,uint256)
+          handler: handleRoyaltiesHarvested
         - event: Graduated(indexed address,uint256,indexed address)
           handler: handleGraduated
         - event: GraduationThresholdUpdated(uint256)

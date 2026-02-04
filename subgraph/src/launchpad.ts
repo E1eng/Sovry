@@ -13,8 +13,7 @@ import {
   GraduationThresholdUpdated as GraduationThresholdUpdatedEvent,
   RoyaltyRevenueQueued as RoyaltyRevenueQueuedEvent,
   RoyaltyRevenueProcessed as RoyaltyRevenueProcessedEvent,
-  RevenueHarvested as RevenueHarvestedEvent,
-  BuybackExecuted as BuybackExecutedEvent,
+  RoyaltiesHarvested as RoyaltiesHarvestedEvent,
   SovryExchange as SovryExchangeContract,
 } from "../generated/templates/SovryExchange/SovryExchange";
 
@@ -30,7 +29,6 @@ import {
   TokenStat,
   ProtocolMetric,
   HarvestEvent,
-  BuybackEvent,
   RevenueEvent,
 } from "../generated/schema";
 import {
@@ -193,6 +191,8 @@ export function handleTokenLaunched(event: TokenLaunchedEvent): void {
   wrapper.initialCurveSupply = BigInt.zero();
   wrapper.totalRoyaltiesHarvested = BigInt.zero();
   wrapper.totalFees = BigInt.zero();
+  wrapper.totalHarvestedAmount = BigInt.zero();
+  wrapper.totalFeesPushed = BigInt.zero();
   wrapper.graduated = false;
   wrapper.poolAddress = null;
   wrapper.lpTokenId = null;
@@ -385,7 +385,7 @@ export function handleRoyaltyRevenueProcessed(event: RoyaltyRevenueProcessedEven
   launchpad.save();
 }
 
-export function handleRevenueHarvested(event: RevenueHarvestedEvent): void {
+export function handleRoyaltiesHarvested(event: RoyaltiesHarvestedEvent): void {
   let launchpadId = event.address.toHex();
   let launchpad = getOrCreateLaunchpad(launchpadId);
   let metric = getOrCreateProtocolMetric(launchpadId);
@@ -395,7 +395,8 @@ export function handleRevenueHarvested(event: RevenueHarvestedEvent): void {
   stat.totalHarvested = stat.totalHarvested.plus(event.params.amount);
   stat.save();
 
-  if (event.params.isPostGrad) {
+  let isPostGrad = wrapper.graduated;
+  if (isPostGrad) {
     metric.totalHarvestedPostGrad = metric.totalHarvestedPostGrad.plus(event.params.amount);
   } else {
     metric.totalHarvestedPreGrad = metric.totalHarvestedPreGrad.plus(event.params.amount);
@@ -411,7 +412,7 @@ export function handleRevenueHarvested(event: RevenueHarvestedEvent): void {
   let harvested = new HarvestEvent(id);
   harvested.wrapper = wrapper.id;
   harvested.amount = event.params.amount;
-  harvested.isPostGrad = event.params.isPostGrad;
+  harvested.isPostGrad = isPostGrad;
   harvested.txHash = event.transaction.hash;
   harvested.timestamp = event.block.timestamp;
   harvested.save();
@@ -420,33 +421,11 @@ export function handleRevenueHarvested(event: RevenueHarvestedEvent): void {
   rev.txHash = event.transaction.hash;
   rev.token = wrapper.id;
   rev.amount = event.params.amount;
-  rev.type = event.params.isPostGrad ? "HARVEST_BUYBACK" : "HARVEST_RESERVE";
+  rev.type = isPostGrad ? "HARVEST_BUYBACK" : "HARVEST_RESERVE";
   rev.timestamp = event.block.timestamp;
   rev.blockNumber = event.block.number;
   rev.save();
 
-  launchpad.save();
-}
-
-export function handleBuybackExecuted(event: BuybackExecutedEvent): void {
-  let launchpadId = event.address.toHex();
-  let launchpad = getOrCreateLaunchpad(launchpadId);
-  let metric = getOrCreateProtocolMetric(launchpadId);
-  let wrapper = getOrCreateWrapper(launchpadId, event.params.wrapperToken);
-
-  metric.totalBuybacks = metric.totalBuybacks.plus(event.params.amountIn);
-  metric.save();
-
-  let id = event.transaction.hash.toHex().concat("-").concat(event.logIndex.toString());
-  let buyback = new BuybackEvent(id);
-  buyback.wrapper = wrapper.id;
-  buyback.amountIn = event.params.amountIn;
-  buyback.txHash = event.transaction.hash;
-  buyback.timestamp = event.block.timestamp;
-  buyback.save();
-
-  wrapper.updatedAt = event.block.timestamp;
-  wrapper.save();
   launchpad.save();
 }
 

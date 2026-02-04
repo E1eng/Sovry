@@ -8,8 +8,6 @@
     {"anonymous":false,"inputs":[{"indexed":true,"name":"redeemer","type":"address"},{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"wrapperAmount","type":"uint256"},{"indexed":false,"name":"rtAmount","type":"uint256"},{"indexed":true,"name":"recipient","type":"address"}],"name":"TokensRedeemed","type":"event"},
     {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"RoyaltyRevenueQueued","type":"event"},
     {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":true,"name":"ipAsset","type":"address"}],"name":"RoyaltyRevenueProcessed","type":"event"},
-    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":false,"name":"isPostGrad","type":"bool"}],"name":"RevenueHarvested","type":"event"},
-    {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amountIn","type":"uint256"}],"name":"BuybackExecuted","type":"event"},
     {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"liquidity","type":"uint256"},{"indexed":true,"name":"poolAddress","type":"address"}],"name":"Graduated","type":"event"},
     {"anonymous":false,"inputs":[{"indexed":false,"name":"newThreshold","type":"uint256"}],"name":"GraduationThresholdUpdated","type":"event"},
     {"anonymous":false,"inputs":[{"indexed":true,"name":"wrapperToken","type":"address"},{"indexed":false,"name":"amount","type":"uint256"}],"name":"RoyaltiesHarvested","type":"event"},
