@@ -197,7 +197,7 @@ export default function CreatePage() {
       setLoading(true);
       setError(null);
       try {
-        const assets = await fetchWalletIPAssets(walletAddress, primaryWallet);
+        const assets = await fetchWalletIPAssets(walletAddress, primaryWallet ?? undefined);
         setIpAssets(assets);
         setTokenBalances({});
       } catch (err) {
@@ -225,7 +225,7 @@ export default function CreatePage() {
       if (alreadyHydrated) return;
 
       try {
-        const royaltyVaultAddress = await getRoyaltyVaultAddress(selected.ipId, primaryWallet);
+        const royaltyVaultAddress = await getRoyaltyVaultAddress(selected.ipId, primaryWallet ?? undefined);
 
         if (royaltyVaultAddress && royaltyVaultAddress !== ZERO_ADDRESS) {
           setIpAssets((prev) =>
@@ -290,6 +290,40 @@ export default function CreatePage() {
     hydrateSelectedIp();
   }, [walletAddress, selectedIP, primaryWallet, ipAssets, tokenBalances]);
 
+  useEffect(() => {
+    const refreshBalance = async () => {
+      if (!walletAddress) return;
+      if (!selectedIP) return;
+
+      const selected = ipAssets.find((asset) => asset.ipId === selectedIP);
+      if (!selected) return;
+
+      const cachedBalance = tokenBalances[selected.ipId];
+      const alreadyHydrated = cachedBalance !== undefined;
+      if (alreadyHydrated) return;
+
+      try {
+        const royaltyVaultAddress = await getRoyaltyVaultAddress(selected.ipId, primaryWallet ?? undefined);
+
+        if (royaltyVaultAddress && royaltyVaultAddress !== ZERO_ADDRESS) {
+          const balance = await getTokenBalance(walletAddress, royaltyVaultAddress);
+          if (balance) {
+            setTokenBalances((prev) => ({ ...prev, [selected.ipId]: balance }));
+          } else {
+            setTokenBalances((prev) => ({
+              ...prev,
+              [selected.ipId]: { address: royaltyVaultAddress, balance: "0", decimals: 6, symbol: "RT" },
+            }));
+          }
+        }
+      } catch (err) {
+        logger.error("Failed to refresh royalty token balance", err);
+      }
+    };
+
+    refreshBalance();
+  }, [walletAddress, selectedIP, primaryWallet, ipAssets, tokenBalances]);
+
   const handleUnlockTokens = async (ipAsset: IPAsset) => {
     if (!walletAddress || !primaryWallet) return;
 
@@ -317,7 +351,7 @@ export default function CreatePage() {
           const resolvedVault =
             latestAsset.royaltyVaultAddress && latestAsset.royaltyVaultAddress !== ZERO_ADDRESS
               ? latestAsset.royaltyVaultAddress
-              : (await getRoyaltyVaultAddress(ipAsset.ipId, primaryWallet)) || ZERO_ADDRESS;
+              : (await getRoyaltyVaultAddress(ipAsset.ipId, primaryWallet ?? undefined)) || ZERO_ADDRESS;
 
           if (resolvedVault !== ZERO_ADDRESS) {
             setIpAssets((prev) =>
@@ -406,9 +440,27 @@ export default function CreatePage() {
         throw new Error(result.error || "Failed to launch on bonding curve");
       }
 
+      const wrapperAddress = (result.wrapperAddress || "").toLowerCase();
+
+      if (supabase && wrapperAddress) {
+        const initialImageUrl = launchImageUrl.trim() || ipAsset.imageUrl || null;
+        await supabase.from("tokens").upsert(
+          {
+            token_address: wrapperAddress,
+            name: nameForLaunch,
+            symbol: symbolForLaunch,
+            image_uri: initialImageUrl,
+            creator: walletAddress?.toLowerCase() || null,
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: "token_address" }
+        );
+      }
+
       try {
         // Always upload image to Pinata: prefer manual upload, otherwise fetch from Story/IP asset URL and re-upload
         let imageUrl = "";
+
         if (launchLogoFile) {
           // Manual upload takes precedence
           const imageRes = await pinFileToIPFS(launchLogoFile, launchLogoFile.name);
@@ -440,6 +492,20 @@ export default function CreatePage() {
           }
         }
 
+        if (supabase && wrapperAddress) {
+          await supabase.from("tokens").upsert(
+            {
+              token_address: wrapperAddress,
+              name: nameForLaunch,
+              symbol: symbolForLaunch,
+              image_uri: imageUrl || null,
+              creator: walletAddress?.toLowerCase() || null,
+              created_at: new Date().toISOString(),
+            },
+            { onConflict: "token_address" }
+          );
+        }
+
         const metadata = {
           name: nameForLaunch,
           symbol: symbolForLaunch,
@@ -464,7 +530,7 @@ export default function CreatePage() {
           },
         };
 
-        await pinJSONToIPFS(
+        const metadataRes = await pinJSONToIPFS(
           metadata,
           `${symbolForLaunch || nameForLaunch}-wrapper`
         );
@@ -481,7 +547,7 @@ export default function CreatePage() {
             twitter_url: normalizedTwitterUrl || null,
             telegram_url: normalizedTelegramUrl || null,
             website_url: normalizedWebsiteUrl || null,
-            metadata_uri: ipAsset.metadataUri || null,
+            metadata_uri: metadataRes?.uri || ipAsset.metadataUri || null,
           });
         }
       } catch (metaError) {
@@ -591,11 +657,19 @@ export default function CreatePage() {
   const goNext = () => {
     if (currentStep === 1 && !canProceedStep1) return;
     if (currentStep === 2 && !canProceedStep2) return;
-    setCurrentStep((prev) => Math.min(3, prev + 1));
+    setCurrentStep((prev) => {
+      if (prev === 1) return 2;
+      if (prev === 2) return 3;
+      return 3;
+    });
   };
 
   const goPrev = () => {
-    setCurrentStep((prev) => Math.max(1, prev - 1));
+    setCurrentStep((prev) => {
+      if (prev === 3) return 2;
+      if (prev === 2) return 1;
+      return 1;
+    });
   };
 
   const normalizeTwitterUrl = (value: string) => {

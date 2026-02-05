@@ -62,7 +62,7 @@ export async function detectContractVersion(
   if (cached) return cached;
 
   // Frontend is wired against the latest SovryLaunchpad deployment which
-  // exposes consolidated state reads via getTokenState.
+  // exposes consolidated state reads via Exchange view methods.
   contractVersionCache.set(launchpadAddress, "new");
   return "new";
 }
@@ -117,19 +117,19 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
         const tokenInfo = tokenInfoRaw as any;
         const curve = curveRaw as any;
 
-        const wrapperAddress = tokenInfo?.wrapperAddress as string | undefined;
+        const wrapperAddress = (tokenInfo?.wrapperAddress ?? tokenInfo?.[1]) as string | undefined;
         if (!wrapperAddress || wrapperAddress === "0x0000000000000000000000000000000000000000") {
           return null;
         }
 
-        const rtAddress = tokenInfo?.rtAddress as string;
-        const creator = tokenInfo?.creator as string;
-        const graduated = Boolean(tokenInfo?.graduated);
-        const vaultAddress = tokenInfo?.vaultAddress as string;
+        const rtAddress = (tokenInfo?.rtAddress ?? tokenInfo?.[0]) as string;
+        const creator = (tokenInfo?.creator ?? tokenInfo?.[2]) as string;
+        const graduated = Boolean(tokenInfo?.graduated ?? tokenInfo?.[6]);
+        const vaultAddress = (tokenInfo?.vaultAddress ?? tokenInfo?.[8]) as string;
 
-        const reserveBalance = BigInt(curve?.reserveBalance ?? 0n);
-        const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? 0n);
-        const currentSupply = BigInt(curve?.currentSupply ?? 0n);
+        const reserveBalance = BigInt(curve?.reserveBalance ?? curve?.[3] ?? 0n);
+        const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? tokenInfo?.[10] ?? 0n);
+        const currentSupply = BigInt(curve?.currentSupply ?? curve?.[2] ?? 0n);
 
         const tokensSold = initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
 
@@ -208,14 +208,10 @@ export async function getEstimatedTokensForIP(
   ipAmount: string
 ): Promise<string> {
   try {
-    // Heuristic: 1 IP -> 1 wrapper token, convert 18-decimal IP to 6-decimal tokens
     const ipAmountWei = parseEther(ipAmount || "0");
     if (ipAmountWei <= 0n) return "0";
-    const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
-    const tokenAmount = ipAmountWei / ONE_TOKEN_FACTOR;
-    if (tokenAmount <= 0n) return "0";
-    // Interpret as 6-decimal balance
-    const numeric = formatBigIntToFloat(tokenAmount, 6);
+    // Wrapper token uses 18 decimals; display estimate in whole tokens.
+    const numeric = formatBigIntToFloat(ipAmountWei, 18);
     return numeric.toString();
   } catch (error) {
     logger.error("Error getting estimated tokens for IP:", error);
@@ -228,10 +224,9 @@ export async function estimateIPForTokens(
   tokenAmount: string
 ): Promise<string> {
   try {
-    // Heuristic inverse: 1 wrapper token (6 decimals) -> 1 IP (18 decimals)
+    // Heuristic inverse: 1 wrapper token (18 decimals) -> 1 IP (18 decimals)
     const tokenAmountWei = parseEther(tokenAmount || "0");
     if (tokenAmountWei === 0n) return "0";
-    // Treat tokenAmountWei as IP wei directly for estimation
     const numeric = formatBigIntToFloat(tokenAmountWei, 18);
     return numeric.toString();
   } catch (error) {
@@ -350,12 +345,12 @@ export async function sell(
     const amountEthDecimals = parseEther(tokenAmount || "0");
     const minIpOutWei = parseEther(minIpOut || "0");
 
-    // Convert 18-decimal UI token amount to 6-decimal wrapper units
-    const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
-    let amount = amountEthDecimals / ONE_TOKEN_FACTOR;
+    // Wrapper token uses 18 decimals; amount is already in smallest units.
+    let amount = amountEthDecimals;
     if (amount <= 0n) {
       throw new Error("Sell amount too small");
     }
+
     const ownerAddress = primaryWallet.address as Address | undefined;
     if (!ownerAddress) {
       throw new Error("No wallet address available");
@@ -521,10 +516,10 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
     const curve = curveRaw as any;
     const tokenInfo = tokenInfoRaw as any;
 
-    const basePrice = BigInt(curve?.basePrice ?? 0);
-    const priceIncrement = BigInt(curve?.priceIncrement ?? 0);
-    const currentSupply = BigInt(curve?.currentSupply ?? 0);
-    const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? 0);
+    const basePrice = BigInt(curve?.basePrice ?? curve?.[0] ?? 0n);
+    const priceIncrement = BigInt(curve?.priceIncrement ?? curve?.[1] ?? 0n);
+    const currentSupply = BigInt(curve?.currentSupply ?? curve?.[2] ?? 0n);
+    const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? tokenInfo?.[10] ?? 0n);
 
     if (basePrice === 0n && priceIncrement === 0n) {
       return null;
@@ -642,9 +637,8 @@ export async function simulateSell(
   const amountEthDecimals = parseEther(tokenAmount || "0");
   const minIpOutWei = parseEther(minIpOut || "0");
 
-  // Convert 18-decimal UI token amount to 6-decimal wrapper units
-  const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
-  const amount = amountEthDecimals / ONE_TOKEN_FACTOR;
+  // Wrapper token uses 18 decimals; amount is already in smallest units.
+  const amount = amountEthDecimals;
   if (amount <= 0n) {
     throw new Error("Sell amount too small");
   }

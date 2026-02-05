@@ -90,6 +90,25 @@ export function useLaunchDetails(tokenAddress: string | null) {
       let mediaTypeFromSupabase: string | undefined
 
       try {
+        const wrapperCandidates = new Set<string>()
+        wrapperCandidates.add(tokenAddress)
+        wrapperCandidates.add(tokenAddress.toLowerCase())
+
+        if (supabase) {
+          const { data: tokenRows, error: tokenErr } = await supabase
+            .from("tokens")
+            .select("token_address, name, symbol, image_uri")
+            .in("token_address", Array.from(wrapperCandidates))
+            .limit(1)
+
+          if (!tokenErr && Array.isArray(tokenRows) && tokenRows.length > 0) {
+            const token = tokenRows[0] as any
+            nameFromSupabase = token.name || undefined
+            symbolFromSupabase = token.symbol || undefined
+            imageUrlFromSupabase = token.image_uri || undefined
+          }
+        }
+
         const candidates = new Set<string>()
 
         const rtFromWrapper = (wrapperMeta as any)?.rt as string | undefined
@@ -121,9 +140,9 @@ export function useLaunchDetails(tokenAddress: string | null) {
             twitter = row.twitter_url || undefined
             telegram = row.telegram_url || undefined
             website = row.website_url || undefined
-            imageUrlFromSupabase = row.image_url || undefined
-            nameFromSupabase = row.name || undefined
-            symbolFromSupabase = row.symbol || undefined
+            imageUrlFromSupabase = imageUrlFromSupabase ?? row.image_url ?? undefined
+            nameFromSupabase = nameFromSupabase ?? row.name ?? undefined
+            symbolFromSupabase = symbolFromSupabase ?? row.symbol ?? undefined
             metadataUriFromSupabase = row.metadata_uri || undefined
           }
         }

@@ -28,7 +28,11 @@ export function TokenRevenueStats({ tokenAddress, className }: Props) {
       if (!tokenAddress) return
 
       const [tokenRes, eventsRes] = await Promise.all([
-        supabase.from("tokens").select("total_harvested_amount, unclaimed_amount").eq("address", tokenAddress).single(),
+        supabase
+          .from("tokens")
+          .select("total_harvested_amount, unclaimed_amount")
+          .eq("token_address", tokenAddress)
+          .single(),
         supabase
           .from("revenue_events")
           .select("tx_hash, amount, type, created_at")

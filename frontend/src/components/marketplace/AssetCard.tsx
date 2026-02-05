@@ -18,6 +18,7 @@ export interface AssetCardData {
   category?: string;
   currentPrice?: string;
   priceChange?: number;
+  graduated?: boolean;
 }
 
 interface AssetCardProps {

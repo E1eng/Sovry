@@ -26,6 +26,7 @@ import { trackTrade, trackEvent } from "@/lib/analytics"
 import { logger } from "@/lib/logger"
 import { memo, useEffect as useReactEffect } from "react"
 import { useTokenData } from "@/hooks/useTokenData"
+import { launchpadService } from "@/services/launchpadService"
 
 function trimToDecimals(value: string, maxDecimals: number): string {
   if (!value || maxDecimals < 0) return value
@@ -178,9 +179,8 @@ function SwapInterfaceComponent({
             return
           }
 
-          // Convert 6-decimal wrapper units to 18-decimal token units for display
-          const tokenWei = tokenAmount * (10n ** 12n)
-          const expectedTokensStr = formatEther(tokenWei)
+          // Wrapper token uses 18 decimals; amount is already in wei
+          const expectedTokensStr = formatEther(tokenAmount)
           const expectedTokens = parseFloat(expectedTokensStr)
 
           // Display expected tokens received
@@ -188,16 +188,15 @@ function SwapInterfaceComponent({
 
           const slippagePercent = parseFloat(slippage) || 0.5
           const slippageBps = BigInt(Math.floor(slippagePercent * 100))
-          const minTokenWei = tokenWei * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+          const minTokenWei = tokenAmount * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
           setMinReceive(trimToDecimals(formatEther(minTokenWei), 6))
 
           impact = calculateRealPriceImpact(paramsForQuote, tokenAmount, true)
           const rate = expectedTokens / parseFloat(amount)
           setExchangeRate(`1 IP = ${rate.toFixed(6)} ${tokenSymbol}`)
         } else {
-          // SELL: convert 18-dec UI amount to 6-dec wrapper units
-          const tokenWeiIn = amountBigInt
-          const wrapperAmount = tokenWeiIn / (10n ** 12n)
+          // SELL: wrapper token uses 18 decimals; UI amount is already wei
+          const wrapperAmount = amountBigInt
           if (wrapperAmount <= 0n) {
             setToAmount("")
             setMinReceive(null)
@@ -357,8 +356,7 @@ function SwapInterfaceComponent({
       }
 
       try {
-        // Fetch token balance (wrapper uses 6 decimals). Convert to 18-decimal
-        // units for display to keep UI consistent with the buy/sell inputs.
+        // Wrapper token uses 18 decimals.
         const balance = await publicClient.readContract({
           address: tokenAddress as `0x${string}`,
           abi: erc20Abi,
@@ -366,8 +364,7 @@ function SwapInterfaceComponent({
           args: [primaryWallet.address as `0x${string}`],
         }) as bigint
 
-        const tokenWei = balance * (10n ** 12n)
-        setTokenBalance(formatEther(tokenWei))
+        setTokenBalance(formatEther(balance))
       } catch (error) {
         logger.error("Error fetching token balance/approval:", error)
         setTokenBalance(null)
@@ -429,8 +426,7 @@ function SwapInterfaceComponent({
         })
         return
       }
-      const tokenWei = tokenAmount * (10n ** 12n)
-      const actualTokensOutFormatted = parseFloat(formatEther(tokenWei))
+      const actualTokensOutFormatted = parseFloat(formatEther(tokenAmount))
       const minTokensOut = actualTokensOutFormatted * (1 - slippagePercent / 100)
 
       // Run Tenderly simulation before sending real transaction
@@ -610,8 +606,7 @@ function SwapInterfaceComponent({
       setSimulationError(null)
       setIsSimulatingTx(true)
       try {
-        const tokenWeiIn = parseEther(fromAmount)
-        const wrapperAmount = tokenWeiIn / (10n ** 12n)
+        const wrapperAmount = parseEther(fromAmount)
         if (wrapperAmount <= 0n) {
           throw new Error("Amount too small for current bonding curve")
         }
@@ -672,6 +667,11 @@ function SwapInterfaceComponent({
   const handleSell = async () => {
     if (!tokenAddress || !primaryWallet || !fromAmount) return
 
+    if (!curveParams) {
+      toast.error("Token state unavailable or inactive", { duration: 3000 })
+      return
+    }
+
     setIsTrading(true)
     setTradeSuccess(false)
 
@@ -688,8 +688,7 @@ function SwapInterfaceComponent({
 
     try {
       // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell
-      const tokenWeiIn = parseEther(fromAmount)
-      const wrapperAmount = tokenWeiIn / (10n ** 12n)
+      const wrapperAmount = parseEther(fromAmount)
       if (wrapperAmount <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,

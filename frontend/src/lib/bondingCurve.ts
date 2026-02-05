@@ -49,7 +49,7 @@ export interface BondingCurveParams {
   initialCurveSupply: bigint;
 }
 
-export const WRAP_UNIT = 10n ** 6n;
+export const WRAP_UNIT = 10n ** 18n;
 const TOTAL_FEE_BPS = 100n; // 1%
 const BPS_DENOMINATOR = 10_000n;
 

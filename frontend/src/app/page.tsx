@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -41,6 +41,15 @@ const getVolume = (launch: LaunchRow) => Math.max(Number(launch.marketCap) || 0,
 
 export default function Home() {
   const { launches, loading, error, retry } = useLaunches(24);
+
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+
+  const markImageError = useCallback((key: string) => {
+    setImageErrors((prev) => {
+      if (prev[key]) return prev;
+      return { ...prev, [key]: true };
+    });
+  }, []);
 
   const spotlight = launches[0];
   const marketMovers = launches.slice(0, 5);
@@ -88,13 +97,14 @@ export default function Home() {
           <div className="relative min-h-[70vh] sm:min-h-[70vh] md:min-h-[65vh] lg:min-h-[500px] grid grid-cols-12">
           <div className="col-span-12 lg:col-span-8 relative border-b lg:border-b-0 lg:border-r border-[#262626] overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-black via-black/40 to-transparent" />
-            {spotlight?.imageUrl ? (
+            {spotlight?.imageUrl && !imageErrors[spotlight.id] ? (
               <Image
                 src={spotlight.imageUrl}
                 alt={spotlight.name || "Spotlight"}
                 fill
                 unoptimized
                 className="object-cover scale-[1.02]"
+                onError={() => markImageError(spotlight.id)}
               />
             ) : (
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#0f0f0f,transparent_45%),radial-gradient(circle_at_80%_30%,#111,transparent_40%),#000]" />
@@ -139,39 +149,62 @@ export default function Home() {
               )}
             </div>
             <div className="flex-1 divide-y divide-[#1a1a1a]">
-              {(loading ? Array.from({ length: 5 }) : marketMovers).map((item, idx) => {
-                const key = loading ? `skeleton-${idx}` : item.token || item.id;
-                const gain = loading ? 0 : getSeededNumber(String(item.id), 12, 480);
-                return (
-                  <Link
-                    key={key}
-                    href={loading ? "#" : `/pool/${item.token || item.id}`}
-                    className="flex items-center gap-3 px-4 py-3 group hover:bg-white/5 transition-colors"
-                  >
-                    <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-black/60 relative">
-                      {!loading && item.imageUrl ? (
-                        <Image src={item.imageUrl} alt={item.name || "IP"} fill unoptimized className="object-cover" />
-                      ) : (
+              {loading
+                ? Array.from({ length: 5 }).map((_, idx) => (
+                    <Link
+                      key={`skeleton-${idx}`}
+                      href="#"
+                      className="flex items-center gap-3 px-4 py-3 group hover:bg-white/5 transition-colors"
+                    >
+                      <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-black/60 relative">
                         <div className="absolute inset-0 bg-[#111]" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-foreground truncate">
-                        {loading ? "Booting..." : item.name || "Untitled IP"}
                       </div>
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                        Bonding volume
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-foreground truncate">Booting...</div>
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Bonding volume</div>
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end text-right">
-                      <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">+{gain}%</span>
-                      <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                        {loading ? "--" : formatMarketCapIP(item.marketCap)}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+                      <div className="flex flex-col items-end text-right">
+                        <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">+0%</span>
+                        <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">--</span>
+                      </div>
+                    </Link>
+                  ))
+                : marketMovers.map((item) => {
+                    const key = item.token || item.id;
+                    const gain = getSeededNumber(String(item.id), 12, 480);
+                    return (
+                      <Link
+                        key={key}
+                        href={`/pool/${item.token || item.id}`}
+                        className="flex items-center gap-3 px-4 py-3 group hover:bg-white/5 transition-colors"
+                      >
+                        <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-black/60 relative">
+                          {item.imageUrl && !imageErrors[item.id] ? (
+                            <Image
+                              src={item.imageUrl}
+                              alt={item.name || "IP"}
+                              fill
+                              unoptimized
+                              className="object-cover"
+                              onError={() => markImageError(item.id)}
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-[#111]" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-foreground truncate">{item.name || "Untitled IP"}</div>
+                          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Bonding volume</div>
+                        </div>
+                        <div className="flex flex-col items-end text-right">
+                          <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">+{gain}%</span>
+                          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                            {formatMarketCapIP(item.marketCap)}
+                          </span>
+                        </div>
+                      </Link>
+                    );
+                  })}
             </div>
           </div>
         </div>
@@ -247,8 +280,15 @@ export default function Home() {
                             <td className="px-4 py-3 border-r border-[#1a1a1a]">
                               <div className="flex items-center gap-3">
                                 <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-[#262626] bg-black/60">
-                                  {row.imageUrl ? (
-                                    <Image src={row.imageUrl} alt={row.name} fill unoptimized className="object-cover" />
+                                  {row.imageUrl && !imageErrors[row.id] ? (
+                                    <Image
+                                      src={row.imageUrl}
+                                      alt={row.name}
+                                      fill
+                                      unoptimized
+                                      className="object-cover"
+                                      onError={() => markImageError(row.id)}
+                                    />
                                   ) : (
                                     <div className="absolute inset-0 bg-[#0d0d0d]" />
                                   )}
@@ -279,7 +319,7 @@ export default function Home() {
                                     style={{ width: `${volumePct}%` }}
                                   />
                                 </div>
-                                <span className="text-[11px] tabular-nums text-muted-foreground">{formatMarketCapIP(volume)}</span>
+                                <span className="text-[11px] tabular-nums text-muted-foreground">{formatMarketCapIP(String(volume))}</span>
                               </div>
                             </td>
                             <td className="px-4 py-3 border-r border-[#1a1a1a] tabular-nums">

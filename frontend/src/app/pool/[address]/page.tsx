@@ -291,9 +291,18 @@ export default function TokenDetailPage() {
   ]
 
   const socials = [
-    { label: "Website", url: (details.launchInfo as any)?.websiteUrl || (details.wrapperMeta as any)?.website },
-    { label: "Twitter", url: (details.launchInfo as any)?.twitterUrl || (details.wrapperMeta as any)?.twitter },
-    { label: "Telegram", url: (details.launchInfo as any)?.telegramUrl || (details.wrapperMeta as any)?.telegram },
+    {
+      label: "Website",
+      url: details.website || (details.launchInfo as any)?.websiteUrl || (details.wrapperMeta as any)?.website,
+    },
+    {
+      label: "Twitter",
+      url: details.twitter || (details.launchInfo as any)?.twitterUrl || (details.wrapperMeta as any)?.twitter,
+    },
+    {
+      label: "Telegram",
+      url: details.telegram || (details.launchInfo as any)?.telegramUrl || (details.wrapperMeta as any)?.telegram,
+    },
   ].filter((s) => !!s.url)
 
   return (
@@ -398,13 +407,17 @@ export default function TokenDetailPage() {
                     </div>
                     <div className="space-y-1">
                       <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(details.ipId, "IPID")}
-                        className="font-mono text-foreground hover:underline decoration-dotted"
-                      >
-                        {truncateAddress(details.ipId)}
-                      </button>
+                      {details.ipId ? (
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(details.ipId as string, "IPID")}
+                          className="font-mono text-foreground hover:underline decoration-dotted"
+                        >
+                          {truncateAddress(details.ipId)}
+                        </button>
+                      ) : (
+                        <div className="font-mono text-muted-foreground">—</div>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Creator</div>

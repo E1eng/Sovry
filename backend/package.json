@@ -10,7 +10,8 @@
     "start:api": "ts-node server.ts",
     "start:worker": "ts-node start-worker.ts",
     "dev:worker": "nodemon start-worker.ts",
-    "bot": "ts-node bot.ts"
+    "bot": "ts-node bot.ts",
+    "backfill:tokens": "ts-node backfillTokens.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

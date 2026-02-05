@@ -201,7 +201,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
               </div>
             )}
 
-            <TokenRevenueStats wrapperAddress={details.tokenAddress} className="mt-2" />
+            <TokenRevenueStats tokenAddress={details.tokenAddress} className="mt-2" />
 
             {/* Creator Address */}
             {creator && (

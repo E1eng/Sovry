@@ -2,15 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { logger } from "@/lib/logger"
-import { fetchSubgraph } from "@/services/subgraph"
-
-interface BasicLaunch {
-  id: string
-  token: string
-  creator: string
-  createdAt: number
-  graduated: boolean
-}
+import { supabase } from "@/lib/supabaseClient"
+import type { Token } from "@/types/supabase"
 
 export interface LaunchData {
   id: string
@@ -26,31 +19,39 @@ export interface LaunchData {
   graduated?: boolean
 }
 
-async function fetchLaunches(first: number, skip: number): Promise<BasicLaunch[]> {
+async function fetchTokensFromSupabase(limit: number): Promise<LaunchData[]> {
   try {
-    const query = `
-      query GetWrapperTokens($first: Int!, $skip: Int!) {
-        wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
-          id
-          creator
-          launchTime
-          graduated
+    if (!supabase || typeof (supabase as any).from !== "function") return []
+
+    const { data, error } = await supabase
+      .from("tokens")
+      .select("token_address, name, symbol, image_uri, creator, created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit)
+
+    if (error || !Array.isArray(data)) {
+      return []
+    }
+
+    return (data as Token[])
+      .filter((row) => typeof row.token_address === "string" && row.token_address.length > 0)
+      .map((row) => {
+        const createdAt = row.created_at ? Math.floor(new Date(row.created_at).getTime() / 1000) : 0
+        const address = row.token_address.toLowerCase()
+
+        return {
+          id: address,
+          token: address,
+          creator: (row.creator || "").toLowerCase(),
+          createdAt,
+          graduated: false,
+          name: row.name || undefined,
+          symbol: row.symbol || undefined,
+          imageUrl: row.image_uri || undefined,
+          marketCap: undefined,
+          bondingProgress: undefined,
         }
-      }
-    `
-
-    const { ok, json } = await fetchSubgraph(query, { first, skip })
-
-    if (!ok) return []
-    const raw = json?.data?.wrapperTokens || []
-
-    return raw.map((l: any) => ({
-      id: l.id as string,
-      token: l.id as string,
-      creator: l.creator as string,
-      createdAt: Number(l.launchTime || 0),
-      graduated: Boolean(l.graduated),
-    }))
+      })
   } catch {
     return []
   }
@@ -66,23 +67,13 @@ export function useLaunches(limit: number = 8) {
       setLoading(true)
       setError(null)
 
-      // Fetch basic launch data
-      const basicLaunches = await fetchLaunches(limit, 0)
-      
-      if (basicLaunches.length === 0) {
+      const tokens = await fetchTokensFromSupabase(limit)
+      if (tokens.length === 0) {
         setLaunches([])
-        setLoading(false)
         return
       }
 
-      // Subgraph-only data for home list (no RPC)
-      const merged: LaunchData[] = basicLaunches.map((basic) => ({
-        ...basic,
-        marketCap: undefined,
-        bondingProgress: undefined,
-      }))
-
-      setLaunches(merged)
+      setLaunches(tokens)
     } catch (err) {
       logger.error("Error loading launches:", err)
       setError(err instanceof Error ? err.message : "Failed to load launches")

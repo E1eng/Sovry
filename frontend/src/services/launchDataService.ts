@@ -30,6 +30,37 @@ export interface EnrichedLaunchData {
   graduated?: boolean;
 }
 
+type SupabaseTokenRow = {
+  token_address: string;
+  name: string | null;
+  symbol: string | null;
+  image_uri: string | null;
+};
+
+async function fetchTokenMetadataFromSupabase(wrapperToken: string): Promise<SupabaseTokenRow | null> {
+  try {
+    if (!supabase || typeof (supabase as any).from !== "function") return null;
+
+    const candidates = new Set<string>();
+    candidates.add(wrapperToken);
+    candidates.add(wrapperToken.toLowerCase());
+
+    const { data, error } = await supabase
+      .from("tokens")
+      .select("token_address, name, symbol, image_uri")
+      .in("token_address", Array.from(candidates))
+      .limit(1);
+
+    if (error || !Array.isArray(data) || data.length === 0) {
+      return null;
+    }
+
+    return data[0] as SupabaseTokenRow;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Detect which contract version is deployed
  */
@@ -173,18 +204,24 @@ async function getRtAddressFromWrapper(
 ): Promise<string | null> {
   try {
     const version = await detectContractVersion(launchpadAddress);
-    if (version === "new") {
-      const { newLaunchpadAbi } = await import("./launchpadService");
+    if (version !== "new") {
+      const { getLaunchInfo } = await import("./launchpadService");
+      const launchInfo = await getLaunchInfo(wrapperToken);
+      return launchInfo?.royaltyToken || null;
+    }
+
+    const { newLaunchpadAbi, getLaunchInfo } = await import("./launchpadService");
+
+    try {
       const rtAddress = await publicClient.readContract({
         address: launchpadAddress as Address,
         abi: newLaunchpadAbi,
         functionName: "wrapperToRt",
         args: [wrapperToken as Address],
       });
+
       return rtAddress as string;
-    } else {
-      // Old contract - get from launchInfo
-      const { getLaunchInfo } = await import("./launchpadService");
+    } catch {
       const launchInfo = await getLaunchInfo(wrapperToken);
       return launchInfo?.royaltyToken || null;
     }
@@ -244,7 +281,8 @@ export async function enrichLaunchData(
 
   try {
     // Fetch data in parallel
-    const [symbol, name, rtAddress, tokenState, bondingProgress] = await Promise.all([
+    const [tokenMeta, symbol, name, rtAddress, tokenState, bondingProgress] = await Promise.all([
+      fetchTokenMetadataFromSupabase(wrapperToken),
       fetchTokenSymbol(wrapperToken),
       fetchTokenName(wrapperToken),
       getRtAddressFromWrapper(wrapperToken, launchpadAddress),
@@ -281,11 +319,14 @@ export async function enrichLaunchData(
     }
 
     // Fetch category and image (socials now come exclusively from Supabase)
-    const imageUrl = await fetchImageUrl(ipId, rtAddress);
+    const imageUrl = tokenMeta?.image_uri ? tokenMeta.image_uri : await fetchImageUrl(ipId, rtAddress);
+
+    const resolvedSymbol = tokenMeta?.symbol || symbol;
+    const resolvedName = tokenMeta?.name || name;
 
     const enrichedData: EnrichedLaunchData = {
-      symbol: symbol || undefined,
-      name: name || undefined,
+      symbol: resolvedSymbol || undefined,
+      name: resolvedName || undefined,
       ipId: ipId || undefined,
       imageUrl: imageUrl || undefined,
       marketCap: tokenState.marketCap || undefined,

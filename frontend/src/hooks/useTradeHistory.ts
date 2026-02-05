@@ -170,7 +170,7 @@ export function processTrades(rawTrades: RawTrade[]): ProcessedTrade[] {
   return rawTrades.map((trade) => {
     const timestamp = Number(trade.timestamp || 0)
 
-    // amount = wrapper token amount (6 decimals), value + fee = IP in 18 decimals
+    // amount = wrapper token amount (18 decimals), value + fee = IP in 18 decimals
     const amountRaw = BigInt(trade.amount || "0")
     const valueRaw = BigInt(trade.value || "0")
     const feeRaw = BigInt(trade.fee || "0")
@@ -180,9 +180,9 @@ export function processTrades(rawTrades: RawTrade[]): ProcessedTrade[] {
 
     // Convert to floating point for price & volume:
     // - ipAmount is native IP in wei (18 decimals)
-    // - tokenAmount is wrapper in smallest units (6 decimals)
+    // - tokenAmount is wrapper in smallest units (18 decimals)
     const ipFloat = Number(formatEther(ipAmount)) // IP
-    const tokenFloat = Number(tokenAmount) / 1e6 // full wrapper tokens
+    const tokenFloat = Number(formatEther(tokenAmount)) // full wrapper tokens
 
     const price = tokenFloat > 0 ? ipFloat / tokenFloat : 0 // IP per wrapper token
     const volume = ipFloat
