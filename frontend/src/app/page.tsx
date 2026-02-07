@@ -13,6 +13,9 @@ type LaunchRow = {
   name: string;
   marketCap: number;
   bondingProgress: number;
+  currentPrice: number;
+  volume24h: number;
+  dailyChangePct: number | null;
   creator: string;
   imageUrl?: string | null;
   graduated?: boolean;
@@ -28,16 +31,7 @@ const marqueeStats = [
   "STORY L1 ONLINE",
 ];
 
-const getSeededNumber = (seed: string, min: number, max: number) => {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  }
-  const normalized = hash / 2 ** 32;
-  return Math.round(min + (max - min) * normalized);
-};
-
-const getVolume = (launch: LaunchRow) => Math.max(Number(launch.marketCap) || 0, 0);
+const getVolume = (launch: LaunchRow) => Math.max(Number(launch.volume24h) || 0, 0);
 
 export default function Home() {
   const { launches, loading, error, retry } = useLaunches(24);
@@ -59,6 +53,9 @@ export default function Home() {
     name: launch.name || "Untitled IP",
     marketCap: Number(launch.marketCap) || 0,
     bondingProgress: Number(launch.bondingProgress) || 0,
+    currentPrice: Number(launch.currentPrice) || 0,
+    volume24h: Number(launch.volume24h) || 0,
+    dailyChangePct: launch.dailyChangePct ?? null,
     creator: launch.creator || "0x0",
     imageUrl: launch.imageUrl,
     graduated: launch.graduated,
@@ -71,8 +68,8 @@ export default function Home() {
   }, [terminalRows]);
 
   const priceLabel = (row: LaunchRow) => {
-    const syntheticPrice = row.marketCap > 0 ? row.marketCap / 1_000_000 : row.bondingProgress / 10;
-    return `$${syntheticPrice.toFixed(2)}`;
+    if (row.currentPrice > 0) return `${row.currentPrice.toFixed(6)} IP`;
+    return "—";
   };
 
   return (
@@ -171,7 +168,10 @@ export default function Home() {
                   ))
                 : marketMovers.map((item) => {
                     const key = item.token || item.id;
-                    const gain = getSeededNumber(String(item.id), 12, 480);
+                    const pct = typeof item.dailyChangePct === "number" && isFinite(item.dailyChangePct)
+                      ? item.dailyChangePct
+                      : null;
+                    const pctLabel = pct === null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
                     return (
                       <Link
                         key={key}
@@ -194,12 +194,12 @@ export default function Home() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-semibold text-foreground truncate">{item.name || "Untitled IP"}</div>
-                          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Bonding volume</div>
+                          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">24h change</div>
                         </div>
                         <div className="flex flex-col items-end text-right">
-                          <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">+{gain}%</span>
+                          <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">{pctLabel}</span>
                           <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                            {formatMarketCapIP(item.marketCap)}
+                            {formatMarketCapIP(item.volume24h || item.marketCap)}
                           </span>
                         </div>
                       </Link>
@@ -267,8 +267,8 @@ export default function Home() {
                         </tr>
                       )
                     : terminalRows.map((row) => {
-                        const gain = getSeededNumber(row.id, -12, 420);
-                        const isUp = gain >= 0;
+                        const change = row.dailyChangePct ?? 0;
+                        const isUp = change >= 0;
                         const volume = getVolume(row);
                         const volumePct = Math.min(100, Math.max(5, Math.round((volume / maxVolume) * 100)));
                         const creatorLabel = truncateAddress(row.creator, { start: 6, end: 4, separator: "…", minLength: 10 });

@@ -378,13 +378,13 @@ export default function TokenDetailPage() {
                     {mediaTypeLabel}
                   </span>
                 </div>
-                <div className="relative aspect-square w-full overflow-hidden bg-muted">
+                <div className="relative aspect-video max-h-[320px] w-full overflow-hidden bg-muted">
                   {details.imageUrl ? (
                     <Image
                       src={details.imageUrl}
                       alt={tokenName}
                       fill
-                      className="object-cover"
+                      className="object-contain"
                       unoptimized
                     />
                   ) : (

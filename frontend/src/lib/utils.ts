@@ -46,12 +46,18 @@ export function formatMarketCapIP(marketCap: string | undefined | null): string 
   if (!marketCap) return "—"
 
   const num = parseFloat(marketCap)
-  if (isNaN(num)) return "—"
+  if (!isFinite(num)) return "—"
 
   if (num >= 1_000_000) {
     return `${(num / 1_000_000).toFixed(2)}M IP`
   } else if (num >= 1_000) {
     return `${(num / 1_000).toFixed(2)}K IP`
+  } else if (num >= 1) {
+    return `${num.toFixed(2)} IP`
+  } else if (num >= 0.01) {
+    return `${num.toFixed(4)} IP`
+  } else if (num > 0) {
+    return `${num.toFixed(6)} IP`
   } else {
     return `${num.toFixed(2)} IP`
   }
