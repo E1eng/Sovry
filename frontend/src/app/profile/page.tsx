@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { AlertCircle, ArrowUpRight, BarChart3, Database, LayoutGrid, Loader2 } from "lucide-react";
+import { ArrowUpRight, BarChart3, Database, LayoutGrid, Loader2, Wallet } from "lucide-react";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { fetchSubgraph } from "@/services/subgraph";
+import { supabase } from "@/lib/supabaseClient";
 import { truncateAddress } from "@/lib/utils";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type Holder = {
   id: string;
@@ -40,12 +46,22 @@ type RevenueEvent = {
   token: { id: string };
 };
 
+type TokenMeta = {
+  name?: string;
+  symbol?: string;
+  imageUrl?: string;
+};
+
 type TabKey = "holdings" | "launches" | "yield";
+
+// ---------------------------------------------------------------------------
+// Subgraph fetchers
+// ---------------------------------------------------------------------------
 
 async function fetchHoldings(user: string): Promise<Holder[]> {
   const query = `
     query Holdings($user: ID!) {
-      holders(where: { user: $user, balance_gt: 0 }) {
+      holders(where: { user: $user, balance_gt: 0 }, first: 100) {
         id
         balance
         wrapper {
@@ -67,7 +83,7 @@ async function fetchHoldings(user: string): Promise<Holder[]> {
 async function fetchLaunches(user: string): Promise<Wrapper[]> {
   const query = `
     query MyLaunches($creator: Bytes!) {
-      wrapperTokens(where: { creator: $creator }) {
+      wrapperTokens(where: { creator: $creator }, first: 100) {
         id
         creator
         ipAsset
@@ -93,22 +109,90 @@ async function fetchRevenueEvents(user: string): Promise<RevenueEvent[]> {
           timestamp
           token { id }
         }
-        totalRoyaltiesHarvested
       }
     }
   `;
   const { ok, json } = await fetchSubgraph(query, { creator: user });
   if (!ok) return [];
   const tokens = (json?.data?.wrapperTokens as any[]) || [];
-  return tokens.flatMap((t) => t.revenueEvents as RevenueEvent[]);
+  return tokens.flatMap((t) => (t.revenueEvents || []) as RevenueEvent[]);
 }
 
-function formatEth(value: string | number | bigint) {
-  const num = typeof value === "string" ? Number(value) : Number(value);
-  if (!Number.isFinite(num)) return "0";
-  if (num === 0) return "0";
-  return num.toLocaleString("en-US");
+// ---------------------------------------------------------------------------
+// Supabase enrichment — batch-fetch name/symbol/image for wrapper addresses
+// ---------------------------------------------------------------------------
+
+async function fetchTokenMetas(addresses: string[]): Promise<Map<string, TokenMeta>> {
+  const map = new Map<string, TokenMeta>();
+  if (!supabase || addresses.length === 0) return map;
+
+  try {
+    const candidates = addresses.flatMap((a) => [a, a.toLowerCase()]);
+    const { data } = await supabase
+      .from("tokens")
+      .select("token_address, name, symbol, image_uri")
+      .in("token_address", candidates);
+
+    if (Array.isArray(data)) {
+      for (const row of data) {
+        const r = row as any;
+        const key = String(r.token_address).toLowerCase();
+        map.set(key, {
+          name: r.name || undefined,
+          symbol: r.symbol || undefined,
+          imageUrl: r.image_uri || undefined,
+        });
+      }
+    }
+  } catch {
+    // Supabase unavailable — degrade gracefully
+  }
+
+  return map;
 }
+
+// ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
+/** Convert raw wei string (18 decimals) to human-readable number */
+function fromWei(value: string | number | bigint): number {
+  try {
+    const str = String(value);
+    if (!str || str === "0") return 0;
+    // Use BigInt division for precision, then parse remainder
+    const big = BigInt(str);
+    const whole = big / 10n ** 18n;
+    const remainder = big % 10n ** 18n;
+    return Number(whole) + Number(remainder) / 1e18;
+  } catch {
+    return 0;
+  }
+}
+
+/** Format a human-readable number for display */
+function formatAmount(value: number): string {
+  if (!Number.isFinite(value) || value === 0) return "0";
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`;
+  if (value >= 1) return value.toFixed(2);
+  if (value >= 0.01) return value.toFixed(4);
+  return value.toFixed(6);
+}
+
+/** Relative time label */
+function timeAgo(unixSeconds: number): string {
+  const diff = Math.floor(Date.now() / 1000) - unixSeconds;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(unixSeconds * 1000).toLocaleDateString();
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function ProfilePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
@@ -118,11 +202,17 @@ export default function ProfilePage() {
   const [holdings, setHoldings] = useState<Holder[]>([]);
   const [launches, setLaunches] = useState<Wrapper[]>([]);
   const [revenues, setRevenues] = useState<RevenueEvent[]>([]);
+  const [tokenMetas, setTokenMetas] = useState<Map<string, TokenMeta>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   const isConnected = !!address;
   const checksum = address?.toLowerCase() || "";
+
+  const markImageError = useCallback((key: string) => {
+    setImageErrors((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -138,6 +228,14 @@ export default function ProfilePage() {
         setHoldings(h);
         setLaunches(l);
         setRevenues(r);
+
+        // Collect all wrapper addresses and enrich from Supabase
+        const allAddrs = new Set<string>();
+        h.forEach((x) => allAddrs.add(x.wrapper.id));
+        l.forEach((x) => allAddrs.add(x.id));
+        r.forEach((x) => allAddrs.add(x.token.id));
+        const metas = await fetchTokenMetas(Array.from(allAddrs));
+        setTokenMetas(metas);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load profile data");
       } finally {
@@ -147,9 +245,21 @@ export default function ProfilePage() {
     load();
   }, [checksum]);
 
+  const getMeta = useCallback(
+    (addr: string): TokenMeta => tokenMetas.get(addr.toLowerCase()) || {},
+    [tokenMetas],
+  );
+
   const totalHeld = useMemo(() => holdings.length, [holdings]);
   const totalLaunched = useMemo(() => launches.length, [launches]);
-  const totalYield = useMemo(() => revenues.reduce((acc, ev) => acc + Number(ev.amount || 0), 0), [revenues]);
+  const totalYield = useMemo(
+    () => revenues.reduce((acc, ev) => acc + fromWei(ev.amount || "0"), 0),
+    [revenues],
+  );
+
+  // -------------------------------------------------------------------------
+  // Not connected
+  // -------------------------------------------------------------------------
 
   if (!isConnected) {
     return (
@@ -158,16 +268,16 @@ export default function ProfilePage() {
           <Card className="w-full max-w-sm border border-[#262626] bg-black">
             <div className="p-6 space-y-4 text-center text-white">
               <div className="mx-auto w-12 h-12 rounded-sm border border-[#262626] bg-black flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-white/70" />
+                <Wallet className="h-5 w-5 text-white/70" />
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/60">Access_Locked</p>
-                <p className="text-sm">Connect wallet to view profile.</p>
+                <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/60">Wallet Required</p>
+                <p className="text-sm text-white/80">Connect your wallet to view your portfolio, launches, and yield.</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full h-10 text-[11px] font-mono uppercase tracking-[0.25em] border-[#262626] text-white"
+                className="w-full h-10 text-[11px] font-mono uppercase tracking-[0.25em] border-[#262626] text-white hover:bg-white/5"
                 onClick={() => setShowAuthFlow?.(true)}
               >
                 Connect Wallet
@@ -179,142 +289,289 @@ export default function ProfilePage() {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Connected
+  // -------------------------------------------------------------------------
+
   return (
-    <div className="min-h-screen bg-black text-white">
-      <section className="px-4 sm:px-6 py-4 space-y-6">
-        <div className="border border-[#262626] bg-black p-4 sm:p-6 flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-background text-foreground">
+      <section className="px-4 sm:px-6 py-6 space-y-6">
+        {/* Header */}
+        <div className="border border-[#262626] bg-[#050505] rounded-xl overflow-hidden">
+          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/60">Profile</p>
-              <p className="text-xl font-semibold">{truncateAddress(address)}</p>
+              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Portfolio</p>
+              <p className="text-lg sm:text-xl font-semibold font-mono">
+                {truncateAddress(address, { start: 6, end: 4, separator: "..." })}
+              </p>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-white/70">
-              <div className="inline-flex items-center gap-1 border border-[#262626] px-3 py-2">
-                <LayoutGrid className="h-4 w-4" /> Hold {totalHeld}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 border border-[#262626] rounded-sm px-3 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span className="text-foreground font-semibold">{totalHeld}</span> Held
               </div>
-              <div className="inline-flex items-center gap-1 border border-[#262626] px-3 py-2">
-                <Database className="h-4 w-4" /> Launch {totalLaunched}
+              <div className="inline-flex items-center gap-1.5 border border-[#262626] rounded-sm px-3 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                <Database className="h-3.5 w-3.5" />
+                <span className="text-foreground font-semibold">{totalLaunched}</span> Launched
               </div>
-              <div className="inline-flex items-center gap-1 border border-[#262626] px-3 py-2">
-                <BarChart3 className="h-4 w-4" /> Yield {formatEth(totalYield)}
+              <div className="inline-flex items-center gap-1.5 border border-[#262626] rounded-sm px-3 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                <BarChart3 className="h-3.5 w-3.5" />
+                <span className="text-[#CCFF00] font-semibold">{formatAmount(totalYield)}</span> IP Yield
               </div>
             </div>
           </div>
 
-          <div className="flex gap-3 text-[11px] font-mono uppercase tracking-[0.18em] overflow-x-auto">
+          {/* Tabs */}
+          <div className="border-t border-[#262626] px-5 sm:px-6 flex gap-0 overflow-x-auto">
             {(["holdings", "launches", "yield"] as TabKey[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`pb-2 border-b ${activeTab === tab ? "border-[#CCFF00] text-[#CCFF00]" : "border-transparent text-white/60 hover:text-white"}`}
+                className={`px-4 py-3 text-[11px] font-mono uppercase tracking-[0.18em] border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === tab
+                    ? "border-[#CCFF00] text-[#CCFF00]"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {tab === "holdings" ? "[ Holdings ]" : tab === "launches" ? "[ My Launches ]" : "[ Real Yield ]"}
+                {tab === "holdings" ? "Holdings" : tab === "launches" ? "My Launches" : "Real Yield"}
               </button>
             ))}
           </div>
         </div>
 
+        {/* Error */}
         {error && (
-          <Card className="border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100">
+          <div className="border border-red-500/30 bg-red-500/10 rounded-sm p-4 text-sm text-red-200">
             {error}
-          </Card>
+          </div>
         )}
 
+        {/* Loading */}
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-white/70">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading profile data...
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading portfolio...
           </div>
         ) : (
           <>
+            {/* ============== HOLDINGS TAB ============== */}
             {activeTab === "holdings" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <>
                 {holdings.length === 0 ? (
-                  <Card className="border border-dashed border-[#262626] bg-black/40 p-6 text-center text-xs font-mono uppercase tracking-[0.25em] text-white/60">
-                    NO_HOLDINGS
-                  </Card>
+                  <EmptyState label="No holdings yet" sub="Buy tokens on the launchpad to see them here." />
                 ) : (
-                  holdings.map((h) => (
-                    <Card key={h.id} className="border border-[#262626] bg-black/85 p-4 space-y-3">
-                      <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.2em] text-white/60">
-                        <span>Wrapper</span>
-                        <Link href={`/pool/${h.wrapper.id}`} className="text-white hover:text-[#CCFF00] inline-flex items-center gap-1">
-                          {truncateAddress(h.wrapper.id)} <ArrowUpRight className="h-3 w-3" />
-                        </Link>
-                      </div>
-                      <div className="text-lg font-semibold text-white">Balance: {formatEth(h.balance)}</div>
-                      <div className="text-xs text-white/60">Creator: {truncateAddress(h.wrapper.creator)}</div>
-                      <div className="text-xs text-white/60">IP: {truncateAddress(h.wrapper.ipAsset)}</div>
-                      <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-white/60 flex items-center gap-2">
-                        <span className={h.wrapper.graduated ? "text-[#CCFF00]" : "text-white/70"}>
-                          {h.wrapper.graduated ? "Graduated" : "Live"}
-                        </span>
-                        <span className="text-white/50">Harvested: {formatEth(h.wrapper.totalRoyaltiesHarvested)}</span>
-                      </div>
-                    </Card>
-                  ))
-                )}
-              </div>
-            )}
-
-            {activeTab === "launches" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {launches.length === 0 ? (
-                  <Card className="border border-dashed border-[#262626] bg-black/40 p-6 text-center text-xs font-mono uppercase tracking-[0.25em] text-white/60">
-                    NO_LAUNCHES
-                  </Card>
-                ) : (
-                  launches.map((w) => (
-                    <Card key={w.id} className="border border-[#262626] bg-black/85 p-4 space-y-3">
-                      <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.2em] text-white/60">
-                        <span>Wrapper</span>
-                        <Link href={`/pool/${w.id}`} className="text-white hover:text-[#CCFF00] inline-flex items-center gap-1">
-                          {truncateAddress(w.id)} <ArrowUpRight className="h-3 w-3" />
-                        </Link>
-                      </div>
-                      <div className="text-sm text-white/60">IP: {truncateAddress(w.ipAsset)}</div>
-                      <div className="text-xs text-white/60">Launched: {new Date(Number(w.launchTime) * 1000).toLocaleString()}</div>
-                      <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-white/60 flex items-center gap-2">
-                        <span className={w.graduated ? "text-[#CCFF00]" : "text-white/70"}>
-                          {w.graduated ? "Graduated" : "Live"}
-                        </span>
-                        <span className="text-white/50">Harvested: {formatEth(w.totalRoyaltiesHarvested)}</span>
-                      </div>
-                    </Card>
-                  ))
-                )}
-              </div>
-            )}
-
-            {activeTab === "yield" && (
-              <div className="space-y-3">
-                <Card className="border border-[#262626] bg-black/85 p-4 flex items-center justify-between text-sm text-white/80">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-white/60">Total Yield</p>
-                    <p className="text-2xl font-semibold text-white">{formatEth(totalYield)}</p>
+                  <div className="border border-[#262626] bg-[#0A0A0A] rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                          <tr className="border-b border-[#262626] bg-[#0d0d0d]">
+                            <th className="px-4 py-3 text-left">Token</th>
+                            <th className="px-4 py-3 text-right">Balance</th>
+                            <th className="px-4 py-3 text-right hidden sm:table-cell">Harvested</th>
+                            <th className="px-4 py-3 text-center">Status</th>
+                            <th className="px-4 py-3 text-right w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {holdings.map((h) => {
+                            const meta = getMeta(h.wrapper.id);
+                            const displayName = meta.name || meta.symbol || truncateAddress(h.wrapper.id, { start: 6, end: 4 });
+                            const displaySymbol = meta.symbol || truncateAddress(h.wrapper.id, { start: 4, end: 0, stripPrefix: true }).toUpperCase();
+                            const balance = fromWei(h.balance);
+                            const harvested = fromWei(h.wrapper.totalRoyaltiesHarvested);
+                            return (
+                              <tr key={h.id} className="border-b border-[#1a1a1a] hover:bg-white/[0.03] transition-colors group">
+                                <td className="px-4 py-3">
+                                  <Link href={`/pool/${h.wrapper.id}`} className="flex items-center gap-3 group/link">
+                                    <TokenAvatar
+                                      src={meta.imageUrl}
+                                      alt={displayName}
+                                      id={h.wrapper.id}
+                                      imageErrors={imageErrors}
+                                      onError={markImageError}
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-semibold text-foreground truncate group-hover/link:text-[#CCFF00] transition-colors">
+                                        {displayName}
+                                      </p>
+                                      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                                        {displaySymbol}
+                                      </p>
+                                    </div>
+                                  </Link>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="text-sm font-semibold font-mono tabular-nums">{formatAmount(balance)}</span>
+                                </td>
+                                <td className="px-4 py-3 text-right hidden sm:table-cell">
+                                  <span className="text-xs font-mono tabular-nums text-muted-foreground">
+                                    {harvested > 0 ? `${formatAmount(harvested)} IP` : "—"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <StatusBadge graduated={h.wrapper.graduated} />
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <Link href={`/pool/${h.wrapper.id}`} className="text-muted-foreground hover:text-[#CCFF00] transition-colors">
+                                    <ArrowUpRight className="h-4 w-4" />
+                                  </Link>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                  <Button asChild size="sm" className="text-[11px] font-mono uppercase tracking-[0.2em] bg-[#CCFF00] text-black">
+                )}
+              </>
+            )}
+
+            {/* ============== LAUNCHES TAB ============== */}
+            {activeTab === "launches" && (
+              <>
+                {launches.length === 0 ? (
+                  <EmptyState label="No launches yet" sub="Create your first IP token on the launchpad." linkHref="/create" linkLabel="Launch Token" />
+                ) : (
+                  <div className="border border-[#262626] bg-[#0A0A0A] rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                          <tr className="border-b border-[#262626] bg-[#0d0d0d]">
+                            <th className="px-4 py-3 text-left">Token</th>
+                            <th className="px-4 py-3 text-right hidden sm:table-cell">Harvested</th>
+                            <th className="px-4 py-3 text-right hidden md:table-cell">Launched</th>
+                            <th className="px-4 py-3 text-center">Status</th>
+                            <th className="px-4 py-3 text-right w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {launches.map((w) => {
+                            const meta = getMeta(w.id);
+                            const displayName = meta.name || meta.symbol || truncateAddress(w.id, { start: 6, end: 4 });
+                            const displaySymbol = meta.symbol || truncateAddress(w.id, { start: 4, end: 0, stripPrefix: true }).toUpperCase();
+                            const harvested = fromWei(w.totalRoyaltiesHarvested);
+                            return (
+                              <tr key={w.id} className="border-b border-[#1a1a1a] hover:bg-white/[0.03] transition-colors group">
+                                <td className="px-4 py-3">
+                                  <Link href={`/pool/${w.id}`} className="flex items-center gap-3 group/link">
+                                    <TokenAvatar
+                                      src={meta.imageUrl}
+                                      alt={displayName}
+                                      id={w.id}
+                                      imageErrors={imageErrors}
+                                      onError={markImageError}
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-semibold text-foreground truncate group-hover/link:text-[#CCFF00] transition-colors">
+                                        {displayName}
+                                      </p>
+                                      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+                                        {displaySymbol}
+                                      </p>
+                                    </div>
+                                  </Link>
+                                </td>
+                                <td className="px-4 py-3 text-right hidden sm:table-cell">
+                                  <span className="text-xs font-mono tabular-nums text-muted-foreground">
+                                    {harvested > 0 ? `${formatAmount(harvested)} IP` : "—"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right hidden md:table-cell">
+                                  <span className="text-xs text-muted-foreground">
+                                    {timeAgo(Number(w.launchTime))}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <StatusBadge graduated={w.graduated} />
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <Link href={`/pool/${w.id}`} className="text-muted-foreground hover:text-[#CCFF00] transition-colors">
+                                    <ArrowUpRight className="h-4 w-4" />
+                                  </Link>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ============== YIELD TAB ============== */}
+            {activeTab === "yield" && (
+              <div className="space-y-4">
+                {/* Yield summary card */}
+                <div className="border border-[#262626] bg-[#050505] rounded-xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-muted-foreground">Total Royalty Yield</p>
+                    <p className="text-3xl font-bold text-[#CCFF00] font-mono tabular-nums">
+                      {formatAmount(totalYield)} <span className="text-lg text-muted-foreground">IP</span>
+                    </p>
+                  </div>
+                  <Button asChild size="sm" className="text-[11px] font-mono uppercase tracking-[0.2em] bg-[#CCFF00] text-black hover:brightness-110">
                     <Link href="/create">Launch More</Link>
                   </Button>
-                </Card>
+                </div>
 
                 {revenues.length === 0 ? (
-                  <Card className="border border-dashed border-[#262626] bg-black/40 p-6 text-center text-xs font-mono uppercase tracking-[0.25em] text-white/60">
-                    NO_REVENUE_EVENTS
-                  </Card>
+                  <EmptyState label="No revenue events yet" sub="Royalties from your launched tokens will appear here." />
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {revenues.map((ev) => (
-                      <Card key={ev.id} className="border border-[#262626] bg-black/85 p-4 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-mono uppercase tracking-[0.2em] text-white/60">
-                          <span>Wrapper</span>
-                          <Link href={`/pool/${ev.token.id}`} className="text-white hover:text-[#CCFF00] inline-flex items-center gap-1">
-                            {truncateAddress(ev.token.id)} <ArrowUpRight className="h-3 w-3" />
-                          </Link>
-                        </div>
-                        <div className="text-lg font-semibold text-white">Amount: {formatEth(ev.amount)}</div>
-                        <div className="text-xs text-white/60">Timestamp: {new Date(Number(ev.timestamp) * 1000).toLocaleString()}</div>
-                      </Card>
-                    ))}
+                  <div className="border border-[#262626] bg-[#0A0A0A] rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
+                          <tr className="border-b border-[#262626] bg-[#0d0d0d]">
+                            <th className="px-4 py-3 text-left">Token</th>
+                            <th className="px-4 py-3 text-right">Amount</th>
+                            <th className="px-4 py-3 text-right hidden sm:table-cell">Time</th>
+                            <th className="px-4 py-3 text-right w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {revenues.map((ev) => {
+                            const meta = getMeta(ev.token.id);
+                            const displayName = meta.name || meta.symbol || truncateAddress(ev.token.id, { start: 6, end: 4 });
+                            const amount = fromWei(ev.amount);
+                            return (
+                              <tr key={ev.id} className="border-b border-[#1a1a1a] hover:bg-white/[0.03] transition-colors">
+                                <td className="px-4 py-3">
+                                  <Link href={`/pool/${ev.token.id}`} className="flex items-center gap-3 group/link">
+                                    <TokenAvatar
+                                      src={meta.imageUrl}
+                                      alt={displayName}
+                                      id={ev.token.id}
+                                      imageErrors={imageErrors}
+                                      onError={markImageError}
+                                    />
+                                    <span className="text-sm font-semibold truncate group-hover/link:text-[#CCFF00] transition-colors">
+                                      {displayName}
+                                    </span>
+                                  </Link>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className="text-sm font-semibold font-mono tabular-nums text-[#CCFF00]">
+                                    +{formatAmount(amount)} IP
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right hidden sm:table-cell">
+                                  <span className="text-xs text-muted-foreground">
+                                    {timeAgo(Number(ev.timestamp))}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <Link href={`/pool/${ev.token.id}`} className="text-muted-foreground hover:text-[#CCFF00] transition-colors">
+                                    <ArrowUpRight className="h-4 w-4" />
+                                  </Link>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
@@ -322,6 +579,83 @@ export default function ProfilePage() {
           </>
         )}
       </section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function TokenAvatar({
+  src,
+  alt,
+  id,
+  imageErrors,
+  onError,
+}: {
+  src?: string;
+  alt: string;
+  id: string;
+  imageErrors: Record<string, boolean>;
+  onError: (key: string) => void;
+}) {
+  const hasImage = typeof src === "string" && src.trim().length > 0 && !imageErrors[id];
+  return (
+    <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-[#262626] bg-[radial-gradient(circle_at_30%_20%,#1f1f1f,#080808_70%)] flex-shrink-0">
+      {hasImage ? (
+        <Image
+          src={src!}
+          alt={alt}
+          fill
+          unoptimized
+          className="object-contain p-0.5"
+          onError={() => onError(id)}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">
+          <span className="text-xs font-semibold text-muted-foreground">
+            {alt.charAt(0).toUpperCase()}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({ graduated }: { graduated: boolean }) {
+  return graduated ? (
+    <span className="inline-flex items-center gap-1 rounded-sm bg-[#CCFF00]/10 border border-[#CCFF00]/30 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] text-[#CCFF00]">
+      Graduated
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-sm bg-white/5 border border-[#262626] px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      Live
+    </span>
+  );
+}
+
+function EmptyState({
+  label,
+  sub,
+  linkHref,
+  linkLabel,
+}: {
+  label: string;
+  sub: string;
+  linkHref?: string;
+  linkLabel?: string;
+}) {
+  return (
+    <div className="border border-dashed border-[#262626] rounded-xl bg-[#050505] p-10 flex flex-col items-center justify-center gap-3 text-center">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground/60 max-w-xs">{sub}</p>
+      {linkHref && linkLabel && (
+        <Button asChild variant="outline" size="sm" className="mt-2 text-[11px] font-mono uppercase tracking-[0.2em] border-[#262626] hover:bg-white/5">
+          <Link href={linkHref}>{linkLabel}</Link>
+        </Button>
+      )}
     </div>
   );
 }
