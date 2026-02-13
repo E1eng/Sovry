@@ -860,8 +860,8 @@ function SwapInterfaceComponent({
               aria-describedby={balanceError ? "balance-error" : undefined}
             />
           </div>
-          {/* Balance Display - Stack below on mobile */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 pt-1">
+          {/* Balance + MAX — always on one row */}
+          <div className="flex items-center justify-between gap-2 pt-1">
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
               Balance:{" "}
               <span className="text-foreground tabular-nums">
@@ -893,7 +893,7 @@ function SwapInterfaceComponent({
         {/* Estimated Receive */}
         <div className="space-y-2">
           <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Estimated Receive</label>
-          <div className="flex items-center justify-between rounded-sm border border-border bg-muted/30 px-3 py-2">
+          <div className="flex items-center justify-between px-0 py-1">
             <div className="flex items-center gap-2">
               <span className="text-lg font-semibold font-mono tabular-nums">
                 {toAmount || (isCalculating ? "…" : "0.0")}

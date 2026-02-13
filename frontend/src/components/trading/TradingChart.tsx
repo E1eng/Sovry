@@ -476,7 +476,7 @@ function TradingChartComponent({
         {/* Chart */}
         <div
           ref={containerRef}
-          className="w-full min-w-[600px]"
+          className="w-full"
           style={{ height: `${height}px` }}
         />
 

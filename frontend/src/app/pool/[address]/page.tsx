@@ -6,16 +6,17 @@ import Image from "next/image"
 import { useState, useEffect, useCallback, useRef } from "react"
 import toast from "react-hot-toast"
 import { isAddress } from "viem"
-import { AlertCircle, Home, ArrowLeft, RefreshCw } from "lucide-react"
+import { AlertCircle, Home, ArrowLeft, RefreshCw, ArrowUpDown } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
 import { Breadcrumb } from "@/components/ui/breadcrumb"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
 import { useGraduationEvent } from "@/hooks/useGraduationEvent"
 import { GraduationModal } from "@/components/token/GraduationModal"
 import { ProgressToGraduation } from "@/components/token/ProgressBar"
 import { SwapInterface } from "@/components/swap/SwapInterface"
-import { TokenRevenueStats } from "@/components/token/TokenRevenueStats"
+
 import { TokenDetailSkeleton } from "@/components/token/TokenDetailSkeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -57,6 +58,7 @@ export default function TokenDetailPage() {
   } | null>(null)
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
   const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
+  const [showSwapSheet, setShowSwapSheet] = useState(false)
   const copyToClipboard = useCallback((text: string, label: string) => {
     if (!text) return
     navigator.clipboard?.writeText(text)
@@ -396,62 +398,21 @@ export default function TokenDetailPage() {
             </div>
           </div>
 
-          {/*
-            Layout: flat grid with per-card ordering.
-            Mobile (single column):  Swap → Chart → Progress → Media → Revenue → Holders → Txns → Comments
-            Desktop (lg: 12-col):    Left 8-col (Chart, Media, Comments)  |  Right 4-col sticky (Swap, Revenue, Holders, Txns, Progress)
-          */}
-          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-5">
-
-            {/* ── 1. SWAP — first on mobile, right column on desktop ── */}
-            <div className="order-1 lg:col-start-9 lg:col-span-4 lg:row-start-1" style={{ animation: "fadeIn 0.5s ease-out 100ms both" }}>
-              <Card>
-                <CardContent className="p-0">
-                  <SwapInterface
-                    tokenAddress={address}
-                    tokenSymbol={ticker}
-                    isGraduated={launchInfo?.graduated || false}
-                    piperXPoolAddress={graduationData?.liquidityPoolAddress}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* ── 2. CHART — second on mobile, left column on desktop ── */}
-            <div className="order-2 lg:col-start-1 lg:col-span-8 lg:row-start-1 lg:row-span-2" style={{ animation: "fadeIn 0.5s ease-out 120ms both" }}>
-              <Card>
+          {/* ── Two-column grid ── */}
+          <div className="grid gap-4 lg:gap-5 lg:grid-cols-12 lg:items-start max-w-full">
+            {/* Left column: Chart, Media, Comments */}
+            <div className="lg:col-span-8 space-y-4 min-w-0">
+              {/* Trading Chart */}
+              <Card style={{ animation: "fadeIn 0.5s ease-out 120ms both" }}>
                 <CardHeader className="border-b border-border bg-muted/60">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                        Price Chart
-                      </div>
-                      <CardTitle className="text-lg font-semibold text-foreground">
-                        {ticker}/IP
-                      </CardTitle>
-                    </div>
-                    {dailyChangePct !== null && isFinite(dailyChangePct) && (
-                      <div className="text-sm font-mono tabular-nums">
-                        <span
-                          className={
-                            dailyChangePct > 0
-                              ? "text-primary"
-                              : dailyChangePct < 0
-                              ? "text-secondary"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {dailyChangePct > 0 ? "+" : ""}
-                          {dailyChangePct.toFixed(2)}%
-                        </span>
-                        <span className="ml-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                          24h
-                        </span>
-                      </div>
-                    )}
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold text-foreground">
+                      {ticker}/IP
+                    </CardTitle>
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price Chart</span>
                   </div>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent className="overflow-hidden">
                   <div className="hidden sm:block">
                     <TradingChart
                       tokenAddress={address}
@@ -474,28 +435,9 @@ export default function TokenDetailPage() {
                   </div>
                 </CardContent>
               </Card>
-            </div>
 
-            {/* ── 3. PROGRESS TO GRADUATION — third on mobile, right column on desktop ── */}
-            {launchInfo && launchInfo.totalRaised && (
-              <div className="order-3 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 140ms both" }}>
-                <Card>
-                  <CardContent className="p-3 sm:p-5">
-                    <ProgressToGraduation
-                      totalRaised={launchInfo.totalRaised}
-                      tokenTicker={ticker}
-                      tokenName={tokenName}
-                      tokenAddress={address}
-                      isGraduated={launchInfo.graduated}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* ── 4. IP MEDIA — fourth on mobile, left column on desktop ── */}
-            <div className="order-4 lg:col-start-1 lg:col-span-8" style={{ animation: "fadeIn 0.5s ease-out 160ms both" }}>
-              <Card className="overflow-hidden">
+              {/* IP Media */}
+              <Card className="overflow-hidden" style={{ animation: "fadeIn 0.5s ease-out 160ms both" }}>
                 <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-2">
                   <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IP Media</span>
                   <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -520,15 +462,7 @@ export default function TokenDetailPage() {
                   )}
                 </div>
                 <CardContent className="p-3 space-y-3">
-                  <div className="space-y-1">
-                    <div className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Asset</div>
-                    <div className="text-sm font-semibold text-foreground truncate">{tokenName}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Symbol</div>
-                      <div className="font-mono text-foreground tabular-nums">{ticker}</div>
-                    </div>
+                  <div className="grid grid-cols-3 gap-2 text-[11px]">
                     <div className="space-y-1">
                       <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
                       {details.ipId ? (
@@ -544,16 +478,6 @@ export default function TokenDetailPage() {
                       )}
                     </div>
                     <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Creator</div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(creatorAddress || "", "Creator")}
-                        className="font-mono text-foreground hover:underline decoration-dotted"
-                      >
-                        {truncateAddress(creatorAddress)}
-                      </button>
-                    </div>
-                    <div className="space-y-1">
                       <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Token</div>
                       <button
                         type="button"
@@ -563,79 +487,34 @@ export default function TokenDetailPage() {
                         {truncateAddress(details.tokenAddress)}
                       </button>
                     </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Metadata URI</div>
-                    {metadataUri ? (
-                      <a
-                        href={metadataHref || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-[11px] font-mono text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
-                      >
-                        {metadataUri}
-                      </a>
-                    ) : (
-                      <span className="text-[11px] font-mono text-muted-foreground">—</span>
-                    )}
-                  </div>
-
-                  {socials.length > 0 && (
                     <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Socials</div>
-                      <div className="flex flex-wrap gap-2 text-[11px]">
-                        {socials.map((s) => (
-                          <a
-                            key={s.label}
-                            href={s.url as string}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 hover:bg-muted/60"
-                          >
-                            {s.label}
-                          </a>
-                        ))}
-                      </div>
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Metadata</div>
+                      {metadataUri ? (
+                        <a
+                          href={metadataHref || "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-foreground hover:underline decoration-dotted truncate block"
+                        >
+                          View
+                        </a>
+                      ) : (
+                        <span className="font-mono text-muted-foreground">—</span>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
-            </div>
 
-            {/* ── 5. REVENUE STATS — right column on desktop ── */}
-            <div className="order-5 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 180ms both" }}>
-              <Card>
-                <CardContent className="p-3 sm:p-5">
-                  <TokenRevenueStats tokenAddress={address} />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* ── 6. HOLDER DISTRIBUTION — right column on desktop ── */}
-            <div className="order-6 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 200ms both" }}>
-              <Card>
-                <CardContent className="p-3 sm:p-5">
-                  <HolderDistribution
-                    tokenAddress={address}
-                    tokenSymbol={ticker}
-                    creatorAddress={creatorAddress || undefined}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* ── 7. TRANSACTION HISTORY — right column on desktop ── */}
-            <div className="order-7 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 220ms both" }}>
-              <Card>
+              {/* Recent Activity */}
+              <Card style={{ animation: "fadeIn 0.5s ease-out 200ms both" }}>
                 <CardContent className="p-3 sm:p-5">
                   <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
                 </CardContent>
               </Card>
-            </div>
 
-            {/* ── 8. COMMENTS — last on mobile, left column on desktop ── */}
-            <div className="order-8 lg:col-start-1 lg:col-span-8" style={{ animation: "fadeIn 0.5s ease-out 240ms both" }}>
-              <Card>
+              {/* Comments */}
+              <Card style={{ animation: "fadeIn 0.5s ease-out 220ms both" }}>
                 <CardHeader className="border-b border-border bg-muted/60">
                   <CardTitle className="text-sm font-semibold text-foreground">Comments</CardTitle>
                 </CardHeader>
@@ -645,6 +524,42 @@ export default function TokenDetailPage() {
               </Card>
             </div>
 
+            {/* Right column: Swap (desktop), Progress, Holders — sticky + scrollable on desktop */}
+            <div className="lg:col-span-4 space-y-4 min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar">
+              {/* Swap — desktop only (SwapInterface renders its own Card) */}
+              <div className="hidden lg:block" style={{ animation: "fadeIn 0.5s ease-out 100ms both" }}>
+                <SwapInterface
+                  tokenAddress={address}
+                  tokenSymbol={ticker}
+                  isGraduated={launchInfo?.graduated || false}
+                  piperXPoolAddress={graduationData?.liquidityPoolAddress}
+                />
+              </div>
+
+              {launchInfo && launchInfo.totalRaised && (
+                <Card style={{ animation: "fadeIn 0.5s ease-out 140ms both" }}>
+                  <CardContent className="p-3 sm:p-5">
+                    <ProgressToGraduation
+                      totalRaised={launchInfo.totalRaised}
+                      tokenTicker={ticker}
+                      tokenName={tokenName}
+                      tokenAddress={address}
+                      isGraduated={launchInfo.graduated}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card style={{ animation: "fadeIn 0.5s ease-out 160ms both" }}>
+                <CardContent className="p-3 sm:p-5">
+                  <HolderDistribution
+                    tokenAddress={address}
+                    tokenSymbol={ticker}
+                    creatorAddress={creatorAddress || undefined}
+                  />
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Graduation Modal */}
@@ -657,8 +572,54 @@ export default function TokenDetailPage() {
               tokenAddress={graduationData?.liquidityPoolAddress || address}
             />
           )}
+
+          {/* ── Mobile: Sticky Trade button at bottom ── */}
+          <div className="sticky bottom-0 z-40 lg:hidden -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 pb-3 pt-2 bg-gradient-to-t from-background via-background to-transparent">
+            <button
+              type="button"
+              onClick={() => setShowSwapSheet(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3.5 text-sm font-mono uppercase tracking-[0.15em] text-primary-foreground shadow-lg hover:brightness-110 active:scale-[0.98] transition-all"
+            >
+              <ArrowUpDown className="h-4 w-4" />
+              <span>Trade {ticker}</span>
+            </button>
+          </div>
+
         </div>
       </div>
+
+      {/* ── Mobile: Bottom sheet for swap (OUTSIDE page wrappers so fixed works) ── */}
+      {showSwapSheet && (
+        <div className="fixed inset-0 z-50 lg:hidden" style={{ position: 'fixed' }}>
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowSwapSheet(false)}
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-card border-t border-border rounded-t-2xl" style={{ position: 'absolute' }}>
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">
+                Trade {ticker}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSwapSheet(false)}
+                className="h-8 w-8 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto">
+              <SwapInterface
+                tokenAddress={address}
+                tokenSymbol={ticker}
+                isGraduated={launchInfo?.graduated || false}
+                piperXPoolAddress={graduationData?.liquidityPoolAddress}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </ErrorBoundary>
   )
 }

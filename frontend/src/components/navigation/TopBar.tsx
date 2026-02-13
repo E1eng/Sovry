@@ -84,18 +84,20 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur">
-      <div className="mx-auto flex h-14 items-center justify-between gap-3 px-4 sm:px-6 max-w-[1600px]">
-        {/* Left: Logo */}
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 text-foreground transition-colors hover:opacity-80 flex-shrink-0"
-        >
-          <SovrySymbol size={22} className="text-foreground" />
-          <span className="hidden sm:inline text-[12px] font-semibold tracking-[0.08em] uppercase">Sovry</span>
-        </Link>
+      <div className="mx-auto flex h-14 items-center justify-between gap-2 px-4 sm:px-6 max-w-[1600px]">
+        {/* Left: Logo — flex-1 to balance centering */}
+        <div className="flex-1 flex items-center">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 text-foreground transition-colors hover:opacity-80 flex-shrink-0"
+          >
+            <SovrySymbol size={22} className="text-foreground" />
+            <span className="hidden sm:inline text-[12px] font-semibold tracking-[0.08em] uppercase">Sovry</span>
+          </Link>
+        </div>
 
-        {/* Center: Navigation — desktop */}
-        <nav className="hidden md:flex items-center gap-1">
+        {/* Center: Navigation — truly centered */}
+        <nav className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
@@ -105,51 +107,22 @@ export function TopBar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-md px-3.5 py-2 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-md px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.12em] sm:tracking-[0.15em] transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3.5 w-3.5 hidden sm:block" />
                 <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Right: Mobile nav + User area */}
-        <div className="flex items-center gap-2">
-          {/* Mobile nav icons */}
-          <nav className="flex items-center gap-1 md:hidden">
-            {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href;
-              const Icon = item.icon;
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-md transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                  )}
-                  aria-current={isActive ? "page" : undefined}
-                >
-                  <Icon className="h-4 w-4" />
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Divider on mobile */}
-          {primaryWallet && (
-            <div className="h-5 w-px bg-border md:hidden" />
-          )}
-
+        {/* Right: User area — flex-1 to balance centering */}
+        <div className="flex-1 flex items-center justify-end gap-2">
           {/* User menu */}
           <div className="relative" ref={menuRef}>
             {primaryWallet ? (
