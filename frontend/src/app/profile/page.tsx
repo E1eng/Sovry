@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight, BarChart3, Database, LayoutGrid, Loader2, Wallet } from "lucide-react";
+import { ArrowUpRight, BarChart3, Database, Edit3, Globe, LayoutGrid, Loader2, Wallet } from "lucide-react";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { fetchSubgraph } from "@/services/subgraph";
 import { supabase } from "@/lib/supabaseClient";
 import { truncateAddress } from "@/lib/utils";
+import UserProfile from "@/components/social/UserProfile";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,6 +52,15 @@ type TokenMeta = {
   name?: string;
   symbol?: string;
   imageUrl?: string;
+};
+
+type UserProfileData = {
+  username: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  twitter_handle: string | null;
+  telegram_handle: string | null;
+  website_url: string | null;
 };
 
 type TabKey = "holdings" | "launches" | "yield";
@@ -116,6 +127,25 @@ async function fetchRevenueEvents(user: string): Promise<RevenueEvent[]> {
   if (!ok) return [];
   const tokens = (json?.data?.wrapperTokens as any[]) || [];
   return tokens.flatMap((t) => (t.revenueEvents || []) as RevenueEvent[]);
+}
+
+// ---------------------------------------------------------------------------
+// Supabase — fetch user profile
+// ---------------------------------------------------------------------------
+
+async function fetchProfile(wallet: string): Promise<UserProfileData | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("username, bio, avatar_url, twitter_handle, telegram_handle, website_url")
+      .eq("wallet_address", wallet)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as UserProfileData;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +233,8 @@ export default function ProfilePage() {
   const [launches, setLaunches] = useState<Wrapper[]>([]);
   const [revenues, setRevenues] = useState<RevenueEvent[]>([]);
   const [tokenMetas, setTokenMetas] = useState<Map<string, TokenMeta>>(new Map());
+  const [profile, setProfile] = useState<UserProfileData | null>(null);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
@@ -220,14 +252,16 @@ export default function ProfilePage() {
       setLoading(true);
       setError(null);
       try {
-        const [h, l, r] = await Promise.all([
+        const [h, l, r, prof] = await Promise.all([
           fetchHoldings(checksum),
           fetchLaunches(checksum),
           fetchRevenueEvents(checksum),
+          fetchProfile(checksum),
         ]);
         setHoldings(h);
         setLaunches(l);
         setRevenues(r);
+        setProfile(prof);
 
         // Collect all wrapper addresses and enrich from Supabase
         const allAddrs = new Set<string>();
@@ -296,16 +330,130 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <section className="px-4 sm:px-6 py-6 space-y-6">
+        {/* Edit Profile Dialog */}
+        <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Profile</DialogTitle>
+            </DialogHeader>
+            <UserProfile
+              onClose={() => setShowEditProfile(false)}
+              onProfileUpdated={(update) => {
+                setProfile((prev) => ({
+                  username: update.username !== undefined ? update.username ?? null : prev?.username ?? null,
+                  bio: update.bio !== undefined ? update.bio ?? null : prev?.bio ?? null,
+                  avatar_url: update.avatarUrl !== undefined ? update.avatarUrl ?? null : prev?.avatar_url ?? null,
+                  twitter_handle: prev?.twitter_handle ?? null,
+                  telegram_handle: prev?.telegram_handle ?? null,
+                  website_url: prev?.website_url ?? null,
+                }));
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+
         {/* Header */}
         <div className="border border-[#262626] bg-[#050505] rounded-xl overflow-hidden">
-          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">Portfolio</p>
-              <p className="text-lg sm:text-xl font-semibold font-mono">
-                {truncateAddress(address, { start: 6, end: 4, separator: "..." })}
-              </p>
+          <div className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5">
+            {/* Profile avatar + info */}
+            <div className="flex items-start gap-4 flex-1 min-w-0">
+              {/* Avatar */}
+              <div className="relative h-16 w-16 sm:h-20 sm:w-20 rounded-sm overflow-hidden border border-[#262626] bg-[radial-gradient(circle_at_30%_20%,#1f1f1f,#080808_70%)] flex-shrink-0">
+                {profile?.avatar_url && !imageErrors["profile-avatar"] ? (
+                  <Image
+                    src={profile.avatar_url}
+                    alt={profile.username || "Profile"}
+                    fill
+                    unoptimized
+                    className="object-cover"
+                    onError={() => markImageError("profile-avatar")}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <span className="text-lg font-semibold text-muted-foreground">
+                      {(profile?.username?.charAt(0) || address?.charAt(2) || "?").toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Name + bio + socials */}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {profile?.username ? (
+                    <h1 className="text-lg sm:text-xl font-semibold truncate">@{profile.username}</h1>
+                  ) : (
+                    <h1 className="text-lg sm:text-xl font-semibold font-mono">
+                      {truncateAddress(address, { start: 6, end: 4, separator: "..." })}
+                    </h1>
+                  )}
+                  <button
+                    onClick={() => setShowEditProfile(true)}
+                    className="inline-flex items-center gap-1 rounded-sm border border-[#262626] px-2 py-1 text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground hover:border-[#CCFF00]/40 transition-colors"
+                  >
+                    <Edit3 className="h-3 w-3" /> Edit
+                  </button>
+                </div>
+
+                {profile?.username && (
+                  <p className="text-[11px] font-mono text-muted-foreground">
+                    {truncateAddress(address, { start: 6, end: 4, separator: "..." })}
+                  </p>
+                )}
+
+                {profile?.bio && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{profile.bio}</p>
+                )}
+
+                {/* Social links */}
+                {(profile?.twitter_handle || profile?.telegram_handle || profile?.website_url) && (
+                  <div className="flex items-center gap-3 pt-1">
+                    {profile.twitter_handle && (
+                      <a
+                        href={`https://x.com/${profile.twitter_handle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-mono text-muted-foreground hover:text-[#CCFF00] transition-colors"
+                      >
+                        @{profile.twitter_handle}
+                      </a>
+                    )}
+                    {profile.telegram_handle && (
+                      <a
+                        href={`https://t.me/${profile.telegram_handle}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-mono text-muted-foreground hover:text-[#CCFF00] transition-colors"
+                      >
+                        TG: {profile.telegram_handle}
+                      </a>
+                    )}
+                    {profile.website_url && (
+                      <a
+                        href={profile.website_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-[#CCFF00] transition-colors"
+                      >
+                        <Globe className="h-3 w-3" /> Website
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {!profile?.username && !profile?.bio && (
+                  <button
+                    onClick={() => setShowEditProfile(true)}
+                    className="text-[11px] text-muted-foreground/60 hover:text-[#CCFF00] transition-colors"
+                  >
+                    {"Set up your profile \u2192"}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+
+            {/* Stats pills */}
+            <div className="flex flex-wrap sm:flex-col items-start gap-2">
               <div className="inline-flex items-center gap-1.5 border border-[#262626] rounded-sm px-3 py-2 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                 <LayoutGrid className="h-3.5 w-3.5" />
                 <span className="text-foreground font-semibold">{totalHeld}</span> Held
