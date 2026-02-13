@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -46,7 +46,10 @@ export default function Home() {
   }, []);
 
   const spotlight = launches[0];
-  const marketMovers = launches.slice(0, 5);
+  const withChange = launches
+    .filter((item) => typeof item.dailyChangePct === "number" && isFinite(item.dailyChangePct));
+  withChange.sort((a, b) => Math.abs((b.dailyChangePct as number)) - Math.abs((a.dailyChangePct as number)));
+  const marketMovers = withChange.length > 0 ? withChange.slice(0, 5) : launches.slice(0, 5);
   const terminalRows: LaunchRow[] = launches.slice(0, 12).map((launch) => ({
     id: launch.id,
     symbol: (launch.symbol || launch.name || "TOKEN").toString().slice(0, 8).toUpperCase(),
@@ -62,10 +65,7 @@ export default function Home() {
     tokenAddress: launch.token || launch.id,
   }));
 
-  const maxVolume = useMemo(() => {
-    if (terminalRows.length === 0) return 1;
-    return Math.max(...terminalRows.map(getVolume), 1);
-  }, [terminalRows]);
+  const maxVolume = terminalRows.length === 0 ? 1 : Math.max(...terminalRows.map(getVolume), 1);
 
   const priceLabel = (row: LaunchRow) => {
     if (row.currentPrice > 0) return `${row.currentPrice.toFixed(6)} IP`;
@@ -100,7 +100,7 @@ export default function Home() {
                 alt={spotlight.name || "Spotlight"}
                 fill
                 unoptimized
-                className="object-cover scale-[1.02]"
+                className="object-contain p-8 sm:p-10 lg:p-14"
                 onError={() => markImageError(spotlight.id)}
               />
             ) : (
@@ -178,14 +178,14 @@ export default function Home() {
                         href={`/pool/${item.token || item.id}`}
                         className="flex items-center gap-3 px-4 py-3 group hover:bg-white/5 transition-colors"
                       >
-                        <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-black/60 relative">
+                        <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-[radial-gradient(circle_at_30%_20%,#1f1f1f,#080808_70%)] relative">
                           {item.imageUrl && !imageErrors[item.id] ? (
                             <Image
                               src={item.imageUrl}
                               alt={item.name || "IP"}
                               fill
                               unoptimized
-                              className="object-cover"
+                              className="object-contain p-1"
                               onError={() => markImageError(item.id)}
                             />
                           ) : (
@@ -279,14 +279,14 @@ export default function Home() {
                           >
                             <td className="px-4 py-3 border-r border-[#1a1a1a]">
                               <div className="flex items-center gap-3">
-                                <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-[#262626] bg-black/60">
+                                <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-[#262626] bg-[radial-gradient(circle_at_30%_20%,#1f1f1f,#080808_70%)]">
                                   {row.imageUrl && !imageErrors[row.id] ? (
                                     <Image
                                       src={row.imageUrl}
                                       alt={row.name}
                                       fill
                                       unoptimized
-                                      className="object-cover"
+                                      className="object-contain p-1"
                                       onError={() => markImageError(row.id)}
                                     />
                                   ) : (

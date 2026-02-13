@@ -17,7 +17,6 @@ export const STORY_RPC_URLS = RAW_STORY_RPC_URLS.split(",")
 
 export const STORY_RPC_URL = STORY_RPC_URLS[0] || "https://mainnet.storyrpc.io";
 
-export const TENDERLY_RPC_URL = process.env.NEXT_PUBLIC_TENDERLY_RPC_URL || STORY_RPC_URL;
 
 export const STORYSCAN_BASE_URL = process.env.NEXT_PUBLIC_STORYSCAN_BASE_URL || "https://www.storyscan.io";
 

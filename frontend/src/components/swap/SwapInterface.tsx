@@ -91,9 +91,6 @@ function SwapInterfaceComponent({
   const [minReceive, setMinReceive] = useState<string | null>(null)
   const [balanceError, setBalanceError] = useState<string | null>(null)
   const [slippageError, setSlippageError] = useState<string | null>(null)
-  const [isSimulatingTx, setIsSimulatingTx] = useState(false)
-  const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
-  const [simulationError, setSimulationError] = useState<string | null>(null)
   const [balanceRefreshNonce, setBalanceRefreshNonce] = useState(0)
 
   // On-chain token state (multicall) for gating
@@ -429,45 +426,6 @@ function SwapInterfaceComponent({
       const actualTokensOutFormatted = parseFloat(formatEther(tokenAmount))
       const minTokensOut = actualTokensOutFormatted * (1 - slippagePercent / 100)
 
-      // Run Tenderly simulation before sending real transaction
-      setSimulationStatus(null)
-      setSimulationError(null)
-      setIsSimulatingTx(true)
-      try {
-        await launchpadService.simulateBuy(
-          tokenAddress,
-          fromAmount,
-          primaryWallet.address as string,
-        )
-        // Simulation passed; proceed silently to on-chain execution
-      } catch (simError: any) {
-        const message = simError?.message || "Simulation failed"
-        logger.error("Tenderly simulation error (buy)", simError)
-        const lower = message.toLowerCase()
-        const isRateLimited = lower.includes("429") || simError?.status === 429
-        const isMethodMissing =
-          lower.includes("tenderly_simulate") ||
-          lower.includes("does not exist") ||
-          lower.includes("is not available")
-
-        if (isRateLimited || isMethodMissing) {
-          setSimulationError(
-            "Tenderly simulation is unavailable. Proceeding without preview."
-          )
-          toast.error(`Simulation unavailable: ${message}`, {
-            duration: 5000,
-          })
-        } else {
-          setSimulationError(message)
-          toast.error(`Simulation failed: ${message}`, {
-            duration: 5000,
-          })
-          setIsSimulatingTx(false)
-          return
-        }
-      }
-      setIsSimulatingTx(false)
-
       setIsTrading(true)
       setTradeSuccess(false)
 
@@ -600,63 +558,6 @@ function SwapInterfaceComponent({
         })
         return
       }
-
-      // Run Tenderly simulation before sending real transaction
-      setSimulationStatus(null)
-      setSimulationError(null)
-      setIsSimulatingTx(true)
-      try {
-        const wrapperAmount = parseEther(fromAmount)
-        if (wrapperAmount <= 0n) {
-          throw new Error("Amount too small for current bonding curve")
-        }
-
-        const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
-        if (baseProceeds <= 0n) {
-          throw new Error("Amount too small for current bonding curve")
-        }
-
-        const slippagePercentLocal = parseFloat(slippage) || 1
-        const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
-        const netProceeds = baseProceeds - fee
-        const slippageBps = BigInt(Math.floor(slippagePercentLocal * 100))
-        const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
-        const minIpOutStr = formatEther(minProceeds)
-
-        await launchpadService.simulateSell(
-          tokenAddress,
-          fromAmount,
-          minIpOutStr,
-          primaryWallet.address as string,
-        )
-        // Simulation passed; proceed silently to on-chain execution
-      } catch (simError: any) {
-        const message = simError?.message || "Simulation failed"
-        logger.error("Tenderly simulation error (sell)", simError)
-        const lower = message.toLowerCase()
-        const isRateLimited = lower.includes("429") || simError?.status === 429
-        const isMethodMissing =
-          lower.includes("tenderly_simulate") ||
-          lower.includes("does not exist") ||
-          lower.includes("is not available")
-
-        if (isRateLimited || isMethodMissing) {
-          setSimulationError(
-            "Tenderly simulation is unavailable. Proceeding without preview."
-          )
-          toast.error(`Simulation unavailable: ${message}`, {
-            duration: 5000,
-          })
-        } else {
-          setSimulationError(message)
-          toast.error(`Simulation failed: ${message}`, {
-            duration: 5000,
-          })
-          setIsSimulatingTx(false)
-          return
-        }
-      }
-      setIsSimulatingTx(false)
 
       // Proceed with sell using launchpadService.sell (which manages approvals internally)
       await handleSell()
@@ -1077,25 +978,7 @@ function SwapInterfaceComponent({
           </Alert>
         )}
 
-        {/* Simulation feedback */}
-        {simulationStatus && (
-          <Alert className="mt-2 border-primary/40 bg-primary/10">
-            <CheckCircle className="h-3 w-3 text-primary" />
-            <AlertDescription className="text-[11px] font-mono text-primary">
-              {simulationStatus}
-            </AlertDescription>
-          </Alert>
-        )}
-        {simulationError && (
-          <Alert variant="destructive" className="mt-2 py-2 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-[11px] text-secondary">
-              {simulationError}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Single trade button: simulate on Tenderly, then execute on-chain */}
+        {/* Trade button */}
         <div className="mt-3 flex flex-col gap-2">
           <Button
             onClick={handlePlaceTrade}
@@ -1104,7 +987,6 @@ function SwapInterfaceComponent({
               parseFloat(fromAmount) <= 0 ||
               !isConnected ||
               isTrading ||
-              isSimulatingTx ||
               detailsLoading ||
               !tokenAddress ||
               !!balanceError
@@ -1117,15 +999,10 @@ function SwapInterfaceComponent({
                 : "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
             )}
           >
-            {isSimulatingTx ? (
+            {isTrading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Simulating on Tenderly...
-              </>
-            ) : isTrading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {simulationError ? "Confirming (no preview)" : "Confirming..."}
+                Confirming...
               </>
             ) : tradeSuccess ? (
               <>
@@ -1134,8 +1011,6 @@ function SwapInterfaceComponent({
               </>
             ) : !isConnected ? (
               "Connect Wallet"
-            ) : simulationError ? (
-              "Retry (simulation failed)"
             ) : (
               "Place Trade"
             )}
