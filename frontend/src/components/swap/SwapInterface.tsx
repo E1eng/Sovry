@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -724,31 +724,22 @@ function SwapInterfaceComponent({
   if (isGraduated) {
     return (
       <Card className={cn("overflow-hidden", className)}>
-        <CardHeader className="border-b border-border bg-muted/60">
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                Trade Console
-              </div>
-              <h3 className="text-lg font-semibold text-foreground">Swap</h3>
-            </div>
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Graduated
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+          <span className="text-xs font-semibold text-foreground">Swap</span>
+          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Graduated</span>
+        </div>
+        <CardContent className="p-4 space-y-3">
           <Alert variant="default" className="border-border bg-muted/40">
-            <AlertTriangle className="h-4 w-4 text-secondary" />
-            <AlertDescription className="text-muted-foreground">
+            <AlertTriangle className="h-3.5 w-3.5 text-secondary" />
+            <AlertDescription className="text-xs text-muted-foreground">
               This token has graduated to PiperX
             </AlertDescription>
           </Alert>
           <Button
             onClick={handleTradeOnPiperX}
-            className="w-full h-12 font-mono text-xs uppercase tracking-[0.2em] bg-primary text-primary-foreground hover:bg-primary/90 touch-manipulation min-h-[44px]"
+            className="w-full h-10 font-mono text-xs uppercase tracking-[0.2em] bg-primary text-primary-foreground hover:bg-primary/90 touch-manipulation"
           >
-            <ExternalLink className="h-5 w-5 mr-2" />
+            <ExternalLink className="h-3.5 w-3.5 mr-2" />
             Trade on PiperX
           </Button>
         </CardContent>
@@ -758,47 +749,40 @@ function SwapInterfaceComponent({
 
   return (
     <Card className={cn("overflow-hidden", className)}>
-      <CardHeader className="border-b border-border bg-muted/60">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Trade Console
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">Swap</h3>
+      <div className="border-b border-border bg-muted/40 px-4 py-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-foreground">Swap</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSlippageSettings(true)}
+              className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Slippage tolerance settings"
+            >
+              Slip: <span className="text-foreground tabular-nums">{slippage}%</span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              onClick={() => {
+                setShowSlippageSettings(true)
+                trackEvent("slippage_changed", { action: "open_settings" })
+              }}
+              aria-label="Slippage settings"
+              title="Slippage tolerance settings"
+            >
+              <Settings className="h-3 w-3" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            onClick={() => {
-              setShowSlippageSettings(true)
-              trackEvent("slippage_changed", { action: "open_settings" })
-            }}
-            aria-label="Slippage settings"
-            title="Slippage tolerance settings"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Slippage Display */}
-        <div className="flex items-center justify-end">
-          <button
-            onClick={() => setShowSlippageSettings(true)}
-            className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Slippage tolerance settings"
-          >
-            Slippage: <span className="text-foreground tabular-nums">{slippage}%</span>
-          </button>
         </div>
 
         {/* Buy/Sell Tabs */}
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-4">
-          <TabsList className="grid w-full grid-cols-2 rounded-sm border border-border bg-background/40 p-1">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-2.5">
+          <TabsList className="grid w-full grid-cols-2 rounded-sm border border-border bg-background/40 p-0.5">
             <TabsTrigger
               value="buy"
               className={cn(
-                "rounded-sm text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground",
+                "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
                 "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
                 "data-[state=active]:hover:bg-primary/90"
               )}
@@ -809,7 +793,7 @@ function SwapInterfaceComponent({
             <TabsTrigger
               value="sell"
               className={cn(
-                "rounded-sm text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground",
+                "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
                 "data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground",
                 "data-[state=active]:hover:bg-secondary/90"
               )}
@@ -819,51 +803,42 @@ function SwapInterfaceComponent({
             </TabsTrigger>
           </TabsList>
         </Tabs>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-4">
+      <CardContent className="p-4 space-y-3">
         {/* You Pay Section */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Input
-              type="text"
-              value={fromAmount}
-              onChange={(e) => {
-                setFromAmount(e.target.value)
-                // Clear errors when user types
-                setBalanceError(null)
-                setSlippageError(null)
-                // Calculation will be handled by debounced effect
-              }}
-              onKeyDown={(e) => {
-                // Allow: backspace, delete, tab, escape, enter, decimal point
-                if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
-                    // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-                    (e.keyCode === 65 && e.ctrlKey === true) ||
-                    (e.keyCode === 67 && e.ctrlKey === true) ||
-                    (e.keyCode === 86 && e.ctrlKey === true) ||
-                    (e.keyCode === 88 && e.ctrlKey === true) ||
-                    // Allow: home, end, left, right
-                    (e.keyCode >= 35 && e.keyCode <= 39)) {
-                  return
-                }
-                // Ensure that it is a number and stop the keypress
-                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
-                  e.preventDefault()
-                }
-              }}
-              placeholder={detailsLoading ? "Loading..." : "0.0"}
-              disabled={detailsLoading || !tokenAddress || isTrading}
-              className="flex-1 text-base sm:text-lg font-semibold font-mono tabular-nums"
-              aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
-              aria-describedby={balanceError ? "balance-error" : undefined}
-            />
-          </div>
-          {/* Balance + MAX — always on one row */}
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Balance:{" "}
+          <Input
+            type="text"
+            value={fromAmount}
+            onChange={(e) => {
+              setFromAmount(e.target.value)
+              setBalanceError(null)
+              setSlippageError(null)
+            }}
+            onKeyDown={(e) => {
+              if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
+                  (e.keyCode === 65 && e.ctrlKey === true) ||
+                  (e.keyCode === 67 && e.ctrlKey === true) ||
+                  (e.keyCode === 86 && e.ctrlKey === true) ||
+                  (e.keyCode === 88 && e.ctrlKey === true) ||
+                  (e.keyCode >= 35 && e.keyCode <= 39)) {
+                return
+              }
+              if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                e.preventDefault()
+              }
+            }}
+            placeholder={detailsLoading ? "Loading..." : "0.0"}
+            disabled={detailsLoading || !tokenAddress || isTrading}
+            className="h-9 text-xs font-mono tabular-nums"
+            aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
+            aria-describedby={balanceError ? "balance-error" : undefined}
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Bal:{" "}
               <span className="text-foreground tabular-nums">
                 {activeTab === "buy" 
                   ? formatBalance(userBalance, 4)
@@ -882,7 +857,7 @@ function SwapInterfaceComponent({
                 }
               }}
               disabled={!isConnected || (activeTab === "buy" ? !userBalance : !tokenBalance)}
-              className="h-6 px-2 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:text-primary/80 hover:bg-primary/10"
+              className="h-5 px-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:text-primary/80 hover:bg-primary/10"
               aria-label="Set maximum balance"
             >
               MAX
@@ -891,61 +866,48 @@ function SwapInterfaceComponent({
         </div>
 
         {/* Estimated Receive */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Estimated Receive</label>
-          <div className="flex items-center justify-between px-0 py-1">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold font-mono tabular-nums">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-mono tabular-nums text-foreground">
                 {toAmount || (isCalculating ? "…" : "0.0")}
               </span>
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                 {activeTab === "buy" ? tokenSymbol : "IP"}
               </span>
             </div>
-            {isCalculating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+            {isCalculating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
           </div>
           {minReceive && (
-            <div className="pt-1">
-              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                Min received ({slippage}% slippage):{ " " }
-                <span className="text-foreground tabular-nums">
-                  {minReceive} {activeTab === "buy" ? tokenSymbol : "IP"}
-                </span>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Min ({slippage}% slip):{" "}
+              <span className="text-foreground tabular-nums">
+                {minReceive} {activeTab === "buy" ? tokenSymbol : "IP"}
               </span>
-            </div>
+            </span>
           )}
         </div>
 
         {/* Exchange Rate and Price Impact */}
         {(exchangeRate || priceImpact !== null) && (
-          <div className="pt-3 border-t border-border space-y-2">
+          <div className="pt-2 border-t border-border space-y-1.5">
             {exchangeRate && (
-              <p className="text-[11px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
+              <p className="text-[10px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
             )}
             {priceImpact !== null && priceImpact > 0 && (
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                  Price Impact
-                </span>
-                <span
-                  className={cn(
-                    "text-[11px] font-mono tabular-nums",
-                    priceImpact > 5 ? "text-secondary" : "text-foreground"
-                  )}
-                >
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Impact</span>
+                <span className={cn("text-[10px] font-mono tabular-nums", priceImpact > 5 ? "text-secondary" : "text-foreground")}>
                   {priceImpact.toFixed(2)}%
                 </span>
-                {priceImpact > 5 && (
-                  <AlertTriangle className="h-3 w-3 text-secondary" aria-hidden="true" />
-                )}
+                {priceImpact > 5 && <AlertTriangle className="h-2.5 w-2.5 text-secondary" aria-hidden="true" />}
               </div>
             )}
             {priceImpact !== null && priceImpact > 5 && (
-              <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10" role="alert">
-                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                <AlertDescription className="text-[11px] text-secondary">
-                  High price impact! This trade will significantly affect the token price.
-                </AlertDescription>
+              <Alert variant="destructive" className="py-1.5 border-secondary/40 bg-secondary/10" role="alert">
+                <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+                <AlertDescription className="text-[10px] text-secondary">High price impact!</AlertDescription>
               </Alert>
             )}
           </div>
@@ -953,69 +915,44 @@ function SwapInterfaceComponent({
 
         {/* Error Messages */}
         {balanceError && (
-          <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-[11px] text-secondary">
-              {balanceError}
-            </AlertDescription>
+          <Alert variant="destructive" className="py-1.5 border-secondary/40 bg-secondary/10">
+            <AlertTriangle className="h-2.5 w-2.5" />
+            <AlertDescription className="text-[10px] text-secondary">{balanceError}</AlertDescription>
           </Alert>
         )}
 
         {slippageError && (
-          <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-[11px] text-secondary">
+          <Alert variant="destructive" className="py-1.5 border-secondary/40 bg-secondary/10">
+            <AlertTriangle className="h-2.5 w-2.5" />
+            <AlertDescription className="text-[10px] text-secondary">
               {slippageError}
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 ml-1 text-[10px] font-mono uppercase tracking-[0.2em] text-secondary underline"
-                onClick={() => setShowSlippageSettings(true)}
-              >
-                Increase slippage
-              </Button>
+              <Button variant="link" size="sm" className="h-auto p-0 ml-1 text-[10px] font-mono text-secondary underline" onClick={() => setShowSlippageSettings(true)}>Increase slippage</Button>
             </AlertDescription>
           </Alert>
         )}
 
         {/* Trade button */}
-        <div className="mt-3 flex flex-col gap-2">
-          <Button
-            onClick={handlePlaceTrade}
-            disabled={
-              !fromAmount ||
-              parseFloat(fromAmount) <= 0 ||
-              !isConnected ||
-              isTrading ||
-              detailsLoading ||
-              !tokenAddress ||
-              !!balanceError
-            }
-            className={cn(
-              "w-full h-12 sm:h-12 font-semibold font-mono text-sm tracking-[0.08em] touch-manipulation min-h-[44px]",
-              "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
-              activeTab === "buy"
-                ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
-                : "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
-            )}
-          >
-            {isTrading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Confirming...
-              </>
-            ) : tradeSuccess ? (
-              <>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Trade Successful!
-              </>
-            ) : !isConnected ? (
-              "Connect Wallet"
-            ) : (
-              "Place Trade"
-            )}
-          </Button>
-        </div>
+        <Button
+          onClick={handlePlaceTrade}
+          disabled={!fromAmount || parseFloat(fromAmount) <= 0 || !isConnected || isTrading || detailsLoading || !tokenAddress || !!balanceError}
+          className={cn(
+            "w-full h-10 font-mono text-xs uppercase tracking-[0.2em] touch-manipulation",
+            "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
+            activeTab === "buy"
+              ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+              : "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+          )}
+        >
+          {isTrading ? (
+            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Confirming...</>
+          ) : tradeSuccess ? (
+            <><CheckCircle className="h-3.5 w-3.5 mr-1.5" />Success!</>
+          ) : !isConnected ? (
+            "Connect Wallet"
+          ) : (
+            "Place Trade"
+          )}
+        </Button>
       </CardContent>
 
       {/* Slippage Settings Dialog */}
