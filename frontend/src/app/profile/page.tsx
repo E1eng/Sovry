@@ -354,7 +354,7 @@ export default function ProfilePage() {
 
         {/* Header */}
         <div className="border border-[#262626] bg-[#050505] rounded-xl overflow-hidden">
-          <div className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5">
+          <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-5">
             {/* Profile avatar + info */}
             <div className="flex items-start gap-4 flex-1 min-w-0">
               {/* Avatar */}
@@ -470,12 +470,12 @@ export default function ProfilePage() {
           </div>
 
           {/* Tabs */}
-          <div className="border-t border-[#262626] px-5 sm:px-6 flex gap-0 overflow-x-auto">
+          <div className="border-t border-[#262626] px-3 sm:px-6 flex gap-0 overflow-x-auto scrollbar-none">
             {(["holdings", "launches", "yield"] as TabKey[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-3 text-[11px] font-mono uppercase tracking-[0.18em] border-b-2 transition-colors whitespace-nowrap ${
+                className={`px-3 sm:px-4 py-3 min-h-[44px] text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.18em] border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab
                     ? "border-[#CCFF00] text-[#CCFF00]"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -489,7 +489,7 @@ export default function ProfilePage() {
 
         {/* Error */}
         {error && (
-          <div className="border border-red-500/30 bg-red-500/10 rounded-sm p-4 text-sm text-red-200">
+          <div className="border border-destructive/30 bg-destructive/10 rounded-sm p-3 sm:p-4 text-xs sm:text-sm text-destructive">
             {error}
           </div>
         )}
@@ -757,7 +757,7 @@ function TokenAvatar({
           alt={alt}
           fill
           unoptimized
-          className="object-contain p-0.5"
+          className="object-cover"
           onError={() => onError(id)}
         />
       ) : (
@@ -796,7 +796,7 @@ function EmptyState({
   linkLabel?: string;
 }) {
   return (
-    <div className="border border-dashed border-[#262626] rounded-xl bg-[#050505] p-10 flex flex-col items-center justify-center gap-3 text-center">
+    <div className="border border-dashed border-[#262626] rounded-xl bg-[#050505] p-6 sm:p-10 flex flex-col items-center justify-center gap-3 text-center">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="text-xs text-muted-foreground/60 max-w-xs">{sub}</p>
       {linkHref && linkLabel && (

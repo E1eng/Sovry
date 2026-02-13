@@ -173,7 +173,7 @@ export function GraduationModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "sm:max-w-md bg-gradient-to-br from-yellow-900/20 via-amber-900/20 to-orange-900/20 border-yellow-500/30",
+          "sm:max-w-md bg-card border-primary/30",
           className
         )}
       >
@@ -186,15 +186,15 @@ export function GraduationModal({
             </div>
           </div>
 
-          <DialogTitle className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400">
-            🎉 Graduating to PiperX!
+          <DialogTitle className="text-3xl font-bold text-primary">
+            Graduating to PiperX!
           </DialogTitle>
 
-          <DialogDescription className="text-zinc-300 space-y-2">
-            <div className="font-semibold text-lg text-yellow-300">
+          <DialogDescription className="text-foreground space-y-2">
+            <div className="font-semibold text-lg text-primary">
               {tokenTicker} - {tokenName}
             </div>
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-muted-foreground">
               Liquidity pool is now live on PiperX DEX
             </p>
           </DialogDescription>
@@ -204,7 +204,7 @@ export function GraduationModal({
           {/* View on PiperX Button */}
           <Button
             onClick={handleViewOnPiperX}
-            className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-black font-bold text-lg py-6 shadow-lg shadow-yellow-500/30"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-lg py-6"
           >
             <ExternalLink className="h-5 w-5 mr-2" />
             View on PiperX
@@ -214,7 +214,7 @@ export function GraduationModal({
           <Button
             onClick={handleContinueTrading}
             variant="outline"
-            className="w-full border-yellow-500/50 text-yellow-300 hover:bg-yellow-500/10 hover:border-yellow-400 font-semibold py-6"
+            className="w-full border-border text-foreground hover:bg-muted/60 font-semibold py-6"
           >
             Continue Trading
           </Button>

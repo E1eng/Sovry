@@ -299,8 +299,8 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
                     {typeof liveCount === "number"
                       ? liveCount
                       : typeof tokenCount === "number"
-                        ? Math.max(1, Math.floor(tokenCount / 3))
-                        : 42}
+                        ? tokenCount
+                        : "—"}
                   </div>
                 </TerminalCard>
               </div>

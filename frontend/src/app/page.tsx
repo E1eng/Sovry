@@ -22,13 +22,11 @@ type LaunchRow = {
   tokenAddress: string;
 };
 
-const marqueeStats = [
-  "ETH: $2,400",
-  "GAS: 12 GWEI",
-  "SOVRY_BOND_VOL: $4.2M",
-  "NEW_MINT: #4021",
+const STATIC_MARQUEE = [
   "ROYALTY_INJECTION LIVE",
   "STORY L1 ONLINE",
+  "IP-FI LAUNCHPAD",
+  "BONDING CURVES ACTIVE",
 ];
 
 const getVolume = (launch: LaunchRow) => Math.max(Number(launch.volume24h) || 0, 0);
@@ -78,7 +76,12 @@ export default function Home() {
       <div className="h-8 w-full bg-[#CCFF00] text-black border-b border-black/40 overflow-hidden">
         <div className="h-full flex items-center font-mono text-[10px] sm:text-xs uppercase tracking-[0.25em]">
           <div className="animate-[marquee_22s_linear_infinite] whitespace-nowrap flex items-center gap-8">
-            {marqueeStats.concat(marqueeStats).map((item, idx) => (
+            {[
+              ...(launches.length > 0 ? [`TOKENS_LIVE: ${launches.length}`, `TOP: ${launches[0]?.name || "—"}`] : []),
+              ...STATIC_MARQUEE,
+              ...(launches.length > 0 ? [`TOKENS_LIVE: ${launches.length}`, `TOP: ${launches[0]?.name || "—"}`] : []),
+              ...STATIC_MARQUEE,
+            ].map((item, idx) => (
               <span key={`${item}-${idx}`} className="flex items-center gap-2">
                 <span className="h-1 w-1 rounded-full bg-black" />
                 {item}
@@ -91,25 +94,31 @@ export default function Home() {
       {/* Hero: asymmetric split */}
       <section className="px-4 sm:px-6 py-6">
         <div className="mt-4 border border-[#262626] bg-[#050505] rounded-xl overflow-hidden shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
-          <div className="relative min-h-[70vh] sm:min-h-[70vh] md:min-h-[65vh] lg:min-h-[500px] grid grid-cols-12">
-          <div className="col-span-12 lg:col-span-8 relative border-b lg:border-b-0 lg:border-r border-[#262626] overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-black via-black/40 to-transparent" />
+          <div className="relative grid grid-cols-12">
+          <div className="col-span-12 lg:col-span-8 relative min-h-[280px] sm:min-h-[360px] md:min-h-[420px] lg:min-h-[500px] border-b lg:border-b-0 lg:border-r border-[#262626] overflow-hidden">
+            {/* Background image */}
             {spotlight?.imageUrl && !imageErrors[spotlight.id] ? (
               <Image
                 src={spotlight.imageUrl}
                 alt={spotlight.name || "Spotlight"}
                 fill
                 unoptimized
-                className="object-contain p-8 sm:p-10 lg:p-14"
+                className="object-cover object-center"
                 onError={() => markImageError(spotlight.id)}
               />
             ) : (
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#0f0f0f,transparent_45%),radial-gradient(circle_at_80%_30%,#111,transparent_40%),#000]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#0f0f0f,transparent_45%),radial-gradient(circle_at_80%_30%,#111,transparent_40%),#000] flex items-center justify-center">
+                <span className="text-4xl sm:text-5xl font-black text-white/10">{spotlight?.name?.charAt(0)?.toUpperCase() || "S"}</span>
+              </div>
             )}
-            <div className="absolute inset-0 flex flex-col gap-5 sm:gap-7 p-6 sm:p-6 md:p-8 lg:p-8 pt-18 pb-24 sm:pt-18 sm:pb-16 lg:pt-12 lg:pb-10">
+            {/* Gradient overlay for text readability */}
+            <div className="absolute inset-0 z-10 bg-gradient-to-t from-black via-black/70 to-black/20" />
+            <div className="absolute inset-0 z-10 bg-gradient-to-r from-black/60 to-transparent" />
+            {/* Text content */}
+            <div className="absolute inset-0 z-20 flex flex-col justify-end gap-4 sm:gap-7 p-4 sm:p-6 md:p-8 lg:p-8 pt-8 pb-6 sm:pt-18 sm:pb-16 lg:pt-12 lg:pb-10">
               <div className="space-y-2 md:space-y-3">
                 <span className="inline-flex items-center gap-2 rounded-sm bg-white/15 px-3.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.28em] text-[#CCFF00] border border-[#262626]">
-                  IP_OF_THE_DAY
+                  FEATURED_IP
                 </span>
                 <h1 className="text-2xl sm:text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
                   {spotlight?.name || "Signal Lost"}
@@ -185,11 +194,13 @@ export default function Home() {
                               alt={item.name || "IP"}
                               fill
                               unoptimized
-                              className="object-contain p-1"
+                              className="object-cover"
                               onError={() => markImageError(item.id)}
                             />
                           ) : (
-                            <div className="absolute inset-0 bg-[#111]" />
+                            <div className="absolute inset-0 bg-[#111] flex items-center justify-center">
+                              <span className="text-sm font-semibold text-white/20">{(item.name || "?").charAt(0).toUpperCase()}</span>
+                            </div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -197,7 +208,9 @@ export default function Home() {
                           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">24h change</div>
                         </div>
                         <div className="flex flex-col items-end text-right">
-                          <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">{pctLabel}</span>
+                          <span className={`text-[13px] font-semibold font-mono ${
+                            pct !== null && pct >= 0 ? "text-[#CCFF00]" : pct !== null && pct < 0 ? "text-red-400" : "text-muted-foreground"
+                          }`}>{pctLabel}</span>
                           <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
                             {formatMarketCapIP(item.volume24h || item.marketCap)}
                           </span>
@@ -226,7 +239,80 @@ export default function Home() {
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile card layout */}
+          <div className="md:hidden divide-y divide-[#1a1a1a]">
+            {loading
+              ? Array.from({ length: 4 }).map((_, idx) => (
+                  <div key={idx} className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-sm bg-[#1a1a1a]" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-24 bg-[#1a1a1a]" />
+                      <div className="h-2 w-16 bg-[#1a1a1a]" />
+                    </div>
+                  </div>
+                ))
+              : terminalRows.length === 0
+                ? (
+                    <div className="px-4 py-8 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      No data available
+                    </div>
+                  )
+                : terminalRows.map((row) => {
+                    const change = row.dailyChangePct ?? 0;
+                    const isUp = change >= 0;
+                    return (
+                      <Link
+                        key={row.id}
+                        href={`/pool/${row.tokenAddress}`}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors active:bg-white/10"
+                      >
+                        <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-[#262626] bg-[radial-gradient(circle_at_30%_20%,#1f1f1f,#080808_70%)] flex-shrink-0">
+                          {row.imageUrl && !imageErrors[row.id] ? (
+                            <Image
+                              src={row.imageUrl}
+                              alt={row.name}
+                              fill
+                              unoptimized
+                              className="object-cover"
+                              onError={() => markImageError(row.id)}
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-[#0d0d0d] flex items-center justify-center">
+                              <span className="text-xs font-semibold text-white/20">{row.name.charAt(0).toUpperCase()}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-foreground truncate">{row.name}</span>
+                            <span
+                              className={`text-[11px] font-mono tabular-nums flex-shrink-0 ${
+                                isUp ? "text-[#CCFF00]" : "text-red-400"
+                              }`}
+                            >
+                              {isUp ? "▲" : "▼"} {priceLabel(row)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-1">
+                            <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{row.symbol}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="h-1 w-12 bg-[#0f0f0f] rounded-sm overflow-hidden">
+                                <div className="h-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, row.bondingProgress))}%` }} />
+                              </div>
+                              <span className="text-[10px] font-mono tabular-nums text-muted-foreground">{Math.round(row.bondingProgress)}%</span>
+                              {row.graduated && (
+                                <span className="text-[9px] font-mono uppercase tracking-[0.15em] text-[#CCFF00]">GRAD</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+          </div>
+
+          {/* Desktop table layout */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full border-collapse">
               <thead className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                 <tr className="border-b border-[#262626] bg-[#0d0d0d]">
@@ -286,11 +372,13 @@ export default function Home() {
                                       alt={row.name}
                                       fill
                                       unoptimized
-                                      className="object-contain p-1"
+                                      className="object-cover"
                                       onError={() => markImageError(row.id)}
                                     />
                                   ) : (
-                                    <div className="absolute inset-0 bg-[#0d0d0d]" />
+                                    <div className="absolute inset-0 bg-[#0d0d0d] flex items-center justify-center">
+                                      <span className="text-xs font-semibold text-white/20">{row.name.charAt(0).toUpperCase()}</span>
+                                    </div>
                                   )}
                                 </div>
                                 <div className="min-w-0">
@@ -305,7 +393,7 @@ export default function Home() {
                               <span
                                 className={`inline-flex items-center gap-2 rounded-sm px-2 py-1 ${
                                   isUp ? "bg-emerald-900/40 text-emerald-200" : "bg-red-900/40 text-red-200"
-                                } animate-pulse`}
+                                }`}
                               >
                                 <span className="text-[10px] opacity-70">{isUp ? "▲" : "▼"}</span>
                                 {priceLabel(row)}
@@ -313,13 +401,13 @@ export default function Home() {
                             </td>
                             <td className="px-4 py-3 border-r border-[#1a1a1a]">
                               <div className="flex items-center gap-3">
-                                <div className="relative h-2 w-32 bg-[#0f0f0f] rounded-sm overflow-hidden">
+                                <div className="relative h-2 w-full max-w-[8rem] bg-[#0f0f0f] rounded-sm overflow-hidden">
                                   <div
                                     className="absolute inset-y-0 left-0 bg-[#CCFF00]/80"
                                     style={{ width: `${volumePct}%` }}
                                   />
                                 </div>
-                                <span className="text-[11px] tabular-nums text-muted-foreground">{formatMarketCapIP(String(volume))}</span>
+                                <span className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap">{formatMarketCapIP(String(volume))}</span>
                               </div>
                             </td>
                             <td className="px-4 py-3 border-r border-[#1a1a1a] tabular-nums">

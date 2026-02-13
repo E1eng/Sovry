@@ -356,7 +356,7 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
         )}
 
         {error && (
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         )}
 
         <div className="space-y-4 max-h-80 overflow-y-auto pr-1">

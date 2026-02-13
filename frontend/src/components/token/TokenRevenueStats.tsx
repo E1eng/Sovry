@@ -67,37 +67,36 @@ export function TokenRevenueStats({ tokenAddress, className }: Props) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-neutral-800 bg-black/70 p-4 text-sm text-white shadow-[0_0_30px_rgba(204,255,0,0.15)]",
-        "font-mono",
+        "rounded-sm border border-border bg-card p-4 text-sm text-foreground font-mono",
         className,
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs uppercase tracking-[0.2em] text-neutral-400">Real Yield</div>
-        <div className="flex items-center gap-2 rounded-full border border-neutral-700 px-3 py-1 text-[11px] font-semibold bg-neutral-900">
-          <span className={unclaimed > 0n ? "animate-pulse" : ""}>{unclaimed > 0n ? "🟢" : "⚪️"}</span>
-          <span className={unclaimed > 0n ? "text-[#CCFF00]" : "text-gray-300"}>Vault Status: {status}</span>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Royalty Yield</div>
+        <div className="flex items-center gap-2 rounded-sm border border-border px-3 py-1 text-[11px] font-semibold bg-muted/40">
+          <span className={cn("h-2 w-2 rounded-full", unclaimed > 0n ? "bg-primary animate-pulse" : "bg-muted-foreground/40")} />
+          <span className={unclaimed > 0n ? "text-primary" : "text-muted-foreground"}>Vault: {status}</span>
         </div>
       </div>
 
       <div className="mt-4 space-y-1">
-        <div className="text-[11px] uppercase tracking-[0.2em] text-neutral-500">Total Yield</div>
-        <div className="text-3xl font-semibold text-[#CCFF00]">TOTAL YIELD: {totalYieldEth} ETH</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Total Yield</div>
+        <div className="text-2xl font-semibold text-primary tabular-nums">{totalYieldEth} IP</div>
       </div>
 
       <div className="mt-4">
-        <div className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 mb-2">Recent Revenue</div>
-        <div className="space-y-1 rounded-lg border border-neutral-800 bg-neutral-950/70 p-3">
-          {recentEvents.length === 0 && <div className="text-neutral-600 text-xs">No events yet</div>}
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Recent Revenue</div>
+        <div className="space-y-1 rounded-sm border border-border bg-muted/30 p-3">
+          {recentEvents.length === 0 && <div className="text-muted-foreground/60 text-xs">No events yet</div>}
           {recentEvents.map((evt) => {
             const amt = formatEther(BigInt(evt.amount || 0))
             return (
               <div
                 key={evt.tx_hash}
-                className="flex items-center justify-between text-xs text-neutral-200 border-b border-neutral-900 last:border-b-0 pb-1 last:pb-0"
+                className="flex items-center justify-between text-xs text-foreground border-b border-border last:border-b-0 pb-1 last:pb-0"
               >
-                <span className="text-[#CCFF00] font-semibold">{evt.type || "REVENUE"}</span>
-                <span className="text-neutral-400">{amt} ETH</span>
+                <span className="text-primary font-semibold">{evt.type || "REVENUE"}</span>
+                <span className="text-muted-foreground tabular-nums">{amt} IP</span>
               </div>
             )
           })}

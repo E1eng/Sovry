@@ -164,7 +164,7 @@ export default function TokenDetailPage() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>Invalid token address</AlertDescription>
               </Alert>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground">
                 The address {address} is not a valid Ethereum address.
               </p>
               <div className="flex gap-3 justify-center">
@@ -204,10 +204,10 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>Token not found</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     The token address you are looking for does not exist or could not be loaded.
                   </p>
-                  <p className="text-xs text-zinc-500 mt-2">
+                  <p className="text-xs text-muted-foreground/60 mt-2">
                     If you just created this token, it may take a few moments to appear. Please try again shortly.
                   </p>
                 </>
@@ -219,7 +219,7 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>Network error</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     Unable to connect to the network. Please check your internet connection.
                   </p>
                 </>
@@ -231,7 +231,7 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>Blockchain network error</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     The blockchain network may be congested. Try switching networks or try again in a moment.
                   </p>
                 </>
@@ -243,7 +243,7 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     An error occurred while loading the token.
                   </p>
                 </>
@@ -312,16 +312,114 @@ export default function TokenDetailPage() {
           {/* Breadcrumbs */}
           <Breadcrumb items={breadcrumbItems} />
 
-          {/* Bento Grid Layout */}
-          <div className="grid gap-4 lg:gap-5 lg:grid-cols-12">
-            {/* Left Column: Chart -> Media -> Comments */}
-            <div className="lg:col-span-8 space-y-4">
-              {/* Trading Chart */}
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 120ms both",
-                }}
-              >
+          {/* Token Header Summary */}
+          <div className="border border-border bg-card rounded-lg overflow-hidden">
+            <div className="px-3 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-sm overflow-hidden border border-border bg-muted/40 flex-shrink-0">
+                  {details.imageUrl ? (
+                    <Image
+                      src={details.imageUrl}
+                      alt={tokenName}
+                      fill
+                      unoptimized
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <span className="text-base sm:text-lg font-semibold text-muted-foreground">
+                        {tokenName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <h1 className="text-base sm:text-lg font-semibold text-foreground truncate max-w-[180px] sm:max-w-none">{tokenName}</h1>
+                    <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{ticker}</span>
+                    {isTokenGraduated && (
+                      <span className="inline-flex items-center gap-1 rounded-sm bg-primary/10 border border-primary/30 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.15em] text-primary">
+                        Graduated
+                      </span>
+                    )}
+                  </div>
+                  {creatorAddress && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(creatorAddress, "Creator")}
+                      className="text-[10px] sm:text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      by {truncateAddress(creatorAddress)}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
+                {details.marketCap && details.marketCap !== "0" && (
+                  <div className="border border-border rounded-sm px-2 sm:px-3 py-1 sm:py-1.5 text-center">
+                    <div className="text-[8px] sm:text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">MCap</div>
+                    <div className="text-xs sm:text-sm font-semibold font-mono tabular-nums text-foreground">{details.marketCap} IP</div>
+                  </div>
+                )}
+                {details.currentPrice && (
+                  <div className="border border-border rounded-sm px-2 sm:px-3 py-1 sm:py-1.5 text-center">
+                    <div className="text-[8px] sm:text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price</div>
+                    <div className="text-xs sm:text-sm font-semibold font-mono tabular-nums text-foreground">{details.currentPrice} IP</div>
+                  </div>
+                )}
+                {dailyChangePct !== null && isFinite(dailyChangePct) && (
+                  <div className="border border-border rounded-sm px-2 sm:px-3 py-1 sm:py-1.5 text-center">
+                    <div className="text-[8px] sm:text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">24h</div>
+                    <div className={`text-xs sm:text-sm font-semibold font-mono tabular-nums ${
+                      dailyChangePct > 0 ? "text-primary" : dailyChangePct < 0 ? "text-red-400" : "text-muted-foreground"
+                    }`}>
+                      {dailyChangePct > 0 ? "+" : ""}{dailyChangePct.toFixed(2)}%
+                    </div>
+                  </div>
+                )}
+                {socials.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    {socials.map((s) => (
+                      <a
+                        key={s.label}
+                        href={s.url as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                      >
+                        {s.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/*
+            Layout: flat grid with per-card ordering.
+            Mobile (single column):  Swap → Chart → Progress → Media → Revenue → Holders → Txns → Comments
+            Desktop (lg: 12-col):    Left 8-col (Chart, Media, Comments)  |  Right 4-col sticky (Swap, Revenue, Holders, Txns, Progress)
+          */}
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-5">
+
+            {/* ── 1. SWAP — first on mobile, right column on desktop ── */}
+            <div className="order-1 lg:col-start-9 lg:col-span-4 lg:row-start-1" style={{ animation: "fadeIn 0.5s ease-out 100ms both" }}>
+              <Card>
+                <CardContent className="p-0">
+                  <SwapInterface
+                    tokenAddress={address}
+                    tokenSymbol={ticker}
+                    isGraduated={launchInfo?.graduated || false}
+                    piperXPoolAddress={graduationData?.liquidityPoolAddress}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ── 2. CHART — second on mobile, left column on desktop ── */}
+            <div className="order-2 lg:col-start-1 lg:col-span-8 lg:row-start-1 lg:row-span-2" style={{ animation: "fadeIn 0.5s ease-out 120ms both" }}>
+              <Card>
                 <CardHeader className="border-b border-border bg-muted/60">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -354,24 +452,50 @@ export default function TokenDetailPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
-                  <TradingChart
-                    tokenAddress={address}
-                    height={420}
-                    currentPrice={details.currentPrice || null}
-                    marketCap={marketCapForChart}
-                    reserveBalance={reserveForChart}
-                    onDailyChangePct={setDailyChangePct}
-                  />
+                  <div className="hidden sm:block">
+                    <TradingChart
+                      tokenAddress={address}
+                      height={420}
+                      currentPrice={details.currentPrice || null}
+                      marketCap={marketCapForChart}
+                      reserveBalance={reserveForChart}
+                      onDailyChangePct={setDailyChangePct}
+                    />
+                  </div>
+                  <div className="sm:hidden">
+                    <TradingChart
+                      tokenAddress={address}
+                      height={280}
+                      currentPrice={details.currentPrice || null}
+                      marketCap={marketCapForChart}
+                      reserveBalance={reserveForChart}
+                      onDailyChangePct={setDailyChangePct}
+                    />
+                  </div>
                 </CardContent>
               </Card>
+            </div>
 
-              {/* IP Media */}
-              <Card
-                className="overflow-hidden"
-                style={{
-                  animation: "fadeIn 0.5s ease-out 160ms both",
-                }}
-              >
+            {/* ── 3. PROGRESS TO GRADUATION — third on mobile, right column on desktop ── */}
+            {launchInfo && launchInfo.totalRaised && (
+              <div className="order-3 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 140ms both" }}>
+                <Card>
+                  <CardContent className="p-3 sm:p-5">
+                    <ProgressToGraduation
+                      totalRaised={launchInfo.totalRaised}
+                      tokenTicker={ticker}
+                      tokenName={tokenName}
+                      tokenAddress={address}
+                      isGraduated={launchInfo.graduated}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ── 4. IP MEDIA — fourth on mobile, left column on desktop ── */}
+            <div className="order-4 lg:col-start-1 lg:col-span-8" style={{ animation: "fadeIn 0.5s ease-out 160ms both" }}>
+              <Card className="overflow-hidden">
                 <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-2">
                   <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IP Media</span>
                   <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -476,13 +600,42 @@ export default function TokenDetailPage() {
                   )}
                 </CardContent>
               </Card>
+            </div>
 
-              {/* Comments */}
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 200ms both",
-                }}
-              >
+            {/* ── 5. REVENUE STATS — right column on desktop ── */}
+            <div className="order-5 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 180ms both" }}>
+              <Card>
+                <CardContent className="p-3 sm:p-5">
+                  <TokenRevenueStats tokenAddress={address} />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ── 6. HOLDER DISTRIBUTION — right column on desktop ── */}
+            <div className="order-6 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 200ms both" }}>
+              <Card>
+                <CardContent className="p-3 sm:p-5">
+                  <HolderDistribution
+                    tokenAddress={address}
+                    tokenSymbol={ticker}
+                    creatorAddress={creatorAddress || undefined}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ── 7. TRANSACTION HISTORY — right column on desktop ── */}
+            <div className="order-7 lg:col-start-9 lg:col-span-4" style={{ animation: "fadeIn 0.5s ease-out 220ms both" }}>
+              <Card>
+                <CardContent className="p-3 sm:p-5">
+                  <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ── 8. COMMENTS — last on mobile, left column on desktop ── */}
+            <div className="order-8 lg:col-start-1 lg:col-span-8" style={{ animation: "fadeIn 0.5s ease-out 240ms both" }}>
+              <Card>
                 <CardHeader className="border-b border-border bg-muted/60">
                   <CardTitle className="text-sm font-semibold text-foreground">Comments</CardTitle>
                 </CardHeader>
@@ -492,75 +645,6 @@ export default function TokenDetailPage() {
               </Card>
             </div>
 
-            {/* Right Column: sticky swap stack */}
-            <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-4">
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 140ms both",
-                }}
-              >
-                <CardContent className="p-0">
-                  <SwapInterface
-                    tokenAddress={address}
-                    tokenSymbol={ticker}
-                    isGraduated={launchInfo?.graduated || false}
-                    piperXPoolAddress={graduationData?.liquidityPoolAddress}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 160ms both",
-                }}
-              >
-                <CardContent className="p-4 sm:p-5">
-                  <TokenRevenueStats tokenAddress={address} />
-                </CardContent>
-              </Card>
-
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 180ms both",
-                }}
-              >
-                <CardContent className="p-4 sm:p-5">
-                  <HolderDistribution
-                    tokenAddress={address}
-                    tokenSymbol={ticker}
-                    creatorAddress={creatorAddress || undefined}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 200ms both",
-                }}
-              >
-                <CardContent className="p-4 sm:p-5">
-                  <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
-                </CardContent>
-              </Card>
-
-              {launchInfo && launchInfo.totalRaised && (
-                <Card
-                  style={{
-                    animation: "fadeIn 0.5s ease-out 220ms both",
-                  }}
-                >
-                  <CardContent className="p-4 sm:p-5">
-                    <ProgressToGraduation
-                      totalRaised={launchInfo.totalRaised}
-                      tokenTicker={ticker}
-                      tokenName={tokenName}
-                      tokenAddress={address}
-                      isGraduated={launchInfo.graduated}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </div>
           </div>
 
           {/* Graduation Modal */}

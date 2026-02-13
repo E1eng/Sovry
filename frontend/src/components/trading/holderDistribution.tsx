@@ -70,7 +70,7 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
           <CardTitle className="text-base sm:text-lg font-semibold">Holder Distribution</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm sm:text-base text-red-400">
+          <p className="text-sm sm:text-base text-destructive">
             {error || "Failed to load holder distribution"}
           </p>
         </CardContent>
@@ -139,7 +139,7 @@ export default function HolderDistribution({ tokenAddress, tokenSymbol, creatorA
                         href={`${ADDRESS_EXPLORER_URL}${holder.address}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs sm:text-sm font-mono text-foreground flex items-center gap-1 hover:text-sky-300 transition-colors"
+                        className="text-xs sm:text-sm font-mono text-foreground flex items-center gap-1 hover:text-primary transition-colors"
                       >
                         {isLiquidity ? "Sovry Vault" : shortenAddress(holder.address)}
                         {isCreator && !isLiquidity && (
