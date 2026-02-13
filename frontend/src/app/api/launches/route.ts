@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import { createPublicClient, fallback, http, type Address, formatEther } from "viem"
-import { getSubgraphUrl } from "@/lib/env"
-import { STORY_RPC_URLS, STORYSCAN_BASE_URL } from "@/lib/env"
-import { newLaunchpadAbi } from "@/services/launchpadService"
-import { createClient } from "@supabase/supabase-js"
+import { getSubgraphUrl, STORY_RPC_URLS } from "@/lib/env"
+import { exchangeReadAbi } from "@/constants/abis"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,6 +18,13 @@ if (!EXCHANGE_ADDRESS) {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
+let _sb: SupabaseClient | null = null
+function getSupabase(): SupabaseClient | null {
+  if (!supabaseUrl || !supabaseKey) return null
+  if (!_sb) _sb = createClient(supabaseUrl, supabaseKey)
+  return _sb
+}
+
 function getPublicClient() {
   return createPublicClient({
     chain: {
@@ -26,7 +32,7 @@ function getPublicClient() {
       name: "Story Mainnet",
       nativeCurrency: { name: "IP", symbol: "IP", decimals: 18 },
       rpcUrls: { default: { http: STORY_RPC_URLS } },
-      blockExplorers: { default: { name: "StoryScan", url: STORYSCAN_BASE_URL } },
+      blockExplorers: { default: { name: "StoryScan", url: "https://storyscan.xyz" } },
     },
     transport: fallback(STORY_RPC_URLS.map((url) => http(url))),
   })
@@ -98,8 +104,8 @@ async function fetchSubgraphDirect(query: string, variables?: Record<string, unk
 }
 
 async function fetchTokensFromDB(limit: number): Promise<TokenRow[]> {
-  if (!supabaseUrl || !supabaseKey) return []
-  const sb = createClient(supabaseUrl, supabaseKey)
+  const sb = getSupabase()
+  if (!sb) return []
   const { data, error } = await sb
     .from("tokens")
     .select("token_address, name, symbol, image_uri, creator, created_at")
@@ -147,19 +153,19 @@ async function fetchOnchainState(client: ReturnType<typeof getPublicClient>, wra
     const [tokenInfoRaw, curveRaw, marketCapRaw] = await Promise.all([
       client.readContract({
         address: EXCHANGE_ADDRESS,
-        abi: newLaunchpadAbi,
+        abi: exchangeReadAbi,
         functionName: "launchedTokens",
         args: [wrapperAddr],
       }),
       client.readContract({
         address: EXCHANGE_ADDRESS,
-        abi: newLaunchpadAbi,
+        abi: exchangeReadAbi,
         functionName: "bondingCurves",
         args: [wrapperAddr],
       }),
       client.readContract({
         address: EXCHANGE_ADDRESS,
-        abi: newLaunchpadAbi,
+        abi: exchangeReadAbi,
         functionName: "getMarketCap",
         args: [wrapperAddr],
       }),

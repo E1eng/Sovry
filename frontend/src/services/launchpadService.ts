@@ -3,6 +3,7 @@ import { Address, encodeFunctionData, parseEther } from "viem";
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
 import { logger } from "@/lib/logger";
+import { exchangeReadAbi, routerWriteAbi } from "@/constants/abis";
 import { getStoryPublicClient } from "@/services/viem/storyPublicClient";
 
 import {
@@ -15,34 +16,6 @@ import { SOVRY_EXCHANGE_ADDRESS, SOVRY_ROUTER_ADDRESS } from "./domain/bondingCu
 // Large approval amount so that subsequent sells can skip additional approve
 // transactions while allowance remains sufficient.
 const MAX_UINT256 = (1n << 256n) - 1n;
-
-// ABI for earlier launchpad deployments; new read paths use `newLaunchpadAbi`.
-const launchpadAbi = [
-  {
-    inputs: [
-      { internalType: "address", name: "wrapperToken", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
-      { internalType: "uint256", name: "maxEthCost", type: "uint256" },
-      { internalType: "uint256", name: "deadline", type: "uint256" },
-    ],
-    name: "buyETH",
-    outputs: [],
-    stateMutability: "payable",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "wrapperToken", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
-      { internalType: "uint256", name: "minEthProceeds", type: "uint256" },
-      { internalType: "uint256", name: "deadline", type: "uint256" },
-    ],
-    name: "sell",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 const publicClient = getStoryPublicClient();
 
@@ -95,19 +68,19 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
         const [tokenInfoRaw, curveRaw, marketCapRaw] = await Promise.all([
           publicClient.readContract({
             address: SOVRY_EXCHANGE_ADDRESS as Address,
-            abi: newLaunchpadAbi,
+            abi: exchangeReadAbi,
             functionName: "launchedTokens",
             args: [tokenAddress as Address],
           }),
           publicClient.readContract({
             address: SOVRY_EXCHANGE_ADDRESS as Address,
-            abi: newLaunchpadAbi,
+            abi: exchangeReadAbi,
             functionName: "bondingCurves",
             args: [tokenAddress as Address],
           }),
           publicClient.readContract({
             address: SOVRY_EXCHANGE_ADDRESS as Address,
-            abi: newLaunchpadAbi,
+            abi: exchangeReadAbi,
             functionName: "getMarketCap",
             args: [tokenAddress as Address],
           }),
@@ -181,7 +154,7 @@ export async function getMarketCap(
       try {
         const marketCap = await publicClient.readContract({
           address: SOVRY_EXCHANGE_ADDRESS as Address,
-          abi: newLaunchpadAbi,
+          abi: exchangeReadAbi,
           functionName: "getMarketCap",
           args: [tokenAddress as Address],
         });
@@ -284,7 +257,7 @@ export async function buy(
     const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
 
     const data = encodeFunctionData({
-      abi: launchpadAbi,
+      abi: routerWriteAbi,
       functionName: "buyETH",
       args: [tokenAddress as Address, amount, value, deadline],
     });
@@ -398,7 +371,7 @@ export async function sell(
     const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
 
     const sellData = encodeFunctionData({
-      abi: launchpadAbi,
+      abi: routerWriteAbi,
       functionName: "sell",
       args: [tokenAddress as Address, amount, minIpOutWei, deadline],
     });
@@ -492,19 +465,19 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
     const [curveActive, curveRaw, tokenInfoRaw] = await Promise.all([
       publicClient.readContract({
         address: SOVRY_EXCHANGE_ADDRESS as Address,
-        abi: newLaunchpadAbi,
+        abi: exchangeReadAbi,
         functionName: "bondingCurveActive",
         args: [tokenAddress as Address],
       }),
       publicClient.readContract({
         address: SOVRY_EXCHANGE_ADDRESS as Address,
-        abi: newLaunchpadAbi,
+        abi: exchangeReadAbi,
         functionName: "bondingCurves",
         args: [tokenAddress as Address],
       }),
       publicClient.readContract({
         address: SOVRY_EXCHANGE_ADDRESS as Address,
-        abi: newLaunchpadAbi,
+        abi: exchangeReadAbi,
         functionName: "launchedTokens",
         args: [tokenAddress as Address],
       }),
@@ -554,65 +527,4 @@ export const launchpadService = {
 // LaunchInfo and RoyaltyLockInfo are already exported via their interface/type
 // declarations; no need to re-export them here.
 
-// New contract ABI for Exchange reads (SovryExchange)
-export const newLaunchpadAbi = [
-  {
-    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
-    name: "getMarketCap",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "bondingCurveActive",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "bondingCurves",
-    outputs: [
-      { internalType: "uint128", name: "basePrice", type: "uint128" },
-      { internalType: "uint128", name: "priceIncrement", type: "uint128" },
-      { internalType: "uint128", name: "currentSupply", type: "uint128" },
-      { internalType: "uint128", name: "reserveBalance", type: "uint128" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "launchedTokens",
-    outputs: [
-      { internalType: "address", name: "rtAddress", type: "address" },
-      { internalType: "address", name: "wrapperAddress", type: "address" },
-      { internalType: "address", name: "creator", type: "address" },
-      { internalType: "address", name: "ipAsset", type: "address" },
-      { internalType: "uint256", name: "launchTime", type: "uint256" },
-      { internalType: "uint256", name: "totalLocked", type: "uint256" },
-      { internalType: "bool", name: "graduated", type: "bool" },
-      { internalType: "uint256", name: "totalRoyaltiesHarvested", type: "uint256" },
-      { internalType: "address", name: "vaultAddress", type: "address" },
-      { internalType: "uint256", name: "dexReserve", type: "uint256" },
-      { internalType: "uint256", name: "initialCurveSupply", type: "uint256" },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
-    name: "wrapperToRt",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "rtToWrapper",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+export { exchangeReadAbi as newLaunchpadAbi } from "@/constants/abis";

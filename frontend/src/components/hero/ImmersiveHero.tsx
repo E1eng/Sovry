@@ -160,23 +160,23 @@ export function ImmersiveHero({ tokenCount, liveCount, sampleLaunch }: Immersive
         const symbolMap = new Map<string, string>();
         if (wrapperAddrs.length > 0) {
           try {
-            const { enrichLaunchData } = await import("@/services/launchDataService");
-            const results = await Promise.all(
-              wrapperAddrs.map(async (addr) => {
-                try {
-                  const data = await enrichLaunchData(addr);
-                  const sym = (data.symbol || data.name || formatSymbolFallback(addr)).toString();
-                  return [addr, sym] as [string, string];
-                } catch {
-                  return [addr, formatSymbolFallback(addr)] as [string, string];
+            const { supabase } = await import("@/lib/supabaseClient");
+            if (supabase) {
+              const candidates = wrapperAddrs.flatMap((a) => [a, a.toLowerCase()]);
+              const { data: rows } = await supabase
+                .from("tokens")
+                .select("token_address, symbol, name")
+                .in("token_address", candidates);
+              if (Array.isArray(rows)) {
+                for (const row of rows) {
+                  const r = row as any;
+                  const sym = r.symbol || r.name || formatSymbolFallback(r.token_address);
+                  symbolMap.set(String(r.token_address).toLowerCase(), sym);
                 }
-              })
-            );
-            for (const [addr, sym] of results) {
-              symbolMap.set(addr.toLowerCase(), sym);
+              }
             }
           } catch (e) {
-            logger.error("Error enriching symbols for hero trades", e);
+            logger.error("Error fetching symbols for hero trades", e);
           }
         }
 

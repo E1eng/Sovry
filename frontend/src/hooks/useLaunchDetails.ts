@@ -52,22 +52,20 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setLoading(true)
       setError(null)
 
-      const { getLaunchInfo } = await import("@/services/launchpadService")
-      const { enrichLaunchData } = await import("@/services/launchDataService")
+      const { getLaunchInfo, getBondingProgress, getMarketCap } = await import("@/services/launchpadService")
 
-      // Fetch launch info, enriched data, graduation info, and subgraph wrapper metadata in parallel
-      const [launchInfo, enrichedData, graduationInfo, wrapperMeta] = await Promise.all([
+      // Fetch launch info, graduation info, market cap, and subgraph wrapper metadata in parallel
+      const [launchInfo, graduationInfo, marketCapStr, wrapperMeta] = await Promise.all([
         getLaunchInfo(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getLaunchInfo")
           return null
         }),
-        enrichLaunchData(tokenAddress).catch((err) => {
-          logError(err, "useLaunchDetails.enrichLaunchData")
-          // If enrichment fails, we can still show basic info
-          return null
-        }),
         getGraduationInfo(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getGraduationInfo")
+          return null
+        }),
+        getMarketCap(tokenAddress).catch((err) => {
+          logError(err, "useLaunchDetails.getMarketCap")
           return null
         }),
         getWrapperTokenMeta(tokenAddress).catch((err) => {
@@ -75,6 +73,8 @@ export function useLaunchDetails(tokenAddress: string | null) {
           return null
         }),
       ])
+
+      const bondingProgress = getBondingProgress(launchInfo)
 
       // Load socials and optional metadata overrides from Supabase
       // `launches` table. We may have stored either the RT, the royalty
@@ -112,11 +112,10 @@ export function useLaunchDetails(tokenAddress: string | null) {
         const candidates = new Set<string>()
 
         const rtFromWrapper = (wrapperMeta as any)?.rt as string | undefined
-        const rtFromEnriched = (enrichedData as any)?.rtAddress as string | undefined
         const rtFromLaunchInfo = (launchInfo as any)?.royaltyToken as string | undefined
         const vaultFromLaunchInfo = (launchInfo as any)?.royaltyVault as string | undefined
 
-        for (const addr of [rtFromWrapper, rtFromEnriched, rtFromLaunchInfo, vaultFromLaunchInfo]) {
+        for (const addr of [rtFromWrapper, rtFromLaunchInfo, vaultFromLaunchInfo]) {
           if (addr) {
             // Support both original- and lower-case storage in Supabase
             candidates.add(addr)
@@ -151,9 +150,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
       }
 
       // Check if token exists on-chain even if not in subgraph
-      if (!launchInfo && !enrichedData) {
-        // Token might be recently created and not yet indexed
-        // Try to check if it's a valid contract address
+      if (!launchInfo) {
         const errorMsg = "Token not found. If you just created this token, it may take a few moments to appear in the indexer."
         setError(errorMsg)
         setDetails(null)
@@ -163,12 +160,15 @@ export function useLaunchDetails(tokenAddress: string | null) {
 
       setDetails({
         tokenAddress,
-        ...(enrichedData || {}),
-        marketCap: enrichedData?.marketCap,
-        reserveBalance: launchInfo ? formatEther(launchInfo.reserveBalance) : undefined,
-        imageUrl: imageUrlFromSupabase ?? enrichedData?.imageUrl,
-        name: nameFromSupabase ?? enrichedData?.name,
-        symbol: symbolFromSupabase ?? enrichedData?.symbol,
+        rtAddress: launchInfo.royaltyToken || undefined,
+        graduated: launchInfo.graduated,
+        category: "IP Asset",
+        marketCap: marketCapStr || undefined,
+        bondingProgress: bondingProgress || undefined,
+        reserveBalance: formatEther(launchInfo.reserveBalance),
+        imageUrl: imageUrlFromSupabase,
+        name: nameFromSupabase,
+        symbol: symbolFromSupabase,
         metadataUri: metadataUriFromSupabase,
         metadata_uri: metadataUriFromSupabase,
         // Default mediaType to 'image' when we have metadata_uri but no explicit media_type

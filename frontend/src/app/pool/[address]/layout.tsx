@@ -18,18 +18,26 @@ export async function generateMetadata({
 
   try {
     const { getLaunchInfo } = await import("@/services/launchpadService")
-    const { enrichLaunchData } = await import("@/services/launchDataService")
+    const { supabase } = await import("@/lib/supabaseClient")
 
-    const [launchInfo, enrichedData] = await Promise.all([
-      getLaunchInfo(address),
-      enrichLaunchData(address),
-    ])
+    const launchInfo = await getLaunchInfo(address)
 
-    const tokenName = enrichedData.name || enrichedData.symbol || "Token"
-    const tokenSymbol = enrichedData.symbol || "TOKEN"
-    const description = enrichedData.category
-      ? `${tokenName} (${tokenSymbol}) - ${enrichedData.category} token on Sovry Launchpad`
-      : `${tokenName} (${tokenSymbol}) - Trade on Sovry Launchpad`
+    // Resolve name/symbol from Supabase tokens table
+    let tokenName = "Token"
+    let tokenSymbol = "TOKEN"
+    if (supabase) {
+      const { data } = await supabase
+        .from("tokens")
+        .select("name, symbol")
+        .in("token_address", [address, address.toLowerCase()])
+        .limit(1)
+      if (Array.isArray(data) && data.length > 0) {
+        tokenName = (data[0] as any).name || tokenName
+        tokenSymbol = (data[0] as any).symbol || tokenSymbol
+      }
+    }
+
+    const description = `${tokenName} (${tokenSymbol}) - IP Asset token on Sovry Launchpad`
 
     const isGraduated = launchInfo?.graduated || false
     const status = isGraduated ? "Graduated to PiperX" : "Active on Bonding Curve"
