@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+// Alert replaced with inline divs for consistency
 import { AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { trackEvent } from "@/lib/analytics"
@@ -114,18 +114,18 @@ export function SlippageSettings({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-3 pt-3">
           {/* Preset Buttons */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">Presets</label>
-            <div className="flex gap-2">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Presets</label>
+            <div className="flex gap-1.5">
               {SLIPPAGE_PRESETS.map((preset) => (
                 <Button
                   key={preset}
                   variant={customSlippage === preset.toString() ? "default" : "outline"}
                   size="sm"
                   onClick={() => handlePresetClick(preset)}
-                  className="flex-1"
+                  className="flex-1 h-8 text-xs font-mono"
                 >
                   {preset}%
                 </Button>
@@ -134,8 +134,8 @@ export function SlippageSettings({
           </div>
 
           {/* Custom Input */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">Custom</label>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Custom</label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -145,39 +145,41 @@ export function SlippageSettings({
                 step="0.1"
                 min={MIN_SLIPPAGE}
                 max={MAX_SLIPPAGE}
-                className={cn(error && "border-red-500 focus-visible:ring-red-500")}
+                className={cn("h-8 text-xs font-mono", error && "border-secondary focus-visible:ring-secondary")}
               />
-              <span className="text-sm text-zinc-400 min-w-[24px]">%</span>
+              <span className="text-[10px] font-mono text-muted-foreground">%</span>
             </div>
             {error && (
-              <p className="text-xs text-red-400">{error}</p>
+              <p className="text-[10px] font-mono text-secondary">{error}</p>
             )}
-            <p className="text-xs text-zinc-500">
-              Range: {MIN_SLIPPAGE}% - {MAX_SLIPPAGE}%
+            <p className="text-[10px] font-mono text-muted-foreground">
+              Range: {MIN_SLIPPAGE}% – {MAX_SLIPPAGE}%
             </p>
           </div>
 
           {/* Warning */}
           {showWarning && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                High slippage! Your trade may be frontrun or executed at a significantly worse price.
-              </AlertDescription>
-            </Alert>
+            <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
+              <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+              <span className="text-[10px] font-mono text-secondary">High slippage — your trade may be frontrun.</span>
+            </div>
           )}
 
           {/* Save Button */}
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-2 pt-1">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => onOpenChange(false)}
+              className="h-8 text-xs font-mono"
             >
               Cancel
             </Button>
             <Button
+              size="sm"
               onClick={handleSave}
               disabled={!!error || !customSlippage}
+              className="h-8 text-xs font-mono"
             >
               Save
             </Button>

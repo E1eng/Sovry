@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+// Alerts replaced with inline divs for consistent sizing
 import { Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
 import { parseEther, formatEther } from "viem"
 import toast from "react-hot-toast"
@@ -729,12 +729,10 @@ function SwapInterfaceComponent({
           <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Graduated</span>
         </div>
         <CardContent className="p-4 space-y-3">
-          <Alert variant="default" className="border-border bg-muted/40">
-            <AlertTriangle className="h-3.5 w-3.5 text-secondary" />
-            <AlertDescription className="text-xs text-muted-foreground">
-              This token has graduated to PiperX
-            </AlertDescription>
-          </Alert>
+          <div className="flex items-center gap-1.5 rounded-sm border border-border bg-muted/30 px-2.5 py-2">
+            <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+            <span className="text-[10px] font-mono text-muted-foreground">This token has graduated to PiperX</span>
+          </div>
           <Button
             onClick={handleTradeOnPiperX}
             className="w-full h-10 font-mono text-xs uppercase tracking-[0.2em] bg-primary text-primary-foreground hover:bg-primary/90 touch-manipulation"
@@ -805,38 +803,11 @@ function SwapInterfaceComponent({
         </Tabs>
       </div>
 
-      <CardContent className="p-4 space-y-3">
+      <CardContent className="p-3 space-y-2">
         {/* You Pay Section */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
-          <Input
-            type="text"
-            value={fromAmount}
-            onChange={(e) => {
-              setFromAmount(e.target.value)
-              setBalanceError(null)
-              setSlippageError(null)
-            }}
-            onKeyDown={(e) => {
-              if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
-                  (e.keyCode === 65 && e.ctrlKey === true) ||
-                  (e.keyCode === 67 && e.ctrlKey === true) ||
-                  (e.keyCode === 86 && e.ctrlKey === true) ||
-                  (e.keyCode === 88 && e.ctrlKey === true) ||
-                  (e.keyCode >= 35 && e.keyCode <= 39)) {
-                return
-              }
-              if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
-                e.preventDefault()
-              }
-            }}
-            placeholder={detailsLoading ? "Loading..." : "0.0"}
-            disabled={detailsLoading || !tokenAddress || isTrading}
-            className="h-9 text-xs font-mono tabular-nums"
-            aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
-            aria-describedby={balanceError ? "balance-error" : undefined}
-          />
-          <div className="flex items-center justify-between gap-2">
+        <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
             <span className="text-[10px] font-mono text-muted-foreground">
               Bal:{" "}
               <span className="text-foreground tabular-nums">
@@ -846,9 +817,38 @@ function SwapInterfaceComponent({
                 } {activeTab === "buy" ? "IP" : tokenSymbol}
               </span>
             </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              value={fromAmount}
+              onChange={(e) => {
+                setFromAmount(e.target.value)
+                setBalanceError(null)
+                setSlippageError(null)
+              }}
+              onKeyDown={(e) => {
+                if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode === 67 && e.ctrlKey === true) ||
+                    (e.keyCode === 86 && e.ctrlKey === true) ||
+                    (e.keyCode === 88 && e.ctrlKey === true) ||
+                    (e.keyCode >= 35 && e.keyCode <= 39)) {
+                  return
+                }
+                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                  e.preventDefault()
+                }
+              }}
+              placeholder={detailsLoading ? "Loading..." : "0.0"}
+              disabled={detailsLoading || !tokenAddress || isTrading}
+              className="h-9 flex-1 text-sm font-mono tabular-nums bg-background/60 border-border/40"
+              aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
+              aria-describedby={balanceError ? "balance-error" : undefined}
+            />
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => {
                 const balance = activeTab === "buy" ? userBalance : tokenBalance
@@ -857,7 +857,7 @@ function SwapInterfaceComponent({
                 }
               }}
               disabled={!isConnected || (activeTab === "buy" ? !userBalance : !tokenBalance)}
-              className="h-5 px-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:text-primary/80 hover:bg-primary/10"
+              className="h-9 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-primary border-primary/30 hover:bg-primary/10"
               aria-label="Set maximum balance"
             >
               MAX
@@ -866,18 +866,18 @@ function SwapInterfaceComponent({
         </div>
 
         {/* Estimated Receive */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Estimated Receive</label>
+        <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-mono tabular-nums text-foreground">
-                {toAmount || (isCalculating ? "…" : "0.0")}
-              </span>
-              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                {activeTab === "buy" ? tokenSymbol : "IP"}
-              </span>
-            </div>
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Receive</label>
             {isCalculating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-mono tabular-nums text-foreground">
+              {toAmount || (isCalculating ? "…" : "0.0")}
+            </span>
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              {activeTab === "buy" ? tokenSymbol : "IP"}
+            </span>
           </div>
           {minReceive && (
             <span className="text-[10px] font-mono text-muted-foreground">
@@ -891,7 +891,7 @@ function SwapInterfaceComponent({
 
         {/* Exchange Rate and Price Impact */}
         {(exchangeRate || priceImpact !== null) && (
-          <div className="pt-2 border-t border-border space-y-1.5">
+          <div className="pt-2 border-t border-border/50 space-y-1.5">
             {exchangeRate && (
               <p className="text-[10px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
             )}
@@ -901,34 +901,34 @@ function SwapInterfaceComponent({
                 <span className={cn("text-[10px] font-mono tabular-nums", priceImpact > 5 ? "text-secondary" : "text-foreground")}>
                   {priceImpact.toFixed(2)}%
                 </span>
-                {priceImpact > 5 && <AlertTriangle className="h-2.5 w-2.5 text-secondary" aria-hidden="true" />}
+                {priceImpact > 5 && <AlertTriangle className="h-2.5 w-2.5 text-secondary flex-shrink-0" aria-hidden="true" />}
               </div>
             )}
             {priceImpact !== null && priceImpact > 5 && (
-              <Alert variant="destructive" className="py-1.5 border-secondary/40 bg-secondary/10" role="alert">
-                <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
-                <AlertDescription className="text-[10px] text-secondary">High price impact!</AlertDescription>
-              </Alert>
+              <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5" role="alert">
+                <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" aria-hidden="true" />
+                <span className="text-[10px] font-mono text-secondary">High price impact!</span>
+              </div>
             )}
           </div>
         )}
 
         {/* Error Messages */}
         {balanceError && (
-          <Alert variant="destructive" className="py-1.5 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-2.5 w-2.5" />
-            <AlertDescription className="text-[10px] text-secondary">{balanceError}</AlertDescription>
-          </Alert>
+          <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
+            <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+            <span className="text-[10px] font-mono text-secondary">{balanceError}</span>
+          </div>
         )}
 
         {slippageError && (
-          <Alert variant="destructive" className="py-1.5 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-2.5 w-2.5" />
-            <AlertDescription className="text-[10px] text-secondary">
+          <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
+            <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+            <span className="text-[10px] font-mono text-secondary">
               {slippageError}
-              <Button variant="link" size="sm" className="h-auto p-0 ml-1 text-[10px] font-mono text-secondary underline" onClick={() => setShowSlippageSettings(true)}>Increase slippage</Button>
-            </AlertDescription>
-          </Alert>
+              <button type="button" className="ml-1 underline hover:no-underline" onClick={() => setShowSlippageSettings(true)}>Increase slippage</button>
+            </span>
+          </div>
         )}
 
         {/* Trade button */}

@@ -379,6 +379,50 @@ export default function TokenDetailPage() {
 
           {/* ── Two-column grid ── */}
           <div className="grid gap-3 lg:gap-4 lg:grid-cols-12 lg:items-start max-w-full">
+
+            {/* Right column — shows FIRST on mobile (progress/holders), sticky on desktop */}
+            <div className="order-first lg:order-none lg:col-span-4 space-y-3 min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar">
+
+              {/* Swap (desktop only) */}
+              <div className="hidden lg:block">
+                <SwapInterface
+                  tokenAddress={address}
+                  tokenSymbol={ticker}
+                  isGraduated={launchInfo?.graduated || false}
+                  piperXPoolAddress={graduationData?.liquidityPoolAddress}
+                />
+              </div>
+
+              {/* Progress */}
+              {launchInfo && launchInfo.totalRaised && (
+                <Card>
+                  <CardContent className="p-4">
+                    <ProgressToGraduation
+                      totalRaised={launchInfo.totalRaised}
+                      tokenTicker={ticker}
+                      tokenName={tokenName}
+                      tokenAddress={address}
+                      isGraduated={launchInfo.graduated}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Holders */}
+              <Card>
+                <div className="border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">Holders</span>
+                </div>
+                <CardContent className="p-4">
+                  <HolderDistribution
+                    tokenAddress={address}
+                    tokenSymbol={ticker}
+                    creatorAddress={creatorAddress || undefined}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Left column */}
             <div className="lg:col-span-8 space-y-3 min-w-0">
 
@@ -442,46 +486,6 @@ export default function TokenDetailPage() {
 
               {/* Comments (component renders its own Card) */}
               <PoolComments tokenAddress={address} tokenName={tokenName} />
-            </div>
-
-            {/* Right column — sticky on desktop */}
-            <div className="lg:col-span-4 space-y-3 min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar">
-
-              {/* Swap (desktop only) */}
-              <div className="hidden lg:block">
-                <SwapInterface
-                  tokenAddress={address}
-                  tokenSymbol={ticker}
-                  isGraduated={launchInfo?.graduated || false}
-                  piperXPoolAddress={graduationData?.liquidityPoolAddress}
-                />
-              </div>
-
-              {/* Progress */}
-              {launchInfo && launchInfo.totalRaised && (
-                <Card>
-                  <CardContent className="p-4">
-                    <ProgressToGraduation
-                      totalRaised={launchInfo.totalRaised}
-                      tokenTicker={ticker}
-                      tokenName={tokenName}
-                      tokenAddress={address}
-                      isGraduated={launchInfo.graduated}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Holders */}
-              <Card>
-                <CardContent className="p-4">
-                  <HolderDistribution
-                    tokenAddress={address}
-                    tokenSymbol={ticker}
-                    creatorAddress={creatorAddress || undefined}
-                  />
-                </CardContent>
-              </Card>
             </div>
           </div>
 
