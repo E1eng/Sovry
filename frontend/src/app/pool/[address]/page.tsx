@@ -6,9 +6,9 @@ import Image from "next/image"
 import { useState, useEffect, useCallback, useRef } from "react"
 import toast from "react-hot-toast"
 import { isAddress } from "viem"
-import { AlertCircle, Home, ArrowLeft, RefreshCw, ArrowUpDown } from "lucide-react"
+import { AlertCircle, Home, ArrowLeft, RefreshCw, ArrowUpDown, Globe, Twitter, Send, Copy } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 
 import { Breadcrumb } from "@/components/ui/breadcrumb"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
@@ -57,7 +57,7 @@ export default function TokenDetailPage() {
     liquidityPoolAddress: string
   } | null>(null)
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
+  const [_dailyChangePct, setDailyChangePct] = useState<number | null>(null)
   const [showSwapSheet, setShowSwapSheet] = useState(false)
   const copyToClipboard = useCallback((text: string, label: string) => {
     if (!text) return
@@ -295,239 +295,160 @@ export default function TokenDetailPage() {
   const socials = [
     {
       label: "Website",
+      icon: Globe,
       url: details.website || (details.launchInfo as any)?.websiteUrl || (details.wrapperMeta as any)?.website,
     },
     {
       label: "Twitter",
+      icon: Twitter,
       url: details.twitter || (details.launchInfo as any)?.twitterUrl || (details.wrapperMeta as any)?.twitter,
     },
     {
       label: "Telegram",
+      icon: Send,
       url: details.telegram || (details.launchInfo as any)?.telegramUrl || (details.wrapperMeta as any)?.telegram,
     },
   ].filter((s) => !!s.url)
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 pt-2 sm:pt-5 lg:pt-6 pb-8">
-        <div className="w-full space-y-5 sm:space-y-6">
+      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 pt-2 sm:pt-4 lg:pt-6 pb-8">
+        <div className="w-full space-y-4">
           {/* Breadcrumbs */}
           <Breadcrumb items={breadcrumbItems} />
 
-          {/* Token Header Summary */}
-          <div className="border border-border bg-card rounded-lg overflow-hidden">
-            <div className="px-3 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-sm overflow-hidden border border-border bg-muted/40 flex-shrink-0">
-                  {details.imageUrl ? (
-                    <Image
-                      src={details.imageUrl}
-                      alt={tokenName}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <span className="text-base sm:text-lg font-semibold text-muted-foreground">
-                        {tokenName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                    <h1 className="text-base sm:text-lg font-semibold text-foreground truncate max-w-[180px] sm:max-w-none">{tokenName}</h1>
-                    <span className="text-[10px] sm:text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{ticker}</span>
-                    {isTokenGraduated && (
-                      <span className="inline-flex items-center gap-1 rounded-sm bg-primary/10 border border-primary/30 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.15em] text-primary">
-                        Graduated
-                      </span>
-                    )}
+          {/* ── Token Header ── */}
+          <div className="border border-border bg-card rounded-sm">
+            <div className="px-4 py-3 flex items-center gap-3">
+              {/* Avatar */}
+              <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-border bg-muted/40 flex-shrink-0">
+                {details.imageUrl ? (
+                  <Image src={details.imageUrl} alt={tokenName} fill unoptimized className="object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <span className="text-base font-semibold text-muted-foreground">{tokenName.charAt(0).toUpperCase()}</span>
                   </div>
-                  {creatorAddress && (
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(creatorAddress, "Creator")}
-                      className="text-[10px] sm:text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      by {truncateAddress(creatorAddress)}
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
-                {details.marketCap && details.marketCap !== "0" && (
-                  <div className="border border-border rounded-sm px-2 sm:px-3 py-1 sm:py-1.5 text-center">
-                    <div className="text-[8px] sm:text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">MCap</div>
-                    <div className="text-xs sm:text-sm font-semibold font-mono tabular-nums text-foreground">{details.marketCap} IP</div>
-                  </div>
+              {/* Name + creator */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base font-semibold text-foreground truncate">{tokenName}</h1>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex-shrink-0">{ticker}</span>
+                  {isTokenGraduated && (
+                    <span className="inline-flex items-center rounded-sm bg-primary/10 border border-primary/30 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-primary flex-shrink-0">
+                      Graduated
+                    </span>
+                  )}
+                </div>
+                {creatorAddress && (
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(creatorAddress, "Creator")}
+                    className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                  >
+                    by {truncateAddress(creatorAddress)} <Copy className="h-2.5 w-2.5" />
+                  </button>
                 )}
-                {details.currentPrice && (
-                  <div className="border border-border rounded-sm px-2 sm:px-3 py-1 sm:py-1.5 text-center">
-                    <div className="text-[8px] sm:text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price</div>
-                    <div className="text-xs sm:text-sm font-semibold font-mono tabular-nums text-foreground">{details.currentPrice} IP</div>
-                  </div>
-                )}
-                {dailyChangePct !== null && isFinite(dailyChangePct) && (
-                  <div className="border border-border rounded-sm px-2 sm:px-3 py-1 sm:py-1.5 text-center">
-                    <div className="text-[8px] sm:text-[9px] font-mono uppercase tracking-[0.2em] text-muted-foreground">24h</div>
-                    <div className={`text-xs sm:text-sm font-semibold font-mono tabular-nums ${
-                      dailyChangePct > 0 ? "text-primary" : dailyChangePct < 0 ? "text-red-400" : "text-muted-foreground"
-                    }`}>
-                      {dailyChangePct > 0 ? "+" : ""}{dailyChangePct.toFixed(2)}%
-                    </div>
-                  </div>
-                )}
-                {socials.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    {socials.map((s) => (
-                      <a
-                        key={s.label}
-                        href={s.url as string}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-                      >
-                        {s.label}
+              </div>
+              {/* Socials */}
+              {socials.length > 0 && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {socials.map((s) => {
+                    const Icon = s.icon
+                    return (
+                      <a key={s.label} href={s.url as string} target="_blank" rel="noopener noreferrer" title={s.label}
+                        className="h-7 w-7 flex items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
+                        <Icon className="h-3.5 w-3.5" />
                       </a>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            {/* Stats bar */}
+            <div className="border-t border-border bg-muted/30 px-4 py-2 flex items-center gap-5 overflow-x-auto no-scrollbar">
+              {details.currentPrice && (
+                <div className="flex items-baseline gap-1.5 flex-shrink-0">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price</span>
+                  <span className="text-xs font-mono tabular-nums text-foreground">{details.currentPrice} IP</span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* ── Two-column grid ── */}
-          <div className="grid gap-4 lg:gap-5 lg:grid-cols-12 lg:items-start max-w-full">
-            {/* Left column: Chart, Media, Comments */}
-            <div className="lg:col-span-8 space-y-4 min-w-0">
-              {/* Trading Chart */}
-              <Card style={{ animation: "fadeIn 0.5s ease-out 120ms both" }}>
-                <CardHeader className="border-b border-border bg-muted/60">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-semibold text-foreground">
-                      {ticker}/IP
-                    </CardTitle>
-                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price Chart</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="overflow-hidden">
-                  <div className="hidden sm:block">
-                    <TradingChart
-                      tokenAddress={address}
-                      height={420}
-                      currentPrice={details.currentPrice || null}
-                      marketCap={marketCapForChart}
-                      reserveBalance={reserveForChart}
-                      onDailyChangePct={setDailyChangePct}
-                    />
-                  </div>
-                  <div className="sm:hidden">
-                    <TradingChart
-                      tokenAddress={address}
-                      height={280}
-                      currentPrice={details.currentPrice || null}
-                      marketCap={marketCapForChart}
-                      reserveBalance={reserveForChart}
-                      onDailyChangePct={setDailyChangePct}
-                    />
-                  </div>
+          <div className="grid gap-3 lg:gap-4 lg:grid-cols-12 lg:items-start max-w-full">
+            {/* Left column */}
+            <div className="lg:col-span-8 space-y-3 min-w-0">
+
+              {/* Chart */}
+              <Card>
+                <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">{ticker}/IP</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price Chart</span>
+                </div>
+                <CardContent className="p-0 overflow-hidden">
+                  <div className="hidden sm:block"><TradingChart tokenAddress={address} height={420} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
+                  <div className="sm:hidden"><TradingChart tokenAddress={address} height={280} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
                 </CardContent>
               </Card>
 
               {/* IP Media */}
-              <Card className="overflow-hidden" style={{ animation: "fadeIn 0.5s ease-out 160ms both" }}>
-                <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-2">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IP Media</span>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                    {mediaTypeLabel}
-                  </span>
+              <Card className="overflow-hidden">
+                <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">IP Media</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{mediaTypeLabel}</span>
                 </div>
                 <div className="relative aspect-video max-h-[320px] w-full overflow-hidden bg-muted">
                   {details.imageUrl ? (
-                    <Image
-                      src={details.imageUrl}
-                      alt={tokenName}
-                      fill
-                      className="object-contain"
-                      unoptimized
-                    />
+                    <Image src={details.imageUrl} alt={tokenName} fill className="object-contain" unoptimized />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-muted-foreground">
-                        {tokenName.charAt(0).toUpperCase()}
-                      </span>
+                      <span className="text-xl font-semibold text-muted-foreground">{tokenName.charAt(0).toUpperCase()}</span>
                     </div>
                   )}
                 </div>
-                <CardContent className="p-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-2 text-[11px]">
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
-                      {details.ipId ? (
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(details.ipId as string, "IPID")}
-                          className="font-mono text-foreground hover:underline decoration-dotted"
-                        >
-                          {truncateAddress(details.ipId)}
-                        </button>
-                      ) : (
-                        <div className="font-mono text-muted-foreground">—</div>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Token</div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(details.tokenAddress, "Token address")}
-                        className="font-mono text-foreground hover:underline decoration-dotted"
-                      >
-                        {truncateAddress(details.tokenAddress)}
+                <div className="grid grid-cols-3 gap-3 border-t border-border px-4 py-3">
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
+                    {details.ipId ? (
+                      <button type="button" onClick={() => copyToClipboard(details.ipId as string, "IPID")} className="text-xs font-mono text-foreground hover:underline decoration-dotted">
+                        {truncateAddress(details.ipId)}
                       </button>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Metadata</div>
-                      {metadataUri ? (
-                        <a
-                          href={metadataHref || "#"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-foreground hover:underline decoration-dotted truncate block"
-                        >
-                          View
-                        </a>
-                      ) : (
-                        <span className="font-mono text-muted-foreground">—</span>
-                      )}
-                    </div>
+                    ) : (
+                      <span className="text-xs font-mono text-muted-foreground">—</span>
+                    )}
                   </div>
-                </CardContent>
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Token</div>
+                    <button type="button" onClick={() => copyToClipboard(details.tokenAddress, "Token address")} className="text-xs font-mono text-foreground hover:underline decoration-dotted">
+                      {truncateAddress(details.tokenAddress)}
+                    </button>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Metadata</div>
+                    {metadataUri ? (
+                      <a href={metadataHref || "#"} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-foreground hover:underline decoration-dotted">View</a>
+                    ) : (
+                      <span className="text-xs font-mono text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </div>
               </Card>
 
-              {/* Recent Activity */}
-              <Card style={{ animation: "fadeIn 0.5s ease-out 200ms both" }}>
-                <CardContent className="p-3 sm:p-5">
-                  <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
-                </CardContent>
-              </Card>
+              {/* Recent Activity (component renders its own Card) */}
+              <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
 
-              {/* Comments */}
-              <Card style={{ animation: "fadeIn 0.5s ease-out 220ms both" }}>
-                <CardHeader className="border-b border-border bg-muted/60">
-                  <CardTitle className="text-sm font-semibold text-foreground">Comments</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <PoolComments tokenAddress={address} tokenName={tokenName} />
-                </CardContent>
-              </Card>
+              {/* Comments (component renders its own Card) */}
+              <PoolComments tokenAddress={address} tokenName={tokenName} />
             </div>
 
-            {/* Right column: Swap (desktop), Progress, Holders — sticky + scrollable on desktop */}
-            <div className="lg:col-span-4 space-y-4 min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar">
-              {/* Swap — desktop only (SwapInterface renders its own Card) */}
-              <div className="hidden lg:block" style={{ animation: "fadeIn 0.5s ease-out 100ms both" }}>
+            {/* Right column — sticky on desktop */}
+            <div className="lg:col-span-4 space-y-3 min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar">
+
+              {/* Swap (desktop only) */}
+              <div className="hidden lg:block">
                 <SwapInterface
                   tokenAddress={address}
                   tokenSymbol={ticker}
@@ -536,9 +457,10 @@ export default function TokenDetailPage() {
                 />
               </div>
 
+              {/* Progress */}
               {launchInfo && launchInfo.totalRaised && (
-                <Card style={{ animation: "fadeIn 0.5s ease-out 140ms both" }}>
-                  <CardContent className="p-3 sm:p-5">
+                <Card>
+                  <CardContent className="p-4">
                     <ProgressToGraduation
                       totalRaised={launchInfo.totalRaised}
                       tokenTicker={ticker}
@@ -550,8 +472,9 @@ export default function TokenDetailPage() {
                 </Card>
               )}
 
-              <Card style={{ animation: "fadeIn 0.5s ease-out 160ms both" }}>
-                <CardContent className="p-3 sm:p-5">
+              {/* Holders */}
+              <Card>
+                <CardContent className="p-4">
                   <HolderDistribution
                     tokenAddress={address}
                     tokenSymbol={ticker}
@@ -573,39 +496,29 @@ export default function TokenDetailPage() {
             />
           )}
 
-          {/* ── Mobile: Sticky Trade button at bottom ── */}
+          {/* Mobile: Sticky Trade button */}
           <div className="sticky bottom-0 z-40 lg:hidden -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 pb-3 pt-2 bg-gradient-to-t from-background via-background to-transparent">
             <button
               type="button"
               onClick={() => setShowSwapSheet(true)}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3.5 text-sm font-mono uppercase tracking-[0.15em] text-primary-foreground shadow-lg hover:brightness-110 active:scale-[0.98] transition-all"
+              className="w-full flex items-center justify-center gap-2 rounded-sm bg-primary px-6 py-3 text-xs font-mono uppercase tracking-[0.2em] text-primary-foreground shadow-lg hover:brightness-110 active:scale-[0.98] transition-all"
             >
-              <ArrowUpDown className="h-4 w-4" />
-              <span>Trade {ticker}</span>
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              Trade {ticker}
             </button>
           </div>
 
         </div>
       </div>
 
-      {/* ── Mobile: Bottom sheet for swap (OUTSIDE page wrappers so fixed works) ── */}
+      {/* Mobile: Bottom sheet */}
       {showSwapSheet && (
-        <div className="fixed inset-0 z-50 lg:hidden" style={{ position: 'fixed' }}>
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => setShowSwapSheet(false)}
-          />
-          <div className="absolute bottom-0 left-0 right-0 bg-card border-t border-border rounded-t-2xl" style={{ position: 'absolute' }}>
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">
-                Trade {ticker}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowSwapSheet(false)}
-                className="h-8 w-8 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Close"
-              >
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowSwapSheet(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-card border-t border-border rounded-t-2xl">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+              <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">Trade {ticker}</span>
+              <button type="button" onClick={() => setShowSwapSheet(false)} className="h-7 w-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
                 ✕
               </button>
             </div>
