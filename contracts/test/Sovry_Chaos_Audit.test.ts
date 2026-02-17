@@ -227,7 +227,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
   it("Graduation safety: if V3 mint reverts, graduation reverts and token stays non-transferable", async function () {
     // WHY: Graduation must be atomic. If LP mint fails, state must not fall back to unlocked/free-trading mode.
-    const { factory, exchange, rt, creator, trader } = await deployFixture({
+    const { factory, exchange, rt, creator, trader, keeper } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
       revertMint: true,
       basePriceWei: "0.000000000000000010",
@@ -257,7 +257,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
 
     const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
 
-    await expect(exchange.graduate(wrapperAddress)).to.be.reverted;
+    await expect(exchange.connect(keeper).graduate(wrapperAddress)).to.be.reverted;
 
     const tokenAfter = await exchange.launchedTokens(wrapperAddress);
     expect(tokenAfter.graduated).to.equal(false);
@@ -290,7 +290,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const deadline = block.timestamp + 3600;
     await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
 
-    await exchange.graduate(wrapperAddress);
+    await exchange.connect(keeper).graduate(wrapperAddress);
 
     // Fund WIP and deposit royalties after graduation.
     // Fund mock vault with WIP so harvestFromVault can pull it
@@ -404,7 +404,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
   });
 
   it("Graduation safety: pre-existing pool blocks graduation so migration price cannot be front-run", async function () {
-    const { factory, exchange, rt, creator, trader, piperXV3PositionManager, wip } = await deployFixture({
+    const { factory, exchange, rt, creator, trader, keeper, piperXV3PositionManager, wip } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
       basePriceWei: "0.000000000000000010",
       priceIncrementWei: "0.000000000000000001",
@@ -434,7 +434,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
       .connect(trader)
       .createAndInitializePoolIfNecessary(token0, token1, 10_000, q96);
 
-    await expect(exchange.graduate(wrapperAddress)).to.be.revertedWithCustomError(exchange, "DexLiquidityFailed");
+    await expect(exchange.connect(keeper).graduate(wrapperAddress)).to.be.revertedWithCustomError(exchange, "DexLiquidityFailed");
 
     const tokenAfter = await exchange.launchedTokens(wrapperAddress);
     expect(tokenAfter.graduated).to.equal(false);
@@ -446,7 +446,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
   });
 
   it("Devil advocate: redeem() remains enabled after graduation (potential RT drain)", async function () {
-    const { factory, exchange, rt, creator, trader, owner } = await deployFixture();
+    const { factory, exchange, rt, creator, trader, keeper, owner } = await deployFixture();
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
@@ -466,7 +466,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const deadline = block.timestamp + 3600;
     await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
 
-    await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
+    await expect(exchange.connect(keeper).graduate(wrapperAddress)).to.emit(exchange, "Graduated");
 
     const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
     const supplyBefore = await wrapper.totalSupply();

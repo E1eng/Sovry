@@ -60,6 +60,12 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     uint256 public constant MAX_BASE_PRICE = 1e18;
     uint256 public constant MAX_PRICE_INCREMENT = 1e18;
 
+    uint256 public constant DEX_RESERVE_PERCENTAGE = 20;
+    uint256 public constant FEE_TOTAL_PERCENTAGE = 10;
+    uint256 public constant SLIPPAGE_TOLERANCE_BPS = 100; // 1%
+
+    error InvalidMetadata();
+
     struct CurveDefaults {
         uint128 basePrice;
         uint128 priceIncrement;
@@ -180,6 +186,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             priceIncrement: uint128(priceIncrement),
             finalized: true
         });
+        emit CurveParamsUpdated(uint128(basePrice), uint128(priceIncrement));
     }
 
     // ====== Royalty Harvesting (Pull Model) ======
@@ -204,23 +211,26 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         emit RoyaltiesHarvested(wrapperToken, harvestedAmount);
 
         if (!token.graduated) {
-            // Pre-graduation: unwrap to ETH and add to curve reserves (raises floor price)
-            IWIP(wipToken).withdraw(harvestedAmount);
-
+            // Pre-graduation: update state first, then external calls
             BondingCurve storage curve = bondingCurves[wrapperToken];
             uint256 newReserve = uint256(curve.reserveBalance) + harvestedAmount;
             if (newReserve > type(uint128).max) revert ParamsTooLarge();
             curve.reserveBalance = uint128(newReserve);
             totalCurveReserves += harvestedAmount;
+            
+            // External call after state update
+            IWIP(wipToken).withdraw(harvestedAmount);
         } else {
-            bool swapOk = _buybackAndBurnWIP(wrapperToken, harvestedAmount);
+            // Calculate minimum output with 1% slippage protection
+            uint256 amountOutMin = (harvestedAmount * (BPS_DENOMINATOR - SLIPPAGE_TOLERANCE_BPS)) / BPS_DENOMINATOR;
+            bool swapOk = _buybackAndBurnWIP(wrapperToken, harvestedAmount, amountOutMin);
             if (!swapOk) {
                 emit BuybackFailed(wrapperToken, "Swap Error");
             }
         }
     }
 
-    function _buybackAndBurnWIP(address wrapperToken, uint256 amountWIP) internal returns (bool) {
+    function _buybackAndBurnWIP(address wrapperToken, uint256 amountWIP, uint256 amountOutMin) internal returns (bool) {
         if (amountWIP == 0) return false;
 
         IERC20(wipToken).forceApprove(piperXV3SwapRouter, 0);
@@ -233,7 +243,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             recipient: address(0x000000000000000000000000000000000000dEaD),
             deadline: block.timestamp,
             amountIn: amountWIP,
-            amountOutMinimum: 0,
+            amountOutMinimum: amountOutMin,
             sqrtPriceLimitX96: 0
         });
 
@@ -257,6 +267,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (ipAsset == address(0)) revert InvalidAddress();
         if (ipAsset.code.length == 0) revert InvalidAddress();
         if (creator == address(0)) revert InvalidAddress();
+        if (bytes(name).length == 0 || bytes(symbol).length == 0) revert InvalidMetadata();
         if (amount != LAUNCH_RT_AMOUNT) revert InvalidLaunchAmount();
         CurveDefaults memory defaults = curveDefaults;
         uint256 basePrice = uint256(defaults.basePrice);
@@ -277,7 +288,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         rtToWrapper[rtAddress] = wrapperAddress;
         wrapperToRt[wrapperAddress] = rtAddress;
-        uint256 dexReserveRt = (amount * 20) / 100;
+        uint256 dexReserveRt = (amount * DEX_RESERVE_PERCENTAGE) / 100;
 
         uint256 curveSupplyRt = amount - dexReserveRt;
         uint256 curveSupplyWrapped = curveSupplyRt * WRAP_PER_RT;
@@ -514,7 +525,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     // ====== Graduation Flow ======
 
-    function graduate(address wrapperToken) external nonReentrant {
+    function graduate(address wrapperToken) external nonReentrant onlyRole(KEEPER_ROLE) {
         LaunchedToken storage token = launchedTokens[wrapperToken];
         if (token.wrapperAddress == address(0)) revert UnknownToken();
         if (token.graduated) revert TokenGraduated();
@@ -544,7 +555,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         if (nativeLiquidity == 0 || tokenLiquidity == 0) revert InvalidAmount();
 
-        uint256 feeTotal = nativeLiquidity / 10;
+        uint256 feeTotal = nativeLiquidity / FEE_TOTAL_PERCENTAGE;
         uint256 treasuryCut = feeTotal / 2;
         uint256 ipaCut = feeTotal - treasuryCut;
 

@@ -38,6 +38,8 @@ interface ISovryExchange {
 
     event GraduationThresholdUpdated(uint256 newThreshold);
 
+    event CurveParamsUpdated(uint128 basePrice, uint128 priceIncrement);
+
     function treasury() external view returns (address);
 
     function graduationThreshold() external view returns (uint256);
