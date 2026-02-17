@@ -22,13 +22,6 @@ type LaunchRow = {
   tokenAddress: string;
 };
 
-const STATIC_MARQUEE = [
-  "ROYALTY_INJECTION LIVE",
-  "STORY L1 ONLINE",
-  "IP-FI LAUNCHPAD",
-  "BONDING CURVES ACTIVE",
-];
-
 const getVolume = (launch: LaunchRow) => Math.max(Number(launch.volume24h) || 0, 0);
 
 export default function Home() {
@@ -72,25 +65,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Top neon ticker */}
-      <div className="h-8 w-full bg-[#CCFF00] text-black border-b border-black/40 overflow-hidden">
-        <div className="h-full flex items-center font-mono text-[10px] sm:text-xs uppercase tracking-[0.25em]">
-          <div className="animate-[marquee_22s_linear_infinite] whitespace-nowrap flex items-center gap-8">
-            {[
-              ...(launches.length > 0 ? [`TOKENS_LIVE: ${launches.length}`, `TOP: ${launches[0]?.name || "—"}`] : []),
-              ...STATIC_MARQUEE,
-              ...(launches.length > 0 ? [`TOKENS_LIVE: ${launches.length}`, `TOP: ${launches[0]?.name || "—"}`] : []),
-              ...STATIC_MARQUEE,
-            ].map((item, idx) => (
-              <span key={`${item}-${idx}`} className="flex items-center gap-2">
-                <span className="h-1 w-1 rounded-full bg-black" />
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Hero: asymmetric split */}
       <section className="px-4 sm:px-6 py-6">
         <div className="mt-4 border border-[#262626] bg-[#050505] rounded-xl overflow-hidden shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
@@ -118,10 +92,10 @@ export default function Home() {
             <div className="absolute inset-0 z-20 flex flex-col justify-end gap-4 sm:gap-7 p-4 sm:p-6 md:p-8 lg:p-8 pt-8 pb-6 sm:pt-18 sm:pb-16 lg:pt-12 lg:pb-10">
               <div className="space-y-2 md:space-y-3">
                 <span className="inline-flex items-center gap-2 rounded-sm bg-white/15 px-3.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.28em] text-[#CCFF00] border border-[#262626]">
-                  FEATURED_IP
+                  IP OF THE DAY
                 </span>
                 <h1 className="text-2xl sm:text-3xl md:text-5xl font-black tracking-tight text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
-                  {spotlight?.name || "Signal Lost"}
+                  {spotlight?.name || "No IP yet"}
                 </h1>
                 <p className="text-[12px] sm:text-[13px] md:text-base text-white/70 max-w-2xl">
                   Spotlighted IP asset sourced from Story Protocol. Tap into the bonding curve and the royalty vault in one launch flow.
@@ -129,10 +103,10 @@ export default function Home() {
               </div>
               <div className="flex flex-wrap items-center gap-3 text-[11px] md:text-xs font-mono uppercase tracking-[0.2em] text-white/70">
                 <span className="rounded-sm border border-white/10 bg-black/40 px-3 py-1">
-                  {spotlight ? formatMarketCapIP(spotlight.marketCap) : "--"}
+                  {spotlight ? formatMarketCapIP(spotlight.marketCap) : "—"}
                 </span>
                 <span className="rounded-sm border border-white/10 bg-black/40 px-3 py-1">
-                  {spotlight ? `Progress ${Math.round(spotlight.bondingProgress || 0)}%` : "Awaiting signal"}
+                  {spotlight ? `Progress ${Math.round(spotlight.bondingProgress || 0)}%` : "No data"}
                 </span>
                 <Link
                   href={spotlight ? `/pool/${spotlight.token || spotlight.id}` : "#"}
@@ -155,27 +129,11 @@ export default function Home() {
               )}
             </div>
             <div className="flex-1 divide-y divide-[#1a1a1a]">
-              {loading
-                ? Array.from({ length: 5 }).map((_, idx) => (
-                    <Link
-                      key={`skeleton-${idx}`}
-                      href="#"
-                      className="flex items-center gap-3 px-4 py-3 group hover:bg-white/5 transition-colors"
-                    >
-                      <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#262626] bg-black/60 relative">
-                        <div className="absolute inset-0 bg-[#111]" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-foreground truncate">Booting...</div>
-                        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Bonding volume</div>
-                      </div>
-                      <div className="flex flex-col items-end text-right">
-                        <span className="text-[13px] font-semibold text-[#CCFF00] font-mono">+0%</span>
-                        <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">--</span>
-                      </div>
-                    </Link>
-                  ))
-                : marketMovers.map((item) => {
+              {loading ? (
+                <div className="px-4 py-6 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                  Loading market movers...
+                </div>
+              ) : marketMovers.map((item) => {
                     const key = item.token || item.id;
                     const pct = typeof item.dailyChangePct === "number" && isFinite(item.dailyChangePct)
                       ? item.dailyChangePct
@@ -242,15 +200,11 @@ export default function Home() {
           {/* Mobile card layout */}
           <div className="md:hidden divide-y divide-[#1a1a1a]">
             {loading
-              ? Array.from({ length: 4 }).map((_, idx) => (
-                  <div key={idx} className="px-4 py-3 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-sm bg-[#1a1a1a]" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-3 w-24 bg-[#1a1a1a]" />
-                      <div className="h-2 w-16 bg-[#1a1a1a]" />
-                    </div>
+              ? (
+                  <div className="px-4 py-6 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                    Loading market board...
                   </div>
-                ))
+                )
               : terminalRows.length === 0
                 ? (
                     <div className="px-4 py-8 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
@@ -325,25 +279,13 @@ export default function Home() {
               </thead>
               <tbody className="text-[12px] font-mono text-foreground">
                 {loading
-                  ? Array.from({ length: 6 }).map((_, idx) => (
-                      <tr key={idx} className="border-b border-[#262626]">
-                        <td className="px-4 py-3">
-                          <div className="h-3 w-24 bg-[#1a1a1a]" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-3 w-16 bg-[#1a1a1a]" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-3 w-28 bg-[#1a1a1a]" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-3 w-20 bg-[#1a1a1a]" />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="h-3 w-24 bg-[#1a1a1a]" />
+                  ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-6 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                          Loading market board...
                         </td>
                       </tr>
-                    ))
+                    )
                   : terminalRows.length === 0
                     ? (
                         <tr>
@@ -435,12 +377,6 @@ export default function Home() {
         </div>
       </section>
 
-      <style jsx>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   );
 }
