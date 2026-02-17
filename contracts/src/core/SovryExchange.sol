@@ -86,6 +86,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     event GraduationFailed(address indexed wrapperToken, string reason);
     event BuybackFailed(address indexed wrapperToken, string reason);
+    event RoyaltyStateUpdated(address indexed wrapperToken, uint256 totalHarvested, uint256 accumulatedNative);
 
     struct BondingCurve {
         uint128 basePrice;
@@ -512,8 +513,9 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 totalWrapped = IERC20(wrapperToken).totalSupply();
         uint256 totalSupplyUnits = totalWrapped / WRAP_UNIT;
 
-        uint256 soldRaw = token.initialCurveSupply > uint256(curve.currentSupply)
-            ? (token.initialCurveSupply - uint256(curve.currentSupply))
+        uint256 currentSupply = uint256(curve.currentSupply);
+        uint256 soldRaw = token.initialCurveSupply > currentSupply
+            ? (token.initialCurveSupply - currentSupply)
             : 0;
         uint256 soldUnits = soldRaw / WRAP_UNIT;
         uint256 currentPrice = uint256(curve.basePrice) + (soldUnits * uint256(curve.priceIncrement));
@@ -590,8 +592,14 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             : (wipToken, wrapperToken);
 
         // Require Exchange to be the initializer so pool price is anchored to current bonding-curve spot price.
-        if (IPiperXV3Factory(piperXV3Factory).getPool(token0, token1, PIPERX_V3_FEE) != address(0)) {
-            revert DexLiquidityFailed();
+        address existingPool = IPiperXV3Factory(piperXV3Factory).getPool(token0, token1, PIPERX_V3_FEE);
+        if (existingPool != address(0)) {
+            // Allow graduation if pool has dust liquidity (griefing protection)
+            uint256 poolBalance0 = IERC20(token0).balanceOf(existingPool);
+            uint256 poolBalance1 = IERC20(token1).balanceOf(existingPool);
+            if (poolBalance0 > 1000 || poolBalance1 > 1000) {
+                revert DexLiquidityFailed();
+            }
         }
 
         uint160 sqrtPriceX96 = _getSqrtPriceX96(spotPrice, wrapperToken, token0);
@@ -681,6 +689,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         IRoyaltyModule(royaltyWorkflows).payRoyaltyOnBehalf(token.ipAsset, address(this), wipToken, amount);
 
         emit RoyaltyRevenueProcessed(wrapperToken, amount, token.ipAsset);
+        emit RoyaltyStateUpdated(wrapperToken, token.totalRoyaltiesHarvested, accumulatedRoyaltyNative[wrapperToken]);
     }
 
     function distributeRoyalties(address wrapperToken, uint256 wipAmount, uint256 /* amountOutMin */) external nonReentrant {
