@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { useLaunches } from "@/hooks/useLaunches";
+import { Input } from "@/components/ui/input";
 import { formatMarketCapIP, truncateAddress } from "@/lib/utils";
 
 type LaunchRow = {
@@ -28,6 +29,7 @@ export default function Home() {
   const { launches, loading, error, retry } = useLaunches(24);
 
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   const markImageError = useCallback((key: string) => {
     setImageErrors((prev) => {
@@ -37,11 +39,41 @@ export default function Home() {
   }, []);
 
   const spotlight = launches[0];
+  const spotlightId = spotlight ? (spotlight.token || spotlight.id) : null;
   const withChange = launches
-    .filter((item) => typeof item.dailyChangePct === "number" && isFinite(item.dailyChangePct));
+    .filter((item) => typeof item.dailyChangePct === "number" && isFinite(item.dailyChangePct))
+    .filter((item) => {
+      const id = item.token || item.id;
+      return spotlightId ? id !== spotlightId : true;
+    });
   withChange.sort((a, b) => Math.abs((b.dailyChangePct as number)) - Math.abs((a.dailyChangePct as number)));
-  const marketMovers = withChange.length > 0 ? withChange.slice(0, 5) : launches.slice(0, 5);
-  const terminalRows: LaunchRow[] = launches.slice(0, 12).map((launch) => ({
+  const moverSource = withChange.length > 0
+    ? withChange
+    : launches.filter((item) => {
+        const id = item.token || item.id;
+        return spotlightId ? id !== spotlightId : true;
+      });
+  const marketMovers = moverSource.slice(0, 5);
+  const marketMoverIds = new Set(marketMovers.map((item) => item.token || item.id));
+  const marketBoardSource = launches.filter((item) => {
+    const id = item.token || item.id;
+    if (spotlightId && id === spotlightId) return false;
+    if (marketMoverIds.has(id)) return false;
+    return true;
+  });
+  const marketBoardLaunches = marketBoardSource.length > 0 ? marketBoardSource : launches;
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredMarketBoard = normalizedQuery
+    ? marketBoardLaunches.filter((item) => {
+        const name = (item.name || "").toLowerCase();
+        const symbol = (item.symbol || "").toLowerCase();
+        const address = (item.token || item.id || "").toLowerCase();
+        return name.includes(normalizedQuery)
+          || symbol.includes(normalizedQuery)
+          || address.includes(normalizedQuery);
+      })
+    : marketBoardLaunches;
+  const terminalRows: LaunchRow[] = filteredMarketBoard.slice(0, 12).map((launch) => ({
     id: launch.id,
     symbol: (launch.symbol || launch.name || "TOKEN").toString().slice(0, 8).toUpperCase(),
     name: launch.name || "Untitled IP",
@@ -185,16 +217,24 @@ export default function Home() {
       {/* Market Board */}
       <section className="px-4 sm:px-6 py-8 lg:py-10 bg-[#050505]">
         <div className="border border-[#262626] bg-[#0A0A0A] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
-          <div className="flex items-center justify-between px-4 lg:px-6 py-4 border-b border-[#262626]">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6 py-4 border-b border-[#262626]">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-2 w-2 rounded-full bg-[#CCFF00] shadow-[0_0_0_4px_rgba(204,255,0,0.15)]" />
               <h2 className="text-sm font-semibold tracking-[0.25em] uppercase text-muted-foreground">Market Board</h2>
             </div>
-            {error && (
-              <button onClick={retry} className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">
-                Retry
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, symbol, or address"
+                className="h-8 w-[200px] sm:w-[240px] bg-[#0d0d0d] border-[#262626] text-xs font-mono placeholder:text-muted-foreground/60"
+              />
+              {error && (
+                <button onClick={retry} className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#CCFF00]">
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Mobile card layout */}
@@ -208,7 +248,7 @@ export default function Home() {
               : terminalRows.length === 0
                 ? (
                     <div className="px-4 py-8 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                      No data available
+                      {searchQuery ? "No matches found" : "No data available"}
                     </div>
                   )
                 : terminalRows.map((row) => {
@@ -290,7 +330,7 @@ export default function Home() {
                     ? (
                         <tr>
                           <td colSpan={5} className="px-4 py-6 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                            No data available
+                            {searchQuery ? "No matches found" : "No data available"}
                           </td>
                         </tr>
                       )
