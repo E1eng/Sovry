@@ -33,11 +33,9 @@ error TransferFailed();
 error SlippageExceeded();
 error ExpiredDeadline();
 error RoyaltyTooSmall();
-error NoRoyalties();
 error InvalidStep();
 error ParamsTooLarge();
 error UnknownToken();
-error MinListingRequired();
 error InvalidLaunchAmount();
 error DexLiquidityFailed();
 
@@ -84,7 +82,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     uint256 public totalCurveReserves;
 
-    event GraduationFailed(address indexed wrapperToken, string reason);
     event BuybackFailed(address indexed wrapperToken, string reason);
     event RoyaltyStateUpdated(address indexed wrapperToken, uint256 totalHarvested, uint256 accumulatedNative);
 
@@ -107,17 +104,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         address vaultAddress;
         uint256 dexReserve;
         uint256 initialCurveSupply;
-    }
-
-    struct TokenState {
-        LaunchedToken token;
-        BondingCurve curve;
-        uint256 currentPrice;
-        uint256 marketCap;
-        bool canGraduate;
-        uint256 secondsSinceLaunch;
-        uint256 secondsToGraduationDelay;
-        bool curveActive;
     }
 
     mapping(address => BondingCurve) public bondingCurves;
@@ -203,7 +189,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (!hasRole(KEEPER_ROLE, msg.sender)) revert NotAuthorized();
         if (wrapperToken == address(0)) revert InvalidAddress();
 
-        LaunchedToken memory token = launchedTokens[wrapperToken];
+        LaunchedToken storage token = launchedTokens[wrapperToken];
         if (token.wrapperAddress == address(0)) revert UnknownToken();
 
         uint256 balanceBefore = IERC20(wipToken).balanceOf(address(this));
@@ -214,6 +200,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (balanceAfter <= balanceBefore) return; // nothing harvested
 
         uint256 harvestedAmount = balanceAfter - balanceBefore;
+        token.totalRoyaltiesHarvested += harvestedAmount;
+        emit RoyaltiesHarvested(wrapperToken, harvestedAmount);
 
         if (!token.graduated) {
             // Pre-graduation: unwrap to ETH and add to curve reserves (raises floor price)
@@ -267,6 +255,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         if (msg.sender != factory) revert NotAuthorized();
         if (rtAddress == address(0)) revert InvalidAddress();
         if (ipAsset == address(0)) revert InvalidAddress();
+        if (ipAsset.code.length == 0) revert InvalidAddress();
         if (creator == address(0)) revert InvalidAddress();
         if (amount != LAUNCH_RT_AMOUNT) revert InvalidLaunchAmount();
         CurveDefaults memory defaults = curveDefaults;
@@ -537,18 +526,6 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         _graduate(wrapperToken);
     }
 
-    function _checkGraduation(address wrapperToken) internal {
-        LaunchedToken storage token = launchedTokens[wrapperToken];
-        if (token.wrapperAddress == address(0)) return;
-        if (token.graduated) return;
-        if (!bondingCurveActive[wrapperToken]) return;
-
-        uint256 marketCap = getMarketCap(wrapperToken);
-        if (marketCap >= graduationThreshold) {
-            _graduate(wrapperToken);
-        }
-    }
-
     function _graduate(address wrapperToken) internal {
         LaunchedToken storage token = launchedTokens[wrapperToken];
         BondingCurve storage curve = bondingCurves[wrapperToken];
@@ -592,14 +569,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             : (wipToken, wrapperToken);
 
         // Require Exchange to be the initializer so pool price is anchored to current bonding-curve spot price.
-        address existingPool = IPiperXV3Factory(piperXV3Factory).getPool(token0, token1, PIPERX_V3_FEE);
-        if (existingPool != address(0)) {
-            // Allow graduation if pool has dust liquidity (griefing protection)
-            uint256 poolBalance0 = IERC20(token0).balanceOf(existingPool);
-            uint256 poolBalance1 = IERC20(token1).balanceOf(existingPool);
-            if (poolBalance0 > 1000 || poolBalance1 > 1000) {
-                revert DexLiquidityFailed();
-            }
+        if (IPiperXV3Factory(piperXV3Factory).getPool(token0, token1, PIPERX_V3_FEE) != address(0)) {
+            revert DexLiquidityFailed();
         }
 
         uint160 sqrtPriceX96 = _getSqrtPriceX96(spotPrice, wrapperToken, token0);

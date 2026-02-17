@@ -103,7 +103,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const launchTx = await factory.connect(creator).launchToken(
       rt.address,
       amountToLock,
-      creator.address,
+      rt.address,
       "Wrapper",
       "WRP"
     );
