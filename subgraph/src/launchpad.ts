@@ -14,6 +14,7 @@ import {
   RoyaltyRevenueQueued as RoyaltyRevenueQueuedEvent,
   RoyaltyRevenueProcessed as RoyaltyRevenueProcessedEvent,
   RoyaltiesHarvested as RoyaltiesHarvestedEvent,
+  RoyaltyStateUpdated as RoyaltyStateUpdatedEvent,
   SovryExchange as SovryExchangeContract,
 } from "../generated/templates/SovryExchange/SovryExchange";
 
@@ -30,6 +31,7 @@ import {
   ProtocolMetric,
   HarvestEvent,
   RevenueEvent,
+  RoyaltyStateUpdate,
 } from "../generated/schema";
 import {
   SovryExchange as SovryExchangeTemplate,
@@ -483,5 +485,39 @@ export function handleGraduationThresholdUpdated(
   update.txHash = event.transaction.hash;
   update.timestamp = event.block.timestamp;
   update.save();
+}
+
+export function handleRoyaltyStateUpdated(event: RoyaltyStateUpdatedEvent): void {
+  let launchpadId = event.address.toHex();
+  let launchpad = getOrCreateLaunchpad(launchpadId);
+  let wrapper = getOrCreateWrapper(launchpadId, event.params.wrapperToken);
+  let stat = getOrCreateTokenStat(wrapper.id);
+
+  // Update TokenStat with latest values from contract
+  stat.totalHarvested = event.params.totalHarvested;
+  stat.accumulatedFeesNative = event.params.accumulatedNative;
+  stat.save();
+
+  // Update wrapper totalRoyaltiesHarvested for consistency
+  wrapper.totalRoyaltiesHarvested = event.params.totalHarvested;
+  wrapper.updatedAt = event.block.timestamp;
+  wrapper.save();
+
+  // Create RoyaltyStateUpdate record for tracking
+  let id = event.transaction.hash
+    .toHex()
+    .concat("-")
+    .concat(event.logIndex.toString());
+
+  let stateUpdate = new RoyaltyStateUpdate(id);
+  stateUpdate.wrapper = wrapper.id;
+  stateUpdate.totalHarvested = event.params.totalHarvested;
+  stateUpdate.accumulatedNative = event.params.accumulatedNative;
+  stateUpdate.txHash = event.transaction.hash;
+  stateUpdate.timestamp = event.block.timestamp;
+  stateUpdate.blockNumber = event.block.number;
+  stateUpdate.save();
+
+  launchpad.save();
 }
 

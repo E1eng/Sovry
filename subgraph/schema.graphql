@@ -135,6 +135,16 @@ type RevenueEvent @entity {
   blockNumber: BigInt!
 }
 
+type RoyaltyStateUpdate @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  totalHarvested: BigInt!
+  accumulatedNative: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+}
+
 type Graduation @entity {
   id: ID!
   token: WrapperToken!

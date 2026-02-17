@@ -29,6 +29,7 @@ dataSources:
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
+        - RoyaltyStateUpdate
         - Candle
       abis:
         - name: SovryFactory
@@ -65,6 +66,7 @@ templates:
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
+        - RoyaltyStateUpdate
         - Candle
       abis:
         - name: SovryExchange
@@ -86,6 +88,8 @@ templates:
           handler: handleGraduated
         - event: GraduationThresholdUpdated(uint256)
           handler: handleGraduationThresholdUpdated
+        - event: RoyaltyStateUpdated(indexed address,uint256,uint256)
+          handler: handleRoyaltyStateUpdated
       file: ./src/launchpad.ts
 
   - kind: ethereum

@@ -2,6 +2,7 @@ import config from './config/env';
 import storyscanService from './services/storyscanService';
 import { getPoolsFromGoldsky } from './services/pricingService';
 import { pushFeesJob, harvestJob } from './services/royaltyHarvestService';
+import { startRoyaltyStateListener, stopRoyaltyStateListener } from './services/royaltyStateSyncService';
 
 class SovryWorker {
   private isRunning = false;
@@ -77,6 +78,10 @@ class SovryWorker {
       return;
     }
     this.isRunning = true;
+    
+    // Start royalty state sync listener
+    startRoyaltyStateListener();
+    
     await this.updateIPPrice();
     await pushFeesJob();
     await harvestJob();
@@ -99,6 +104,10 @@ class SovryWorker {
   async stop() {
     console.log('🛑 Stopping Sovry Backend Worker...');
     this.isRunning = false;
+    
+    // Stop royalty state sync listener
+    stopRoyaltyStateListener();
+    
     if (this.intervalId) clearInterval(this.intervalId);
     if (this.pushIntervalId) clearInterval(this.pushIntervalId);
     if (this.harvestIntervalId) clearInterval(this.harvestIntervalId);
