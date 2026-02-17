@@ -1,6 +1,13 @@
 // SovryExchange view-only ABI for reading on-chain state
 export const exchangeReadAbi = [
   {
+    inputs: [],
+    name: "graduationThreshold",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
     name: "getMarketCap",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],

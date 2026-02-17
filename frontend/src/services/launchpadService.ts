@@ -135,11 +135,26 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
   }
 }
 
-export function getBondingProgress(info: LaunchInfo | null): number {
-  if (!info || TARGET_RAISE_IP === 0n) return 0;
+export function getBondingProgress(info: LaunchInfo | null, thresholdOverride?: bigint): number {
+  const threshold = thresholdOverride && thresholdOverride > 0n ? thresholdOverride : TARGET_RAISE_IP;
+  if (!info || threshold === 0n) return 0;
   if (info.graduated) return 100;
-  const ratio = Number(info.totalRaised) / Number(TARGET_RAISE_IP);
+  const ratio = Number(info.totalRaised) / Number(threshold);
   return Math.max(0, Math.min(100, ratio * 100));
+}
+
+export async function getGraduationThreshold(): Promise<bigint | null> {
+  try {
+    const threshold = await publicClient.readContract({
+      address: SOVRY_EXCHANGE_ADDRESS as Address,
+      abi: exchangeReadAbi,
+      functionName: "graduationThreshold",
+    });
+    return BigInt((threshold as bigint | undefined) ?? 0n);
+  } catch (error) {
+    logger.error("Error fetching graduation threshold:", error);
+    return null;
+  }
 }
 
 /**
@@ -525,6 +540,7 @@ export const launchpadService = {
   detectContractVersion,
   getMarketCap,
   getCurveParams,
+  getGraduationThreshold,
 };
 
 // LaunchInfo and RoyaltyLockInfo are already exported via their interface/type

@@ -20,6 +20,8 @@ export interface LaunchDetails {
   marketCap?: string
   reserveBalance?: string
   bondingProgress?: number
+  graduated?: boolean
+  graduationThreshold?: bigint
   category?: string
   currentPrice?: string
   rtAddress?: string
@@ -52,10 +54,10 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setLoading(true)
       setError(null)
 
-      const { getLaunchInfo, getBondingProgress, getMarketCap } = await import("@/services/launchpadService")
+      const { getLaunchInfo, getBondingProgress, getMarketCap, getGraduationThreshold } = await import("@/services/launchpadService")
 
       // Fetch launch info, graduation info, market cap, and subgraph wrapper metadata in parallel
-      const [launchInfo, graduationInfo, marketCapStr, wrapperMeta] = await Promise.all([
+      const [launchInfo, graduationInfo, marketCapStr, wrapperMeta, graduationThreshold] = await Promise.all([
         getLaunchInfo(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getLaunchInfo")
           return null
@@ -72,9 +74,13 @@ export function useLaunchDetails(tokenAddress: string | null) {
           logError(err, "useLaunchDetails.getWrapperTokenMeta")
           return null
         }),
+        getGraduationThreshold().catch((err) => {
+          logError(err, "useLaunchDetails.getGraduationThreshold")
+          return null
+        }),
       ])
 
-      const bondingProgress = getBondingProgress(launchInfo)
+      const bondingProgress = getBondingProgress(launchInfo, graduationThreshold ?? undefined)
 
       // Load socials and optional metadata overrides from Supabase
       // `launches` table. We may have stored either the RT, the royalty
@@ -164,6 +170,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
         tokenAddress,
         rtAddress: launchInfo.royaltyToken || undefined,
         graduated: launchInfo.graduated,
+        graduationThreshold: graduationThreshold ?? undefined,
         category: "IP Asset",
         marketCap: marketCapStr || undefined,
         bondingProgress: bondingProgress || undefined,

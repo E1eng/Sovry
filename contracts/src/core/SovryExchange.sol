@@ -589,10 +589,16 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
             ? (wrapperToken, wipToken)
             : (wipToken, wrapperToken);
 
+        // Require Exchange to be the initializer so pool price is anchored to current bonding-curve spot price.
+        if (IPiperXV3Factory(piperXV3Factory).getPool(token0, token1, PIPERX_V3_FEE) != address(0)) {
+            revert DexLiquidityFailed();
+        }
+
         uint160 sqrtPriceX96 = _getSqrtPriceX96(spotPrice, wrapperToken, token0);
 
         IPiperXV3PositionManager positionManager = IPiperXV3PositionManager(piperXV3PositionManager);
         address poolAddress = positionManager.createAndInitializePoolIfNecessary(token0, token1, PIPERX_V3_FEE, sqrtPriceX96);
+        if (poolAddress == address(0)) revert DexLiquidityFailed();
 
         IWIP(wipToken).deposit{value: nativeAfterFee}();
 
@@ -600,17 +606,13 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         IERC20(wipToken).forceApprove(piperXV3PositionManager, nativeAfterFee);
 
         int24 tickSpacing = IPiperXV3Factory(piperXV3Factory).feeAmountTickSpacing(PIPERX_V3_FEE);
+        if (tickSpacing <= 0) revert DexLiquidityFailed();
         (int24 tickLower, int24 tickUpper) = _getFullRangeTicks(tickSpacing);
 
         uint256 amount0Desired = token0 == wrapperToken ? tokenLiquidity : nativeAfterFee;
         uint256 amount1Desired = token1 == wrapperToken ? tokenLiquidity : nativeAfterFee;
 
-        uint256 amount0;
-        uint256 amount1;
-        uint128 liquidity;
-        uint256 tokenId;
-
-        try positionManager.mint(
+        (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) = positionManager.mint(
             IPiperXV3PositionManager.MintParams({
                 token0: token0,
                 token1: token1,
@@ -624,24 +626,7 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
                 recipient: address(this),
                 deadline: block.timestamp + 300
             })
-        ) returns (uint256 _tokenId, uint128 _liquidity, uint256 _amount0, uint256 _amount1) {
-            tokenId = _tokenId;
-            liquidity = _liquidity;
-            amount0 = _amount0;
-            amount1 = _amount1;
-        } catch {
-            curve.currentSupply = 0;
-            curve.reserveBalance = 0;
-            accumulatedRoyaltyNative[wrapperToken] = 0;
-            IERC20(wrapperToken).safeTransfer(treasury, tokenLiquidity);
-            IWIP(wipToken).withdraw(nativeAfterFee);
-            _safeTransferETH(payable(treasury), nativeAfterFee);
-            bondingCurveActive[wrapperToken] = false;
-            emit GraduationFailed(wrapperToken, "Liquidity sent to Treasury");
-            SovryToken(wrapperToken).unlockTransfers();
-            SovryToken(wrapperToken).renounceOwnership();
-            return;
-        }
+        );
 
         lpTokenIds[wrapperToken] = tokenId;
         dexPools[wrapperToken] = poolAddress;
@@ -834,9 +819,10 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         int24 maxTick = 887272;
 
         tickLower = (minTick / tickSpacing) * tickSpacing;
-        if (tickLower > minTick) tickLower -= tickSpacing;
+        if (tickLower < minTick) tickLower += tickSpacing;
 
         tickUpper = (maxTick / tickSpacing) * tickSpacing;
+        if (tickUpper > maxTick) tickUpper -= tickSpacing;
     }
 
     receive() external payable {}

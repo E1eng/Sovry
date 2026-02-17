@@ -171,8 +171,8 @@ async function fetchOnchainState(client: ReturnType<typeof getPublicClient>, wra
       }),
     ])
 
-    const tokenInfo = tokenInfoRaw as Record<string, unknown>
-    const curve = curveRaw as Record<string, unknown>
+    const tokenInfo = tokenInfoRaw as unknown as Record<string, unknown>
+    const curve = curveRaw as unknown as Record<string, unknown>
 
     const wrapperAddress = (tokenInfo?.wrapperAddress ?? (tokenInfo as unknown as unknown[])?.[1]) as string | undefined
     if (!wrapperAddress || normalizeAddress(wrapperAddress) === ZERO_ADDRESS) return null
