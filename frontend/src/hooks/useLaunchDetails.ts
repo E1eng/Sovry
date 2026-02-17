@@ -88,6 +88,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
       let symbolFromSupabase: string | undefined
       let metadataUriFromSupabase: string | undefined
       let mediaTypeFromSupabase: string | undefined
+      let ipIdFromSupabase: string | undefined
 
       try {
         const wrapperCandidates = new Set<string>()
@@ -129,7 +130,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
           const { data, error: supabaseError } = await supabase
             .from("launches")
             .select(
-              "twitter_url, telegram_url, website_url, royalty_token_address, image_url, name, symbol, metadata_uri",
+              "twitter_url, telegram_url, website_url, royalty_token_address, image_url, name, symbol, metadata_uri, ip_id",
             )
             .in("royalty_token_address", candidateArray)
             .limit(1)
@@ -143,6 +144,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
             nameFromSupabase = nameFromSupabase ?? row.name ?? undefined
             symbolFromSupabase = symbolFromSupabase ?? row.symbol ?? undefined
             metadataUriFromSupabase = row.metadata_uri || undefined
+            ipIdFromSupabase = row.ip_id || undefined
           }
         }
       } catch (supabaseErr) {
@@ -179,6 +181,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
         launchInfo: launchInfo || null,
         graduationInfo: graduationInfo || null,
         wrapperMeta: wrapperMeta || null,
+        ipId: ipIdFromSupabase || launchInfo.ipAsset || undefined,
       })
     } catch (err) {
       logError(err, "useLaunchDetails")

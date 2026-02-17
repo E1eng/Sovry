@@ -157,13 +157,8 @@ export function ProgressToGraduation({
       </div>
 
       {/* Raised / Target */}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {totalRaisedFormatted} IP raised
-        </span>
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {targetRaiseDisplay} IP target
-        </span>
+      <div className="text-[10px] font-mono text-muted-foreground">
+        {totalRaisedFormatted} IP raised / {targetRaiseDisplay} IP target
       </div>
 
       {/* Graduation Modal */}

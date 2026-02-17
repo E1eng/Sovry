@@ -44,6 +44,7 @@ export interface LaunchInfo {
   token: string;
   royaltyToken: string;
   royaltyVault: string;
+  ipAsset?: string;
   totalRaised: bigint;
   tokensSold: bigint;
   graduated: boolean;
@@ -96,6 +97,7 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
 
         const rtAddress = (tokenInfo?.rtAddress ?? tokenInfo?.[0]) as string;
         const creator = (tokenInfo?.creator ?? tokenInfo?.[2]) as string;
+        const ipAsset = (tokenInfo?.ipAsset ?? tokenInfo?.[3]) as string | undefined;
         const graduated = Boolean(tokenInfo?.graduated ?? tokenInfo?.[6]);
         const vaultAddress = (tokenInfo?.vaultAddress ?? tokenInfo?.[8]) as string;
 
@@ -112,6 +114,7 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
           token: wrapperAddress,
           royaltyToken: rtAddress,
           royaltyVault: vaultAddress,
+          ipAsset,
           totalRaised,
           tokensSold,
           graduated,

@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 import Image from "next/image"
 import { useState, useEffect, useCallback, useRef } from "react"
 import toast from "react-hot-toast"
-import { isAddress } from "viem"
+import { isAddress, formatEther } from "viem"
 import { AlertCircle, Home, ArrowLeft, RefreshCw, ArrowUpDown, Globe, Twitter, Send, Copy } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
@@ -284,6 +284,58 @@ export default function TokenDetailPage() {
     ? `${IPFS_GATEWAY}/${metadataUri.replace("ipfs://", "")}`
     : metadataUri
   const mediaTypeLabel = details.mediaType || "image"
+  const dailyChangePct =
+    typeof _dailyChangePct === "number" && Number.isFinite(_dailyChangePct)
+      ? _dailyChangePct
+      : null
+  const dailyChangeLabel = dailyChangePct !== null
+    ? `${dailyChangePct >= 0 ? "+" : ""}${dailyChangePct.toFixed(2)}%`
+    : "—"
+  const dailyChangeTone = dailyChangePct === null
+    ? "text-muted-foreground"
+    : dailyChangePct >= 0
+      ? "text-primary"
+      : "text-secondary"
+  const launchTimeLabel = details.wrapperMeta?.launchTime
+    ? new Date(details.wrapperMeta.launchTime * 1000).toLocaleDateString("en-US", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—"
+  const formatTokenAmount = (amount?: bigint, fractionDigits = 2) => {
+    if (amount === undefined || amount === null) return "—"
+    try {
+      const num = Number(formatEther(amount))
+      if (!Number.isFinite(num)) return "—"
+      return num.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })
+    } catch {
+      return "—"
+    }
+  }
+  const formatRawUnits = (raw?: string, decimals = 18, fractionDigits = 0) => {
+    if (!raw) return "—"
+    try {
+      const value = BigInt(raw)
+      const base = 10n ** BigInt(decimals)
+      const integer = value / base
+      const fraction = value % base
+      const num = Number(integer) + Number(fraction) / Number(base)
+      if (!Number.isFinite(num)) return "—"
+      return num.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })
+    } catch {
+      return "—"
+    }
+  }
+  const tokensSoldLabel = launchInfo
+    ? `${formatTokenAmount(launchInfo.tokensSold, 2)} ${ticker}`
+    : "—"
+  const supplyLockedLabel = details.wrapperMeta
+    ? `${formatRawUnits(details.wrapperMeta.totalLocked, 6, 0)} RT`
+    : "—"
+  const revenueInjectedLabel = details.wrapperMeta
+    ? `${formatRawUnits(details.wrapperMeta.totalRoyaltiesHarvested, 18, 2)} WIP`
+    : "—"
 
   // Breadcrumb items
   const breadcrumbItems = [
@@ -318,62 +370,83 @@ export default function TokenDetailPage() {
           <Breadcrumb items={breadcrumbItems} />
 
           {/* ── Token Header ── */}
-          <div className="border border-border bg-card rounded-sm">
-            <div className="px-4 py-3 flex items-center gap-3">
-              {/* Avatar */}
-              <div className="relative h-10 w-10 rounded-sm overflow-hidden border border-border bg-muted/40 flex-shrink-0">
-                {details.imageUrl ? (
-                  <Image src={details.imageUrl} alt={tokenName} fill unoptimized className="object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <span className="text-base font-semibold text-muted-foreground">{tokenName.charAt(0).toUpperCase()}</span>
+          <div className="border border-border bg-card rounded-sm overflow-hidden">
+            <div className="relative px-4 py-4 sm:px-5">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(520px_circle_at_top_right,_rgba(255,255,255,0.08),_transparent_70%)]" />
+              <div className="relative flex flex-wrap items-center gap-4">
+                {/* Avatar */}
+                <div className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-sm overflow-hidden border border-border bg-muted/40 flex-shrink-0">
+                  {details.imageUrl ? (
+                    <Image src={details.imageUrl} alt={tokenName} fill unoptimized className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <span className="text-base font-semibold text-muted-foreground">{tokenName.charAt(0).toUpperCase()}</span>
+                    </div>
+                  )}
+                </div>
+                {/* Name + creator */}
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">{tokenName}</h1>
+                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex-shrink-0">{ticker}</span>
+                    {isTokenGraduated && (
+                      <span className="inline-flex items-center rounded-sm bg-primary/10 border border-primary/30 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-primary flex-shrink-0">
+                        Graduated
+                      </span>
+                    )}
+                  </div>
+                  {creatorAddress && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(creatorAddress, "Creator")}
+                      className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                    >
+                      Created by {truncateAddress(creatorAddress)} <Copy className="h-2.5 w-2.5" />
+                    </button>
+                  )}
+                </div>
+                {/* Socials */}
+                {socials.length > 0 && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {socials.map((s) => {
+                      const Icon = s.icon
+                      return (
+                        <a key={s.label} href={s.url as string} target="_blank" rel="noopener noreferrer" title={s.label}
+                          className="h-7 w-7 flex items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
+                          <Icon className="h-3.5 w-3.5" />
+                        </a>
+                      )
+                    })}
                   </div>
                 )}
               </div>
-              {/* Name + creator */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base font-semibold text-foreground truncate">{tokenName}</h1>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex-shrink-0">{ticker}</span>
-                  {isTokenGraduated && (
-                    <span className="inline-flex items-center rounded-sm bg-primary/10 border border-primary/30 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-primary flex-shrink-0">
-                      Graduated
-                    </span>
-                  )}
-                </div>
-                {creatorAddress && (
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(creatorAddress, "Creator")}
-                    className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-                  >
-                    by {truncateAddress(creatorAddress)} <Copy className="h-2.5 w-2.5" />
-                  </button>
-                )}
-              </div>
-              {/* Socials */}
-              {socials.length > 0 && (
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {socials.map((s) => {
-                    const Icon = s.icon
-                    return (
-                      <a key={s.label} href={s.url as string} target="_blank" rel="noopener noreferrer" title={s.label}
-                        className="h-7 w-7 flex items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
-                        <Icon className="h-3.5 w-3.5" />
-                      </a>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-            {/* Stats bar */}
-            <div className="border-t border-border bg-muted/30 px-4 py-2 flex items-center gap-5 overflow-x-auto no-scrollbar">
-              {details.currentPrice && (
-                <div className="flex items-baseline gap-1.5 flex-shrink-0">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price</span>
-                  <span className="text-xs font-mono tabular-nums text-foreground">{details.currentPrice} IP</span>
+            {/* Meta bar */}
+            <div className="border-t border-border bg-muted/30 px-4 py-2 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Status</span>
+                  <span className="text-xs font-mono tabular-nums text-foreground">
+                    {isTokenGraduated ? "Graduated" : "Active"}
+                  </span>
                 </div>
-              )}
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Tokens Sold</span>
+                  <span className="text-xs font-mono tabular-nums text-foreground">{tokensSoldLabel}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Supply Locked</span>
+                  <span className="text-xs font-mono tabular-nums text-foreground">{supplyLockedLabel}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Launched</span>
+                  <span className="text-xs font-mono tabular-nums text-foreground">{launchTimeLabel}</span>
+                </div>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">24h Change</span>
+                <span className={`text-xs font-mono tabular-nums ${dailyChangeTone}`}>{dailyChangeLabel}</span>
+              </div>
             </div>
           </div>
 
@@ -408,36 +481,6 @@ export default function TokenDetailPage() {
                 </Card>
               )}
 
-              {/* Holders */}
-              <Card>
-                <div className="border-b border-border bg-muted/40 px-4 py-2.5">
-                  <span className="text-xs font-semibold text-foreground">Holders</span>
-                </div>
-                <CardContent className="p-4">
-                  <HolderDistribution
-                    tokenAddress={address}
-                    tokenSymbol={ticker}
-                    creatorAddress={creatorAddress || undefined}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Left column */}
-            <div className="lg:col-span-8 space-y-3 min-w-0">
-
-              {/* Chart */}
-              <Card>
-                <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
-                  <span className="text-xs font-semibold text-foreground">{ticker}/IP</span>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price Chart</span>
-                </div>
-                <CardContent className="p-0 overflow-hidden">
-                  <div className="hidden sm:block"><TradingChart tokenAddress={address} height={420} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
-                  <div className="sm:hidden"><TradingChart tokenAddress={address} height={280} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
-                </CardContent>
-              </Card>
-
               {/* IP Media */}
               <Card className="overflow-hidden">
                 <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
@@ -453,7 +496,7 @@ export default function TokenDetailPage() {
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-3 border-t border-border px-4 py-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-border px-4 py-3">
                   <div>
                     <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
                     {details.ipId ? (
@@ -478,7 +521,41 @@ export default function TokenDetailPage() {
                       <span className="text-xs font-mono text-muted-foreground">—</span>
                     )}
                   </div>
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Revenue Injected</div>
+                    <span className="text-xs font-mono text-foreground tabular-nums">{revenueInjectedLabel}</span>
+                  </div>
                 </div>
+              </Card>
+            </div>
+
+            {/* Left column */}
+            <div className="lg:col-span-8 space-y-3 min-w-0">
+
+              {/* Chart */}
+              <Card>
+                <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">{ticker}/IP</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price Chart</span>
+                </div>
+                <CardContent className="p-0 overflow-hidden">
+                  <div className="hidden sm:block"><TradingChart tokenAddress={address} height={420} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
+                  <div className="sm:hidden"><TradingChart tokenAddress={address} height={280} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
+                </CardContent>
+              </Card>
+
+              {/* Holders */}
+              <Card>
+                <div className="border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">Holders</span>
+                </div>
+                <CardContent className="p-4">
+                  <HolderDistribution
+                    tokenAddress={address}
+                    tokenSymbol={ticker}
+                    creatorAddress={creatorAddress || undefined}
+                  />
+                </CardContent>
               </Card>
 
               {/* Recent Activity (component renders its own Card) */}

@@ -38,6 +38,16 @@ function trimToDecimals(value: string, maxDecimals: number): string {
   return trimmed.length > 0 ? `${integer}.${trimmed}` : integer
 }
 
+function formatDisplayAmount(value: string, fractionDigits: number = 2): string {
+  if (!value) return "0.00"
+  const num = parseFloat(value)
+  if (!isFinite(num)) return "0.00"
+  return num.toLocaleString(undefined, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
+}
+
 function formatBalance(value: string | null, maxDecimals: number): string {
   if (!value) return "0"
   const num = parseFloat(value)
@@ -181,12 +191,12 @@ function SwapInterfaceComponent({
           const expectedTokens = parseFloat(expectedTokensStr)
 
           // Display expected tokens received
-          setToAmount(trimToDecimals(expectedTokensStr, 6))
+          setToAmount(formatDisplayAmount(expectedTokensStr, 2))
 
           const slippagePercent = parseFloat(slippage) || 0.5
           const slippageBps = BigInt(Math.floor(slippagePercent * 100))
           const minTokenWei = tokenAmount * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
-          setMinReceive(trimToDecimals(formatEther(minTokenWei), 6))
+          setMinReceive(formatDisplayAmount(formatEther(minTokenWei), 2))
 
           impact = calculateRealPriceImpact(paramsForQuote, tokenAmount, true)
           const rate = expectedTokens / parseFloat(amount)
@@ -224,8 +234,8 @@ function SwapInterfaceComponent({
           const expectedIpOutStr = formatEther(netProceeds)
           const minIpOutStr = formatEther(minProceeds)
 
-          setToAmount(trimToDecimals(expectedIpOutStr, 8))
-          setMinReceive(trimToDecimals(minIpOutStr, 8))
+          setToAmount(formatDisplayAmount(expectedIpOutStr, 2))
+          setMinReceive(formatDisplayAmount(minIpOutStr, 2))
 
           impact = calculateRealPriceImpact(paramsForQuote, wrapperAmount, false)
           const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
