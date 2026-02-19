@@ -10,9 +10,7 @@
     "deploy:launchpad": "hardhat run scripts/deploy-launchpad.ts --network aeneid",
     "deploy:mainnet": "hardhat run scripts/deploy-launchpad.ts --network mainnet",
     "deploy:ip": "npx hardhat run scripts/create-ip.ts --network mainnet",
-    "update-threshold:mainnet": "hardhat run scripts/update-graduation-threshold.ts --network mainnet",
     "graduate:mainnet": "hardhat run scripts/graduate-token.ts --network mainnet",
-    "add-liquidity:mainnet": "hardhat run scripts/add-liquidity.ts --network mainnet",
     "verify": "hardhat verify --network aeneid",
     "verify:mainnet": "hardhat verify --network mainnet",
     "typechain": "hardhat typechain"
