@@ -7,6 +7,7 @@ console.log('📋 Worker Configuration:');
 console.log(`   - StoryScan Base: ${config.storyscanApi.baseUrl}`);
 console.log(`   - Update Interval: Every ${Math.floor(config.scheduler.priceIntervalMs / 1000)}s`);
 console.log(`   - Harvest Interval: Every ${Math.floor(config.scheduler.harvestIntervalMs / 1000)}s`);
+console.log(`   - Graduation Interval: Every ${Math.floor(config.scheduler.graduationIntervalMs / 1000)}s`);
 console.log('   - Cache: In-memory');
 
 worker.start().catch((error: any) => {

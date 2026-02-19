@@ -5,11 +5,14 @@
   "description": "Sovry API server and background worker",
   "main": "server.ts",
   "scripts": {
-    "dev": "ts-node server.ts",
+    "dev": "nodemon server.ts",
+    "dev:api": "nodemon server.ts",
     "start": "ts-node server.ts",
     "start:api": "ts-node server.ts",
     "start:worker": "ts-node start-worker.ts",
     "dev:worker": "nodemon start-worker.ts",
+    "worker": "ts-node start-worker.ts",
+    "worker:dev": "nodemon start-worker.ts",
     "bot": "ts-node bot.ts",
     "backfill:tokens": "ts-node backfillTokens.ts"
   },

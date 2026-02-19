@@ -44,6 +44,7 @@ const config = {
     priceIntervalMs: int(process.env.PRICE_INTERVAL_MS, 60_000),
     pushIntervalMs: int(process.env.PUSH_INTERVAL_MS, 3_600_000),
     harvestIntervalMs: int(process.env.HARVEST_INTERVAL_MS, 14_400_000),
+    graduationIntervalMs: int(process.env.GRADUATION_INTERVAL_MS, 60_000),
   },
 };
 

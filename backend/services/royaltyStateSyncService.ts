@@ -1,12 +1,19 @@
 import { ethers } from 'ethers';
-import EXCHANGE_ABI from '../abis/SovryExchange.json';
+import EXCHANGE_ARTIFACT from '../abis/SovryExchange.json';
 import { supabase } from './supabaseClient';
+
+const EXCHANGE_ABI = (EXCHANGE_ARTIFACT as any).abi ?? EXCHANGE_ARTIFACT;
 
 const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io';
 const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
 
+const POLL_INTERVAL_MS = 15_000;
+const LOG_LOOKBACK_BLOCKS = 500n;
+
 let provider: ethers.JsonRpcProvider | null = null;
 let exchange: ethers.Contract | null = null;
+let pollTimer: NodeJS.Timeout | null = null;
+let lastPolledBlock = 0n;
 
 function getProvider() {
   if (!provider) {
@@ -79,41 +86,72 @@ export async function handleRoyaltyStateUpdated(
   }
 }
 
-/**
- * Start listening for RoyaltyStateUpdated events
- */
-export function startRoyaltyStateListener() {
-  const ex = getExchange();
-  
-  console.log('[ROYALTY_SYNC] Starting RoyaltyStateUpdated event listener...');
-  
-  // Listen for RoyaltyStateUpdated events
-  ex.on('RoyaltyStateUpdated', async (wrapperToken: string, totalHarvested: bigint, accumulatedNative: bigint, event: any) => {
-    try {
-      const timestamp = new Date();
-      await handleRoyaltyStateUpdated(
-        wrapperToken,
-        totalHarvested,
-        accumulatedNative,
-        event.transactionHash,
-        timestamp
-      );
-    } catch (error) {
-      console.error('[ROYALTY_SYNC] Error in event listener:', error);
-    }
-  });
+async function pollRoyaltyStateEvents() {
+  try {
+    const p = getProvider();
+    const ex = getExchange();
+    const currentBlock = BigInt(await p.getBlockNumber());
 
-  console.log('[ROYALTY_SYNC] RoyaltyStateUpdated listener started');
+    if (lastPolledBlock === 0n) {
+      lastPolledBlock = currentBlock - LOG_LOOKBACK_BLOCKS;
+    }
+
+    if (currentBlock <= lastPolledBlock) return;
+
+    const iface = ex.interface;
+    const eventFragment = iface.getEvent('RoyaltyStateUpdated');
+    if (!eventFragment) return;
+    const topic = eventFragment.topicHash;
+
+    const logs = await p.getLogs({
+      address: EXCHANGE_ADDRESS,
+      topics: [topic],
+      fromBlock: lastPolledBlock + 1n,
+      toBlock: currentBlock,
+    });
+
+    for (const log of logs) {
+      try {
+        const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+        if (!parsed) continue;
+        const [wrapperToken, totalHarvested, accumulatedNative] = parsed.args;
+        await handleRoyaltyStateUpdated(
+          wrapperToken as string,
+          totalHarvested as bigint,
+          accumulatedNative as bigint,
+          log.transactionHash,
+          new Date()
+        );
+      } catch (err) {
+        console.warn('[ROYALTY_SYNC] Failed to parse log:', err);
+      }
+    }
+
+    lastPolledBlock = currentBlock;
+  } catch (err) {
+    console.warn('[ROYALTY_SYNC] Poll error:', err);
+  }
 }
 
 /**
- * Stop the event listener
+ * Start polling for RoyaltyStateUpdated events (uses eth_getLogs, compatible with Story RPC)
+ */
+export function startRoyaltyStateListener() {
+  console.log('[ROYALTY_SYNC] Starting RoyaltyStateUpdated poll listener...');
+  pollRoyaltyStateEvents();
+  pollTimer = setInterval(pollRoyaltyStateEvents, POLL_INTERVAL_MS);
+  console.log('[ROYALTY_SYNC] RoyaltyStateUpdated listener started (polling every 15s)');
+}
+
+/**
+ * Stop the poll listener
  */
 export function stopRoyaltyStateListener() {
-  if (exchange) {
-    exchange.removeAllListeners('RoyaltyStateUpdated');
-    console.log('[ROYALTY_SYNC] RoyaltyStateUpdated listener stopped');
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
+  console.log('[ROYALTY_SYNC] RoyaltyStateUpdated listener stopped');
 }
 
 /**

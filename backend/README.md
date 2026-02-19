@@ -10,9 +10,16 @@ They can be deployed as separate services.
 
 ## Scripts
 
+- `npm run dev` - start the API server with hot reload (nodemon)
+- `npm run dev:worker` - start the worker with hot reload (nodemon)
 - `npm run start:api` - start the API server (ts-node server.ts)
 - `npm run start:worker` - start the worker process (ts-node start-worker.ts)
+- `npm run worker` - alias for `start:worker`
+- `npm run worker:dev` - alias for `dev:worker`
 - `npm run bot` - run keeper bot (harvest + push + sync jobs, ts-node bot.ts)
+
+> Windows note: if you run `nodemon start-worker.ts` directly, PowerShell may say **"nodemon is not recognized"**.
+> Use `npm run dev` / `npm run dev:worker` (recommended) or `npx nodemon start-worker.ts`.
 
 ## API Endpoints
 
@@ -40,6 +47,20 @@ They can be deployed as separate services.
 - `GRAPH_WEBHOOK_SECRET` – same secret as above
 - `DISCORD_WEBHOOK_URL` – for alerts (startup, tx success/fail, low balance)
 - Intervals (optional): `HARVEST_INTERVAL_MS` (default 10m), `PUSH_INTERVAL_MS` (default 1h), `SYNC_INTERVAL_MS` (default 60s)
+
+### Graduation (Worker)
+
+Graduation is **not automatic on buy/sell**. It requires calling `SovryExchange.graduate(wrapper)` with an address that has `KEEPER_ROLE`.
+
+The backend **worker** runs an auto-graduation loop:
+
+- checks `getMarketCap(wrapper) >= graduationThreshold()` on-chain
+- simulates `graduate()` via `staticCall`
+- sends the `graduate()` tx when eligible
+
+Config:
+
+- `GRADUATION_INTERVAL_MS` (default `60000`)
 
 ### Optional / Recommended
 - `PORT` – API port (default 3001)
@@ -81,6 +102,6 @@ This backend loads env variables from the first `.env` found in:
 
 If you want to run all locally, in separate terminals:
 
-- `npm run start:api`
-- `npm run start:worker`
+- `npm run dev` (API hot reload)
+- `npm run dev:worker` (Worker hot reload)
 - `npm run bot`

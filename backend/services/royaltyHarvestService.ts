@@ -1,7 +1,11 @@
 import { ethers } from 'ethers';
 import { querySubgraph } from './subgraphService';
-import EXCHANGE_ABI from '../abis/SovryExchange.json';
+import EXCHANGE_ARTIFACT from '../abis/SovryExchange.json';
 import { supabase } from './supabaseClient';
+import { txMutex } from './mutex';
+import { retryTx } from './utils';
+
+const EXCHANGE_ABI = (EXCHANGE_ARTIFACT as any).abi ?? EXCHANGE_ARTIFACT;
 
 const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io';
 const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
@@ -60,17 +64,6 @@ async function fetchWrapperIds() {
   return items.map((w: any) => w.id as string);
 }
 
-async function fetchUnclaimedRevenue(ipAsset: string, exchangeAddr: string, royaltyModuleAddr: string) {
-  if (!royaltyModuleAddr) return 0n;
-  const royaltyAbi = ['function unclaimedRevenue(address ipAsset,address recipient) view returns (uint256)'];
-  const module = new ethers.Contract(royaltyModuleAddr, royaltyAbi, getProvider());
-  try {
-    return await module.unclaimedRevenue(ipAsset, exchangeAddr);
-  } catch (err) {
-    console.warn('[HARVEST] unclaimedRevenue call failed:', err);
-    return 0n;
-  }
-}
 
 export async function pushFeesJob() {
   const ex = getExchange();
@@ -92,19 +85,23 @@ export async function pushFeesJob() {
         skipped += 1;
         continue;
       }
-      const gas = await ex.pushFeesToVault.estimateGas(wrapper);
-      const tx = await ex.pushFeesToVault(wrapper, { gasLimit: (gas * 120n) / 100n });
-      console.log(`[PUSH] pushFeesToVault sent for ${wrapper}: ${tx.hash}`);
-      await tx.wait();
-      pushed += 1;
+      await txMutex.runExclusive(async () => {
+        const tx = await retryTx(async () => {
+          const gas = await ex.pushFeesToVault.estimateGas(wrapper);
+          return await ex.pushFeesToVault(wrapper, { gasLimit: (gas * 120n) / 100n });
+        });
+        console.log(`[PUSH] pushFeesToVault sent for ${wrapper}: ${tx.hash}`);
+        await tx.wait();
+        pushed += 1;
 
-      const { error: evtErr } = await supabase.from('revenue_events').insert({
-        tx_hash: tx.hash,
-        token_address: wrapper,
-        amount: pending.toString(),
-        type: 'PUSH',
+        const { error: evtErr } = await supabase.from('revenue_events').insert({
+          tx_hash: tx.hash,
+          token_address: wrapper,
+          amount: pending.toString(),
+          type: 'PUSH',
+        });
+        if (evtErr) console.warn('[PUSH][DB] revenue_events insert failed:', evtErr.message || evtErr);
       });
-      if (evtErr) console.warn('[PUSH][DB] revenue_events insert failed:', evtErr.message || evtErr);
     } catch (err) {
       skipped += 1;
       console.warn(`[PUSH] pushFeesToVault failed for ${wrapper}:`, err);
@@ -123,7 +120,6 @@ export async function harvestJob() {
     return { processed: 0, harvested: 0, skipped: 0 };
   }
 
-  const royaltyModule = await ex.royaltyWorkflows();
   let processed = 0;
   let harvested = 0;
   let skipped = 0;
@@ -131,33 +127,44 @@ export async function harvestJob() {
   for (const wrapper of wrappers) {
     processed += 1;
     try {
-      const token = await ex.launchedTokens(wrapper);
-      const ipAsset = token.ipAsset as string;
-      const unclaimed = await fetchUnclaimedRevenue(ipAsset, EXCHANGE_ADDRESS!, royaltyModule);
-      if (unclaimed < HARVEST_THRESHOLD_WEI) {
+      const accumulatedNative = (await ex.accumulatedRoyaltyNative(wrapper)) as bigint;
+      if (accumulatedNative < HARVEST_THRESHOLD_WEI) {
         skipped += 1;
         continue;
       }
-      const gas = await ex.harvestFromVault.estimateGas(wrapper);
-      const tx = await ex.harvestFromVault(wrapper, { gasLimit: (gas * 120n) / 100n });
-      console.log(`[HARVEST] harvestFromVault sent for ${wrapper}: ${tx.hash}`);
-      await tx.wait();
-      harvested += 1;
 
-      const amountStr = unclaimed.toString();
-      const { error: evtErr } = await supabase.from('revenue_events').insert({
-        tx_hash: tx.hash,
-        token_address: wrapper,
-        amount: amountStr,
-        type: 'HARVEST_BUYBACK',
+      try {
+        await ex.harvestFromVault.staticCall(wrapper);
+      } catch (simErr) {
+        skipped += 1;
+        console.warn(`[HARVEST] harvestFromVault would revert for ${wrapper} (staticCall). Skipping.`, simErr);
+        continue;
+      }
+
+      await txMutex.runExclusive(async () => {
+        const tx = await retryTx(async () => {
+          const gas = await ex.harvestFromVault.estimateGas(wrapper);
+          return await ex.harvestFromVault(wrapper, { gasLimit: (gas * 120n) / 100n });
+        });
+        console.log(`[HARVEST] harvestFromVault sent for ${wrapper}: ${tx.hash}`);
+        await tx.wait();
+        harvested += 1;
+
+        const amountStr = accumulatedNative.toString();
+        const { error: evtErr } = await supabase.from('revenue_events').insert({
+          tx_hash: tx.hash,
+          token_address: wrapper,
+          amount: amountStr,
+          type: 'HARVEST_BUYBACK',
+        });
+        if (evtErr) console.warn('[HARVEST][DB] revenue_events insert failed:', evtErr.message || evtErr);
+
+        const { error: tokErr } = await supabase
+          .from('tokens')
+          .upsert({ token_address: wrapper, total_harvested_amount: amountStr }, { onConflict: 'token_address' })
+          .select();
+        if (tokErr) console.warn('[HARVEST][DB] tokens upsert failed:', tokErr.message || tokErr);
       });
-      if (evtErr) console.warn('[HARVEST][DB] revenue_events insert failed:', evtErr.message || evtErr);
-
-      const { error: tokErr } = await supabase
-        .from('tokens')
-        .upsert({ token_address: wrapper, total_harvested_amount: amountStr }, { onConflict: 'token_address' })
-        .select();
-      if (tokErr) console.warn('[HARVEST][DB] tokens upsert failed:', tokErr.message || tokErr);
     } catch (err) {
       skipped += 1;
       console.warn(`[HARVEST] harvestFromVault failed for ${wrapper}:`, err);

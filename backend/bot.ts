@@ -1,10 +1,12 @@
 import 'dotenv/config';
 import axios from 'axios';
 import { ethers } from 'ethers';
-import exchangeAbi from './abis/SovryExchange.json';
+import exchangeArtifact from './abis/SovryExchange.json';
 import { txMutex } from './services/mutex';
 import { retryTx } from './services/utils';
 import { AlertLevel, sendDiscordAlert } from './services/alerts';
+
+const exchangeAbi = (exchangeArtifact as any).abi ?? exchangeArtifact;
 
 const RPC_URL = process.env.RPC_URL || process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL;
 const KEEPER_PRIVATE_KEY = process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;

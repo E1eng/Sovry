@@ -2,6 +2,7 @@ import config from './config/env';
 import storyscanService from './services/storyscanService';
 import { getPoolsFromGoldsky } from './services/pricingService';
 import { pushFeesJob, harvestJob } from './services/royaltyHarvestService';
+import { graduationJob } from './services/graduationService';
 import { startRoyaltyStateListener, stopRoyaltyStateListener } from './services/royaltyStateSyncService';
 
 class SovryWorker {
@@ -9,6 +10,7 @@ class SovryWorker {
   private intervalId: NodeJS.Timeout | null = null;
   private pushIntervalId: NodeJS.Timeout | null = null;
   private harvestIntervalId: NodeJS.Timeout | null = null;
+  private graduationIntervalId: NodeJS.Timeout | null = null;
   private memoryCache: { price: string | null; timestamp: string | null } = { price: null, timestamp: null };
 
   async initializeCache() {
@@ -85,6 +87,7 @@ class SovryWorker {
     await this.updateIPPrice();
     await pushFeesJob();
     await harvestJob();
+    await graduationJob();
 
     this.intervalId = setInterval(async () => {
       if (this.isRunning) await this.updateIPPrice();
@@ -97,6 +100,10 @@ class SovryWorker {
     this.harvestIntervalId = setInterval(async () => {
       if (this.isRunning) await harvestJob();
     }, config.scheduler.harvestIntervalMs);
+
+    this.graduationIntervalId = setInterval(async () => {
+      if (this.isRunning) await graduationJob();
+    }, config.scheduler.graduationIntervalMs);
 
     console.log('✅ Sovry Backend Worker started successfully');
   }
@@ -111,9 +118,11 @@ class SovryWorker {
     if (this.intervalId) clearInterval(this.intervalId);
     if (this.pushIntervalId) clearInterval(this.pushIntervalId);
     if (this.harvestIntervalId) clearInterval(this.harvestIntervalId);
+    if (this.graduationIntervalId) clearInterval(this.graduationIntervalId);
     this.intervalId = null;
     this.pushIntervalId = null;
     this.harvestIntervalId = null;
+    this.graduationIntervalId = null;
     console.log('✅ Sovry Backend Worker stopped');
   }
 
