@@ -7,7 +7,8 @@ import hre from "hardhat";
  * Usage:
  *   WRAPPER_TOKEN=0x... npx hardhat run scripts/graduate-token.ts --network mainnet
  *
- * Requires PRIVATE_KEY in .env to be the DEFAULT_ADMIN_ROLE holder (or KEEPER_ROLE).
+ * Requires PRIVATE_KEY in .env to be an address with KEEPER_ROLE (not just any address).
+ * The graduate() function is now restricted to KEEPER_ROLE only.
  */
 async function main() {
   const network = hre.network.name;

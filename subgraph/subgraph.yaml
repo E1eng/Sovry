@@ -66,6 +66,7 @@ templates:
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
+        - CurveParamsUpdate
         - RoyaltyStateUpdate
         - Candle
       abis:
@@ -88,6 +89,8 @@ templates:
           handler: handleGraduated
         - event: GraduationThresholdUpdated(uint256)
           handler: handleGraduationThresholdUpdated
+        - event: CurveParamsUpdated(uint128,uint128)
+          handler: handleCurveParamsUpdated
         - event: RoyaltyStateUpdated(indexed address,uint256,uint256)
           handler: handleRoyaltyStateUpdated
       file: ./src/launchpad.ts

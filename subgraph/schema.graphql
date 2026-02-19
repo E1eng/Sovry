@@ -172,6 +172,15 @@ type GraduationThresholdUpdate @entity {
   timestamp: BigInt!
 }
 
+type CurveParamsUpdate @entity {
+  id: ID!
+  launchpad: Launchpad!
+  basePrice: BigInt!
+  priceIncrement: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
 type Holder @entity {
   id: ID!                 # wrapper-address + user-address
   wrapper: WrapperToken!

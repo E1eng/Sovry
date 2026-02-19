@@ -122,6 +122,11 @@
     },
     {
       "inputs": [],
+      "name": "InvalidMetadata",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "InvalidPrice",
       "type": "error"
     },
@@ -265,6 +270,25 @@
         }
       ],
       "name": "GraduationThresholdUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint128",
+          "name": "basePrice",
+          "type": "uint128"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint128",
+          "name": "priceIncrement",
+          "type": "uint128"
+        }
+      ],
+      "name": "CurveParamsUpdated",
       "type": "event"
     },
     {

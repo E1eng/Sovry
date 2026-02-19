@@ -11,6 +11,7 @@ import {
   TokensRedeemed as TokensRedeemedEvent,
   Graduated as GraduatedEvent,
   GraduationThresholdUpdated as GraduationThresholdUpdatedEvent,
+  CurveParamsUpdated as CurveParamsUpdatedEvent,
   RoyaltyRevenueQueued as RoyaltyRevenueQueuedEvent,
   RoyaltyRevenueProcessed as RoyaltyRevenueProcessedEvent,
   RoyaltiesHarvested as RoyaltiesHarvestedEvent,
@@ -27,6 +28,7 @@ import {
   Redemption,
   Candle,
   GraduationThresholdUpdate,
+  CurveParamsUpdate,
   TokenStat,
   ProtocolMetric,
   HarvestEvent,
@@ -519,5 +521,24 @@ export function handleRoyaltyStateUpdated(event: RoyaltyStateUpdatedEvent): void
   stateUpdate.save();
 
   launchpad.save();
+}
+
+export function handleCurveParamsUpdated(event: CurveParamsUpdatedEvent): void {
+  let launchpadId = event.address.toHex();
+  let launchpad = getOrCreateLaunchpad(launchpadId);
+  launchpad.save();
+
+  let id = event.transaction.hash
+    .toHex()
+    .concat("-")
+    .concat(event.logIndex.toString());
+
+  let update = new CurveParamsUpdate(id);
+  update.launchpad = launchpadId;
+  update.basePrice = event.params.basePrice;
+  update.priceIncrement = event.params.priceIncrement;
+  update.txHash = event.transaction.hash;
+  update.timestamp = event.block.timestamp;
+  update.save();
 }
 
