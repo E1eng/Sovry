@@ -10,20 +10,20 @@
     "royaltyWorkflows": "0x9515faE61E0c0447C6AC6dEe5628A2097aFE1890",
     "wipToken": "0x1514000000000000000000000000000000000000",
     "weth": "0x1514000000000000000000000000000000000000",
-    "graduationThreshold": "10000000000000000000000",
+    "graduationThreshold": "2600000000000000000000",
     "keeper": "0x5dacCA2057e3B317C9e148C4fE4B8b794D46bD80"
   },
   "contracts": {
-    "BondingCurveLib": "0x1dB884e0eB1aDD5d50479FB44f1e288cB1a12495",
-    "SovryExchange": "0xA6572C1DBC0244D6B65C9F52ad8b8DBe695B4f80",
-    "SovryFactory": "0x2F11495B20D5f486846F1b1bFB5a3f3b8E492DE0",
-    "SovryRouter": "0x0492577E2a6C950DFb5eD5b9ff728F71c4dbD80c"
+    "BondingCurveLib": "0xf557208CB3cd768dD12Dc9E35319c8E1Ff4bf2f7",
+    "SovryExchange": "0x3725f3F99a6c29C5023b520cB86eCC912eDedF79",
+    "SovryFactory": "0x8Bb2F2A8b7a0A872fF12cfbae82D1ad5552936eF",
+    "SovryRouter": "0xfd4D197bFd7f5b533a6D2c5e3daD488680f05c22"
   },
   "blocks": {
     "BondingCurveLib": null,
-    "SovryExchange": 13660154,
-    "SovryFactory": 13660158,
-    "SovryRouter": 13660161,
-    "subgraphStartBlock": 13660158
+    "SovryExchange": 14278355,
+    "SovryFactory": 14278359,
+    "SovryRouter": 14278361,
+    "subgraphStartBlock": 14278359
   }
 }
