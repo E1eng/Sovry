@@ -77,7 +77,7 @@ function SwapInterfaceComponent({
   isGraduated = false,
   piperXPoolAddress,
 }: SwapInterfaceProps) {
-  const [activeTab, setActiveTab] = useState<TradeTab>(() => (mode === "redeem" ? "redeem" : "buy"))
+  const [activeTab, setActiveTab] = useState<TradeTab>(() => (mode === "redeem" || isGraduated ? "redeem" : "buy"))
   const [fromAmount, setFromAmount] = useState("")
   const [toAmount, setToAmount] = useState("")
   const [showSlippageSettings, setShowSlippageSettings] = useState(false)
@@ -414,10 +414,10 @@ function SwapInterfaceComponent({
     fetchTokenBalance()
   }, [primaryWallet?.address, tokenAddress, publicClient, balanceRefreshNonce])
 
-  // Fetch user's RT balance (for redeem)
+  // Fetch user's RT balance (shown on Redeem tab)
   useEffect(() => {
     const fetchRtBalance = async () => {
-      if (mode !== "redeem") {
+      if (activeTab !== "redeem") {
         setRtBalance(null)
         return
       }
@@ -448,7 +448,22 @@ function SwapInterfaceComponent({
     }
 
     fetchRtBalance()
-  }, [mode, primaryWallet?.address, tokenData?.rtAddress, publicClient, balanceRefreshNonce])
+  }, [activeTab, primaryWallet?.address, tokenData?.rtAddress, publicClient, balanceRefreshNonce])
+
+  // If the token is graduated, force the UI to the redeem tab (buy/sell are disabled).
+  useEffect(() => {
+    if (!isGraduated) return
+    if (activeTab !== "redeem") {
+      setActiveTab("redeem")
+      setFromAmount("")
+      setToAmount("")
+      setMinReceive(null)
+      setPriceImpact(null)
+      setExchangeRate("")
+      setBalanceError(null)
+      setSlippageError(null)
+    }
+  }, [isGraduated, activeTab])
 
   const resetAfterSuccess = () => {
     setTimeout(() => {
@@ -871,7 +886,7 @@ function SwapInterfaceComponent({
           <span className="text-xs font-semibold text-foreground">{mode === "redeem" ? "Redeem" : "Swap"}</span>
           {mode === "trade" && isGraduated ? (
             <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Graduated</span>
-          ) : mode === "trade" ? (
+          ) : mode === "trade" && activeTab !== "redeem" ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowSlippageSettings(true)}
@@ -897,12 +912,13 @@ function SwapInterfaceComponent({
           ) : null}
         </div>
 
-        {/* Buy/Sell Tabs */}
-        {mode === "trade" && !isGraduated && (
+        {/* Buy/Sell/Redeem Tabs */}
+        {mode === "trade" && (
           <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-2.5">
-            <TabsList className="grid w-full grid-cols-2 rounded-sm border border-border bg-background/40 p-0.5">
+            <TabsList className="grid w-full grid-cols-3 rounded-sm border border-border bg-background/40 p-0.5">
               <TabsTrigger
                 value="buy"
+                disabled={isGraduated}
                 className={cn(
                   "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
                   "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
@@ -914,6 +930,7 @@ function SwapInterfaceComponent({
               </TabsTrigger>
               <TabsTrigger
                 value="sell"
+                disabled={isGraduated}
                 className={cn(
                   "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
                   "data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground",
@@ -922,6 +939,17 @@ function SwapInterfaceComponent({
                 aria-label="Sell tokens"
               >
                 Sell
+              </TabsTrigger>
+              <TabsTrigger
+                value="redeem"
+                className={cn(
+                  "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
+                  "data-[state=active]:bg-foreground data-[state=active]:text-background",
+                  "data-[state=active]:hover:bg-foreground/90"
+                )}
+                aria-label="Redeem tokens"
+              >
+                Redeem
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -945,167 +973,163 @@ function SwapInterfaceComponent({
           </div>
         )}
 
-        {!(mode === "trade" && isGraduated) && (
-          <>
-            {activeTab === "redeem" && (
-              <div className="flex items-center justify-between rounded-sm border border-border/50 bg-muted/20 px-3 py-2">
-                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">RT Balance</span>
-                <span className="text-xs font-mono tabular-nums text-foreground">
-                  {formatBalance(rtBalance, 4)} RT
-                </span>
-              </div>
-            )}
-
-            {/* You Pay Section */}
-            <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
-                <span className="text-[10px] font-mono text-muted-foreground">
-                  Bal:{" "}
-                  <span className="text-foreground tabular-nums">
-                    {formatBalance(fromBalance, 4)} {fromSymbol}
-                  </span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="text"
-                  value={fromAmount}
-                  onChange={(e) => {
-                    setFromAmount(e.target.value)
-                    setBalanceError(null)
-                    setSlippageError(null)
-                  }}
-                  onKeyDown={(e) => {
-                    if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
-                        (e.keyCode === 65 && e.ctrlKey === true) ||
-                        (e.keyCode === 67 && e.ctrlKey === true) ||
-                        (e.keyCode === 86 && e.ctrlKey === true) ||
-                        (e.keyCode === 88 && e.ctrlKey === true) ||
-                        (e.keyCode >= 35 && e.keyCode <= 39)) {
-                      return
-                    }
-                    if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
-                      e.preventDefault()
-                    }
-                  }}
-                  placeholder={detailsLoading ? "Loading..." : "0.0"}
-                  disabled={detailsLoading || !tokenAddress || isTrading}
-                  className="h-9 flex-1 text-sm font-mono tabular-nums bg-background/60 border-border/40"
-                  aria-label={`Amount to ${activeTab === "buy" ? "spend" : activeTab === "sell" ? "sell" : "redeem"}`}
-                  aria-describedby={balanceError ? "balance-error" : undefined}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const balance = activeTab === "buy" ? userBalance : tokenBalance
-                    if (balance && parseFloat(balance) > 0) {
-                      setFromAmount(parseFloat(balance).toString())
-                    }
-                  }}
-                  disabled={!isConnected || (activeTab === "buy" ? !userBalance : !tokenBalance)}
-                  className="h-9 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-primary border-primary/30 hover:bg-primary/10"
-                  aria-label="Set maximum balance"
-                >
-                  MAX
-                </Button>
-              </div>
-            </div>
-
-            {/* Estimated Receive */}
-            <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Receive</label>
-                {isCalculating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-mono tabular-nums text-foreground">
-                  {toAmount || (isCalculating ? "…" : "0.0")}
-                </span>
-                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                  {receiveSymbol}
-                </span>
-              </div>
-              {minReceive && (
-                <span className="text-[10px] font-mono text-muted-foreground">
-                  Min ({slippage}% slip):{" "}
-                  <span className="text-foreground tabular-nums">
-                    {minReceive} {receiveSymbol}
-                  </span>
-                </span>
-              )}
-            </div>
-
-            {/* Exchange Rate and Price Impact */}
-            {(exchangeRate || priceImpact !== null) && (
-              <div className="pt-2 border-t border-border/50 space-y-1.5">
-                {exchangeRate && (
-                  <p className="text-[10px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
-                )}
-                {priceImpact !== null && priceImpact > 0 && (
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Impact</span>
-                    <span className={cn("text-[10px] font-mono tabular-nums", priceImpact > 5 ? "text-secondary" : "text-foreground")}>
-                      {priceImpact.toFixed(2)}%
-                    </span>
-                    {priceImpact > 5 && <AlertTriangle className="h-2.5 w-2.5 text-secondary flex-shrink-0" aria-hidden="true" />}
-                  </div>
-                )}
-                {priceImpact !== null && priceImpact > 5 && (
-                  <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5" role="alert">
-                    <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" aria-hidden="true" />
-                    <span className="text-[10px] font-mono text-secondary">High price impact!</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Error Messages */}
-            {balanceError && (
-              <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
-                <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
-                <span className="text-[10px] font-mono text-secondary">{balanceError}</span>
-              </div>
-            )}
-
-            {slippageError && (
-              <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
-                <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
-                <span className="text-[10px] font-mono text-secondary">
-                  {slippageError}
-                  <button type="button" className="ml-1 underline hover:no-underline" onClick={() => setShowSlippageSettings(true)}>Increase slippage</button>
-                </span>
-              </div>
-            )}
-
-            {/* Trade button */}
-            <Button
-              onClick={handlePlaceTrade}
-              disabled={!fromAmount || parseFloat(fromAmount) <= 0 || !isConnected || isTrading || detailsLoading || !tokenAddress || !!balanceError}
-              className={cn(
-                "w-full h-10 font-mono text-xs uppercase tracking-[0.2em] touch-manipulation",
-                "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
-                activeTab === "buy"
-                  ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
-                  : activeTab === "sell"
-                    ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
-                    : "bg-foreground hover:bg-foreground/90 text-background disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.22)]"
-              )}
-            >
-              {isTrading ? (
-                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Confirming...</>
-              ) : tradeSuccess ? (
-                <><CheckCircle className="h-3.5 w-3.5 mr-1.5" />Success!</>
-              ) : !isConnected ? (
-                "Connect Wallet"
-              ) : (
-                activeTab === "redeem" ? "Redeem" : "Place Trade"
-              )}
-            </Button>
-          </>
+        {activeTab === "redeem" && (
+          <div className="flex items-center justify-between rounded-sm border border-border/50 bg-muted/20 px-3 py-2">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">RT Balance</span>
+            <span className="text-xs font-mono tabular-nums text-foreground">
+              {formatBalance(rtBalance, 4)} RT
+            </span>
+          </div>
         )}
+
+        {/* You Pay Section */}
+        <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Bal:{" "}
+              <span className="text-foreground tabular-nums">
+                {formatBalance(fromBalance, 4)} {fromSymbol}
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              value={fromAmount}
+              onChange={(e) => {
+                setFromAmount(e.target.value)
+                setBalanceError(null)
+                setSlippageError(null)
+              }}
+              onKeyDown={(e) => {
+                if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode === 67 && e.ctrlKey === true) ||
+                    (e.keyCode === 86 && e.ctrlKey === true) ||
+                    (e.keyCode === 88 && e.ctrlKey === true) ||
+                    (e.keyCode >= 35 && e.keyCode <= 39)) {
+                  return
+                }
+                if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                  e.preventDefault()
+                }
+              }}
+              placeholder={detailsLoading ? "Loading..." : "0.0"}
+              disabled={detailsLoading || !tokenAddress || isTrading}
+              className="h-9 flex-1 text-sm font-mono tabular-nums bg-background/60 border-border/40"
+              aria-label={`Amount to ${activeTab === "buy" ? "spend" : activeTab === "sell" ? "sell" : "redeem"}`}
+              aria-describedby={balanceError ? "balance-error" : undefined}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const balance = activeTab === "buy" ? userBalance : tokenBalance
+                if (balance && parseFloat(balance) > 0) {
+                  setFromAmount(parseFloat(balance).toString())
+                }
+              }}
+              disabled={!isConnected || (activeTab === "buy" ? !userBalance : !tokenBalance)}
+              className="h-9 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-primary border-primary/30 hover:bg-primary/10"
+              aria-label="Set maximum balance"
+            >
+              MAX
+            </Button>
+          </div>
+        </div>
+
+        {/* Estimated Receive */}
+        <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Receive</label>
+            {isCalculating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-mono tabular-nums text-foreground">
+              {toAmount || (isCalculating ? "…" : "0.0")}
+            </span>
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              {receiveSymbol}
+            </span>
+          </div>
+          {minReceive && (
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Min ({slippage}% slip):{" "}
+              <span className="text-foreground tabular-nums">
+                {minReceive} {receiveSymbol}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* Exchange Rate and Price Impact */}
+        {(exchangeRate || priceImpact !== null) && (
+          <div className="pt-2 border-t border-border/50 space-y-1.5">
+            {exchangeRate && (
+              <p className="text-[10px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
+            )}
+            {priceImpact !== null && priceImpact > 0 && (
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Impact</span>
+                <span className={cn("text-[10px] font-mono tabular-nums", priceImpact > 5 ? "text-secondary" : "text-foreground")}>
+                  {priceImpact.toFixed(2)}%
+                </span>
+                {priceImpact > 5 && <AlertTriangle className="h-2.5 w-2.5 text-secondary flex-shrink-0" aria-hidden="true" />}
+              </div>
+            )}
+            {priceImpact !== null && priceImpact > 5 && (
+              <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5" role="alert">
+                <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" aria-hidden="true" />
+                <span className="text-[10px] font-mono text-secondary">High price impact!</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Error Messages */}
+        {balanceError && (
+          <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
+            <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+            <span className="text-[10px] font-mono text-secondary">{balanceError}</span>
+          </div>
+        )}
+
+        {slippageError && (
+          <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
+            <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+            <span className="text-[10px] font-mono text-secondary">
+              {slippageError}
+              <button type="button" className="ml-1 underline hover:no-underline" onClick={() => setShowSlippageSettings(true)}>Increase slippage</button>
+            </span>
+          </div>
+        )}
+
+        {/* Trade button */}
+        <Button
+          onClick={handlePlaceTrade}
+          disabled={!fromAmount || parseFloat(fromAmount) <= 0 || !isConnected || isTrading || detailsLoading || !tokenAddress || !!balanceError}
+          className={cn(
+            "w-full h-10 font-mono text-xs uppercase tracking-[0.2em] touch-manipulation",
+            "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
+            activeTab === "buy"
+              ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+              : activeTab === "sell"
+                ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+                : "bg-foreground hover:bg-foreground/90 text-background disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.22)]"
+          )}
+        >
+          {isTrading ? (
+            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Confirming...</>
+          ) : tradeSuccess ? (
+            <><CheckCircle className="h-3.5 w-3.5 mr-1.5" />Success!</>
+          ) : !isConnected ? (
+            "Connect Wallet"
+          ) : (
+            activeTab === "redeem" ? "Redeem" : "Place Trade"
+          )}
+        </Button>
       </CardContent>
 
       {/* Slippage Settings Dialog */}
