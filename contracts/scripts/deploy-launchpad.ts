@@ -22,8 +22,9 @@ async function main() {
   const wipToken = process.env.WIP_ADDRESS || process.env.WIP_ADDRESS_AENEID;
   const keeperAddress = process.env.KEEPER_ADDRESS || deployer.address;
   const shouldVerify = !!process.env.STORYSCAN_API_KEY && process.env.SKIP_AUTO_VERIFY !== "true";
-  const curveBasePriceWei = process.env.CURVE_BASE_PRICE_WEI || "2500000000000000"; // 1e12 wei default
-  const curvePriceIncrementWei = process.env.CURVE_PRICE_INCREMENT_WEI || "11718750000000"; // 1e9 wei default
+  // Defaults target: marketCap 10,000 IP at ~0.01 IP/token with ~3,000 IP curve raise.
+  const curveBasePriceWei = process.env.CURVE_BASE_PRICE_WEI || "2500000000000000"; // 0.0025 IP
+  const curvePriceIncrementWei = process.env.CURVE_PRICE_INCREMENT_WEI || "15625000000"; // 0.000000015625 IP
 
   if (!treasury || !piperXV3Factory || !piperXV3SwapRouter || !piperXV3PositionManager || !royaltyWorkflows || !wipToken) {
     throw new Error(

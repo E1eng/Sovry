@@ -3,7 +3,7 @@ import { Address, encodeFunctionData, parseEther } from "viem";
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
 import { logger } from "@/lib/logger";
-import { exchangeReadAbi, routerWriteAbi } from "@/constants/abis";
+import { exchangeReadAbi, exchangeWriteAbi, routerWriteAbi } from "@/constants/abis";
 import { getStoryPublicClient } from "@/services/viem/storyPublicClient";
 
 import {
@@ -431,6 +431,109 @@ export async function sell(
   }
 }
 
+export async function redeem(
+  tokenAddress: string,
+  tokenAmount: string,
+  primaryWallet: any,
+): Promise<{ success: boolean; approveTxHash?: string; redeemTxHash?: string; error?: string }> {
+  try {
+    if (!primaryWallet) {
+      throw new Error("No wallet connected");
+    }
+
+    const walletClient = await primaryWallet.getWalletClient();
+    if (!walletClient) {
+      throw new Error("No wallet client available");
+    }
+
+    const amount = parseEther(tokenAmount || "0");
+    if (amount <= 0n) {
+      throw new Error("Redeem amount too small");
+    }
+
+    const ownerAddress = primaryWallet.address as Address | undefined;
+    if (!ownerAddress) {
+      throw new Error("No wallet address available");
+    }
+
+    let approveTxHash: string | undefined;
+
+    // Redeem pulls wrapper tokens via transferFrom, so the Exchange needs allowance.
+    try {
+      const currentAllowance = await publicClient.readContract({
+        address: tokenAddress as Address,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [ownerAddress, SOVRY_EXCHANGE_ADDRESS as Address],
+      }) as bigint;
+
+      if (currentAllowance < amount) {
+        const approveData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [SOVRY_EXCHANGE_ADDRESS as Address, MAX_UINT256],
+        });
+
+        approveTxHash = await walletClient.sendTransaction({
+          to: tokenAddress as Address,
+          data: approveData,
+        });
+      }
+    } catch (allowanceError) {
+      logger.error("Error checking allowance for redeem; falling back to approve+redeem:", allowanceError);
+      const approveData = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [SOVRY_EXCHANGE_ADDRESS as Address, MAX_UINT256],
+      });
+
+      approveTxHash = await walletClient.sendTransaction({
+        to: tokenAddress as Address,
+        data: approveData,
+      });
+    }
+
+    const redeemData = encodeFunctionData({
+      abi: exchangeWriteAbi,
+      functionName: "redeem",
+      args: [tokenAddress as Address, amount, ownerAddress],
+    });
+
+    const redeemTxHash = await walletClient.sendTransaction({
+      to: SOVRY_EXCHANGE_ADDRESS as Address,
+      data: redeemData,
+    });
+
+    try {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: redeemTxHash });
+      if (receipt.status !== "success") {
+        return {
+          success: false,
+          approveTxHash,
+          redeemTxHash,
+          error: "Transaction reverted on-chain",
+        };
+      }
+    } catch (waitError) {
+      logger.error("Error waiting for redeem transaction receipt:", waitError);
+      return {
+        success: false,
+        approveTxHash,
+        redeemTxHash,
+        error: "Failed to confirm transaction status",
+      };
+    }
+
+    return { success: true, approveTxHash, redeemTxHash };
+  } catch (error) {
+    logger.error("Error redeeming on Launchpad:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error redeeming on Launchpad",
+    };
+  }
+}
+
 // Get royalty vault native token balance
 export async function getRoyaltyVaultBalance(
   vaultAddress: string
@@ -535,6 +638,7 @@ export const launchpadService = {
   launchOnBondingCurve: launchOnBondingCurveDynamic,
   buy,
   sell,
+  redeem,
   harvestAndPump,
   getRoyaltyLockInfo,
   detectContractVersion,

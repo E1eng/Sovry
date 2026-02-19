@@ -102,8 +102,10 @@ export async function graduationJob(opts?: { limit?: number }) {
     processed += 1;
     try {
       const marketCap = (await ex.getMarketCap(wrapper)) as bigint;
+      console.log(`[GRADUATION] ${wrapper} marketCap=${ethers.formatEther(marketCap)} IP, threshold=${thresholdFmt} IP`);
       if (marketCap < threshold) {
         skipped += 1;
+        console.log(`[GRADUATION] Below threshold — skipping`);
         continue;
       }
 
@@ -113,9 +115,14 @@ export async function graduationJob(opts?: { limit?: number }) {
       // by simulating first.
       try {
         await ex.graduate.staticCall(wrapper);
-      } catch (err) {
+      } catch (err: any) {
         skipped += 1;
-        console.warn(`[GRADUATION] graduate() would revert for ${wrapper} (staticCall). Skipping tx.`, err);
+        const msg = err?.message ?? String(err);
+        if (msg.includes('TokenGraduated') || msg.includes('already graduated')) {
+          console.log(`[GRADUATION] ${wrapper} already graduated (subgraph not yet synced). Skipping.`);
+        } else {
+          console.warn(`[GRADUATION] graduate() would revert for ${wrapper} (staticCall). Skipping tx.`, err);
+        }
         continue;
       }
 

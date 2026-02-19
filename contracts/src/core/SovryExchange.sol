@@ -64,6 +64,9 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
     uint256 public constant FEE_TOTAL_PERCENTAGE = 10;
     uint256 public constant SLIPPAGE_TOLERANCE_BPS = 100; // 1%
 
+    // Creator allocation paid in wrapper tokens at graduation (5%).
+    uint256 public constant CREATOR_PREMINE_BPS = 500;
+
     error InvalidMetadata();
 
     struct CurveDefaults {
@@ -90,6 +93,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
     event BuybackFailed(address indexed wrapperToken, string reason);
     event RoyaltyStateUpdated(address indexed wrapperToken, uint256 totalHarvested, uint256 accumulatedNative);
+
+    event CreatorAllocationPaid(address indexed wrapperToken, address indexed creator, uint256 amount);
 
     struct BondingCurve {
         uint128 basePrice;
@@ -555,6 +560,16 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         if (nativeLiquidity == 0 || tokenLiquidity == 0) revert InvalidAmount();
 
+        // Pay creator their fixed share in wrapper tokens at graduation.
+        // This is sourced from the Exchange-held supply (DEX reserve + remaining curve supply).
+        uint256 creatorAllocation = (IERC20(wrapperToken).totalSupply() * CREATOR_PREMINE_BPS) / BPS_DENOMINATOR;
+        if (creatorAllocation > 0) {
+            if (creatorAllocation > tokenLiquidity) revert InvalidAmount();
+            IERC20(wrapperToken).safeTransfer(token.creator, creatorAllocation);
+            tokenLiquidity -= creatorAllocation;
+            emit CreatorAllocationPaid(wrapperToken, token.creator, creatorAllocation);
+        }
+
         uint256 feeTotal = nativeLiquidity / FEE_TOTAL_PERCENTAGE;
         uint256 treasuryCut = feeTotal / 2;
         uint256 ipaCut = feeTotal - treasuryCut;
@@ -631,10 +646,8 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
         uint256 dustWip = nativeAfterFee > usedWip ? (nativeAfterFee - usedWip) : 0;
 
         if (dustTokens > 0) {
-            uint256 treasuryTokens = dustTokens / 2;
-            uint256 ipaTokens = dustTokens - treasuryTokens;
-            if (treasuryTokens > 0) IERC20(wrapperToken).safeTransfer(treasury, treasuryTokens);
-            if (ipaTokens > 0) IERC20(wrapperToken).safeTransfer(token.ipAsset, ipaTokens);
+            // Burn any unused wrapper token liquidity to avoid large leftover allocations.
+            SovryToken(wrapperToken).burn(dustTokens);
         }
 
         if (dustWip > 0) {

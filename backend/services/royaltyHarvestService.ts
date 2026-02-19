@@ -7,6 +7,10 @@ import { retryTx } from './utils';
 
 const EXCHANGE_ABI = (EXCHANGE_ARTIFACT as any).abi ?? EXCHANGE_ARTIFACT;
 
+const ROYALTY_MODULE_ABI = [
+  'function claimAllRevenue(address ipId, address receiver) external returns (uint256)',
+];
+
 const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io';
 const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
 const KEEPER_PRIVATE_KEY = process.env.HARVESTER_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
@@ -44,6 +48,119 @@ function getExchange() {
     exchange = new ethers.Contract(EXCHANGE_ADDRESS, EXCHANGE_ABI, getSigner());
   }
   return exchange;
+}
+
+async function getRoyaltyModule(ex: ethers.Contract): Promise<ethers.Contract> {
+  const royaltyAddress = (await ex.royaltyWorkflows()) as string;
+  return new ethers.Contract(royaltyAddress, ROYALTY_MODULE_ABI, getProvider());
+}
+
+function parseHarvestLogs(receipt: ethers.TransactionReceipt) {
+  const iface = new ethers.Interface(EXCHANGE_ABI);
+
+  let harvestedAmount: bigint | null = null;
+  let buybackFailedReason: string | null = null;
+
+  for (const log of receipt.logs) {
+    try {
+      const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+      if (!parsed) continue;
+
+      if (parsed.name === 'RoyaltiesHarvested') {
+        // event RoyaltiesHarvested(address indexed wrapperToken, uint256 amount)
+        harvestedAmount = BigInt(parsed.args[1].toString());
+      }
+
+      if (parsed.name === 'BuybackFailed') {
+        buybackFailedReason = String(parsed.args[1] ?? 'BuybackFailed');
+      }
+    } catch {
+      // ignore non-exchange logs
+    }
+  }
+
+  return { harvestedAmount, buybackFailedReason };
+}
+
+export async function harvestWrapper(
+  wrapper: string,
+  opts?: {
+    minClaimableWei?: bigint;
+    royaltyModule?: ethers.Contract;
+  },
+): Promise<
+  | { status: 'harvested'; wrapper: string; txHash: string; harvestedAmountWei: bigint; claimableWei: bigint; buybackFailedReason: string | null }
+  | { status: 'skipped'; wrapper: string; reason: string; claimableWei?: bigint }
+> {
+  const ex = getExchange();
+  const exchangeAddress = EXCHANGE_ADDRESS as string;
+
+  const tokenInfo = await ex.launchedTokens(wrapper);
+  const ipAsset = (tokenInfo.ipAsset ?? tokenInfo[3]) as string;
+  const isPostGrad = Boolean(tokenInfo.graduated ?? tokenInfo[6]);
+
+  const royalty = opts?.royaltyModule ?? (await getRoyaltyModule(ex));
+  const minClaimableWei = opts?.minClaimableWei ?? HARVEST_THRESHOLD_WEI;
+
+  let claimableWei = 0n;
+  try {
+    // Simulate the vault claim with msg.sender = Exchange to match on-chain behavior.
+    claimableWei = (await royalty.claimAllRevenue.staticCall(ipAsset, exchangeAddress, {
+      from: exchangeAddress,
+    })) as bigint;
+  } catch (err) {
+    return { status: 'skipped', wrapper, reason: 'claimAllRevenue staticCall reverted' };
+  }
+
+  if (claimableWei < minClaimableWei) {
+    return { status: 'skipped', wrapper, reason: 'below harvest threshold', claimableWei };
+  }
+
+  try {
+    await ex.harvestFromVault.staticCall(wrapper);
+  } catch (simErr) {
+    return { status: 'skipped', wrapper, reason: 'harvestFromVault would revert' };
+  }
+
+  return await txMutex.runExclusive(async () => {
+    const tx = await retryTx(async () => {
+      const gas = await ex.harvestFromVault.estimateGas(wrapper);
+      return await ex.harvestFromVault(wrapper, { gasLimit: (gas * 120n) / 100n });
+    });
+
+    console.log(`[HARVEST] harvestFromVault sent for ${wrapper}: ${tx.hash}`);
+    const receipt = await tx.wait();
+    if (!receipt) {
+      throw new Error('harvestFromVault transaction was dropped (no receipt)');
+    }
+
+    const { harvestedAmount, buybackFailedReason } = parseHarvestLogs(receipt);
+    const harvestedAmountWei = harvestedAmount ?? 0n;
+
+    // Update DB (best-effort)
+    try {
+      const { error: evtErr } = await supabase.from('revenue_events').insert({
+        tx_hash: tx.hash,
+        token_address: wrapper,
+        amount: harvestedAmountWei.toString(),
+        type: isPostGrad ? 'HARVEST_BUYBACK' : 'HARVEST',
+      });
+      if (evtErr) console.warn('[HARVEST][DB] revenue_events insert failed:', evtErr.message || evtErr);
+
+      const tokenAfter = await ex.launchedTokens(wrapper);
+      const totalHarvested = (tokenAfter.totalRoyaltiesHarvested ?? tokenAfter[7]) as bigint;
+
+      const { error: tokErr } = await supabase
+        .from('tokens')
+        .upsert({ token_address: wrapper, total_harvested_amount: totalHarvested.toString() }, { onConflict: 'token_address' })
+        .select();
+      if (tokErr) console.warn('[HARVEST][DB] tokens upsert failed:', tokErr.message || tokErr);
+    } catch (dbErr) {
+      console.warn('[HARVEST][DB] post-tx updates failed:', dbErr);
+    }
+
+    return { status: 'harvested', wrapper, txHash: tx.hash, harvestedAmountWei, claimableWei, buybackFailedReason };
+  });
 }
 
 async function fetchWrapperIds() {
@@ -114,6 +231,7 @@ export async function pushFeesJob() {
 
 export async function harvestJob() {
   const ex = getExchange();
+  const royalty = await getRoyaltyModule(ex);
   const wrappers = await fetchWrapperIds();
   if (!wrappers || wrappers.length === 0) {
     console.log('[HARVEST] No wrappers found');
@@ -127,44 +245,15 @@ export async function harvestJob() {
   for (const wrapper of wrappers) {
     processed += 1;
     try {
-      const accumulatedNative = (await ex.accumulatedRoyaltyNative(wrapper)) as bigint;
-      if (accumulatedNative < HARVEST_THRESHOLD_WEI) {
-        skipped += 1;
-        continue;
-      }
-
-      try {
-        await ex.harvestFromVault.staticCall(wrapper);
-      } catch (simErr) {
-        skipped += 1;
-        console.warn(`[HARVEST] harvestFromVault would revert for ${wrapper} (staticCall). Skipping.`, simErr);
-        continue;
-      }
-
-      await txMutex.runExclusive(async () => {
-        const tx = await retryTx(async () => {
-          const gas = await ex.harvestFromVault.estimateGas(wrapper);
-          return await ex.harvestFromVault(wrapper, { gasLimit: (gas * 120n) / 100n });
-        });
-        console.log(`[HARVEST] harvestFromVault sent for ${wrapper}: ${tx.hash}`);
-        await tx.wait();
+      const res = await harvestWrapper(wrapper, { royaltyModule: royalty });
+      if (res.status === 'harvested') {
         harvested += 1;
-
-        const amountStr = accumulatedNative.toString();
-        const { error: evtErr } = await supabase.from('revenue_events').insert({
-          tx_hash: tx.hash,
-          token_address: wrapper,
-          amount: amountStr,
-          type: 'HARVEST_BUYBACK',
-        });
-        if (evtErr) console.warn('[HARVEST][DB] revenue_events insert failed:', evtErr.message || evtErr);
-
-        const { error: tokErr } = await supabase
-          .from('tokens')
-          .upsert({ token_address: wrapper, total_harvested_amount: amountStr }, { onConflict: 'token_address' })
-          .select();
-        if (tokErr) console.warn('[HARVEST][DB] tokens upsert failed:', tokErr.message || tokErr);
-      });
+        if (res.buybackFailedReason) {
+          console.warn(`[HARVEST] Buyback failed for ${wrapper}:`, res.buybackFailedReason);
+        }
+      } else {
+        skipped += 1;
+      }
     } catch (err) {
       skipped += 1;
       console.warn(`[HARVEST] harvestFromVault failed for ${wrapper}:`, err);

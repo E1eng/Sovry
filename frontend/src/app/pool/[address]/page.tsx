@@ -24,6 +24,7 @@ import { logError, isNetworkError, isRPCError } from "@/lib/errorUtils"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { IPFS_GATEWAY } from "@/lib/env"
 import { truncateAddress } from "@/lib/utils"
+import { getPiperXPoolUrl } from "@/lib/piperx"
 
 const TradingChart = dynamic(
   () => import("@/components/trading/TradingChart").then((m) => m.TradingChart),
@@ -96,9 +97,7 @@ export default function TokenDetailPage() {
       // Optional: Redirect to PiperX pool page after 5 seconds
       if (eventData.liquidityPoolAddress) {
         redirectTimerRef.current = setTimeout(() => {
-          // Construct PiperX DEX URL (adjust based on your DEX structure)
-          const piperXUrl = `https://piperx.io/pool/${eventData.liquidityPoolAddress}`
-          window.open(piperXUrl, "_blank", "noopener,noreferrer")
+          window.open(getPiperXPoolUrl(eventData.liquidityPoolAddress), "_blank", "noopener,noreferrer")
         }, 5000)
       }
     },
@@ -508,6 +507,7 @@ export default function TokenDetailPage() {
                 <SwapInterface
                   tokenAddress={address}
                   tokenSymbol={ticker}
+                  mode="trade"
                   isGraduated={launchInfo?.graduated || false}
                   piperXPoolAddress={graduationData?.liquidityPoolAddress}
                 />
@@ -520,9 +520,6 @@ export default function TokenDetailPage() {
                     <ProgressToGraduation
                       totalRaised={launchInfo.totalRaised}
                       targetRaise={details.graduationThreshold}
-                      tokenTicker={ticker}
-                      tokenName={tokenName}
-                      tokenAddress={address}
                       isGraduated={launchInfo.graduated}
                     />
                   </CardContent>
@@ -585,7 +582,8 @@ export default function TokenDetailPage() {
               onOpenChange={setShowGraduationModal}
               tokenTicker={details.symbol || "TOKEN"}
               tokenName={details.name || "Token"}
-              tokenAddress={graduationData?.liquidityPoolAddress || address}
+              poolAddress={graduationData?.liquidityPoolAddress}
+              tokenAddress={address}
             />
           )}
 
@@ -619,6 +617,7 @@ export default function TokenDetailPage() {
               <SwapInterface
                 tokenAddress={address}
                 tokenSymbol={ticker}
+                mode="trade"
                 isGraduated={launchInfo?.graduated || false}
                 piperXPoolAddress={graduationData?.liquidityPoolAddress}
               />

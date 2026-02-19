@@ -12,12 +12,14 @@ import { Button } from "@/components/ui/button"
 import { Trophy, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { trackEvent } from "@/lib/analytics"
+import { getPiperXDexUrl } from "@/lib/piperx"
 
 export interface GraduationModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   tokenTicker: string
   tokenName: string
+  poolAddress?: string
   tokenAddress?: string
   className?: string
 }
@@ -29,6 +31,7 @@ export function GraduationModal({
   onOpenChange,
   tokenTicker,
   tokenName,
+  poolAddress,
   tokenAddress,
   className,
 }: GraduationModalProps) {
@@ -145,24 +148,14 @@ export function GraduationModal({
     }
   }, [open, onOpenChange])
 
-  // Get PiperX DEX URL (you may need to adjust this based on your DEX setup)
-  const getPiperXDEXUrl = () => {
-    if (!tokenAddress) {
-      // Fallback to general DEX URL if token address not available
-      return "https://piperx.io" // Replace with actual PiperX DEX URL
-    }
-    // Construct DEX URL with token address
-    // Adjust this based on your DEX's URL structure
-    return `https://piperx.io/token/${tokenAddress}` // Replace with actual URL pattern
-  }
-
   const handleViewOnPiperX = () => {
     trackEvent("piperx_link_clicked", {
+      poolAddress,
       tokenAddress,
       tokenTicker,
       source: "graduation_modal",
     })
-    window.open(getPiperXDEXUrl(), "_blank", "noopener,noreferrer")
+    window.open(getPiperXDexUrl({ poolAddress, tokenAddress }), "_blank", "noopener,noreferrer")
   }
 
   const handleContinueTrading = () => {

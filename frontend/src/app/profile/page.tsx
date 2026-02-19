@@ -10,6 +10,7 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SwapInterface } from "@/components/swap/SwapInterface";
 import { fetchSubgraph } from "@/services/subgraph";
 import { supabase } from "@/lib/supabaseClient";
 import { truncateAddress } from "@/lib/utils";
@@ -61,6 +62,11 @@ type UserProfileData = {
   twitter_handle: string | null;
   telegram_handle: string | null;
   website_url: string | null;
+};
+
+type RedeemTarget = {
+  tokenAddress: string;
+  symbol: string;
 };
 
 type TabKey = "holdings" | "launches" | "yield";
@@ -238,6 +244,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const [redeemTarget, setRedeemTarget] = useState<RedeemTarget | null>(null);
 
   const isConnected = !!address;
   const checksum = address?.toLowerCase() || "";
@@ -349,6 +356,31 @@ export default function ProfilePage() {
                 }));
               }}
             />
+          </DialogContent>
+        </Dialog>
+
+        {/* Redeem Dialog (profile-only) */}
+        <Dialog
+          open={!!redeemTarget}
+          onOpenChange={(open) => {
+            if (!open) setRedeemTarget(null);
+          }}
+        >
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Redeem {redeemTarget?.symbol || "TOKEN"}</DialogTitle>
+            </DialogHeader>
+
+            <div className="p-4">
+              {redeemTarget && (
+                <SwapInterface
+                  tokenAddress={redeemTarget.tokenAddress}
+                  tokenSymbol={redeemTarget.symbol}
+                  mode="redeem"
+                  className="border-0 shadow-none"
+                />
+              )}
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -516,7 +548,7 @@ export default function ProfilePage() {
                             <th className="px-4 py-3 text-right">Balance</th>
                             <th className="px-4 py-3 text-right hidden sm:table-cell">Harvested</th>
                             <th className="px-4 py-3 text-center">Status</th>
-                            <th className="px-4 py-3 text-right w-10"></th>
+                            <th className="px-4 py-3 text-right w-[140px]">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -559,9 +591,29 @@ export default function ProfilePage() {
                                   <StatusBadge graduated={h.wrapper.graduated} />
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                  <Link href={`/pool/${h.wrapper.id}`} className="text-muted-foreground hover:text-[#CCFF00] transition-colors">
-                                    <ArrowUpRight className="h-4 w-4" />
-                                  </Link>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 px-3 text-[10px] font-mono uppercase tracking-[0.2em] border-[#262626] text-foreground hover:bg-white/5"
+                                      onClick={() =>
+                                        setRedeemTarget({
+                                          tokenAddress: h.wrapper.id,
+                                          symbol: displaySymbol,
+                                        })
+                                      }
+                                    >
+                                      Redeem
+                                    </Button>
+                                    <Link
+                                      href={`/pool/${h.wrapper.id}`}
+                                      className="text-muted-foreground hover:text-[#CCFF00] transition-colors"
+                                      aria-label={`View ${displaySymbol} pool`}
+                                    >
+                                      <ArrowUpRight className="h-4 w-4" />
+                                    </Link>
+                                  </div>
                                 </td>
                               </tr>
                             );

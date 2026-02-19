@@ -68,6 +68,21 @@ export const exchangeReadAbi = [
   },
 ] as const;
 
+// SovryExchange write ABI for transactions executed directly on the exchange
+export const exchangeWriteAbi = [
+  {
+    inputs: [
+      { internalType: "address", name: "wrapperToken", type: "address" },
+      { internalType: "uint256", name: "wrapperAmount", type: "uint256" },
+      { internalType: "address", name: "recipient", type: "address" },
+    ],
+    name: "redeem",
+    outputs: [{ internalType: "uint256", name: "rtAmount", type: "uint256" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
 // SovryRouter write ABI for buy/sell transactions
 export const routerWriteAbi = [
   {

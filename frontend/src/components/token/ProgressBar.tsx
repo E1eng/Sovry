@@ -3,27 +3,20 @@
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { formatEther, parseEther } from "viem"
-import { GraduationModal } from "./GraduationModal"
 
 export interface ProgressToGraduationProps {
   totalRaised: bigint | string | number
   targetRaise?: bigint | string | number
-  tokenTicker?: string
-  tokenName?: string
-  tokenAddress?: string
   isGraduated?: boolean
   className?: string
 }
 
-const TARGET_RAISE_IP = parseEther("10000") // 8 IP graduation threshold
+const TARGET_RAISE_IP = parseEther("10000") // 10,000 IP graduation threshold
 const MILESTONES = [25, 50, 75]
 
 export function ProgressToGraduation({
   totalRaised,
   targetRaise = TARGET_RAISE_IP,
-  tokenTicker = "TOKEN",
-  tokenName = "Token",
-  tokenAddress,
   isGraduated = false,
   className,
 }: ProgressToGraduationProps) {
@@ -110,15 +103,6 @@ export function ProgressToGraduation({
   // is still active and the token is still tradable.
   const isGraduatedState = isGraduated
 
-  // State for graduation modal
-  const [showGraduationModal, setShowGraduationModal] = useState(false)
-
-  // NOTE: We no longer auto-open this modal based on progress alone.
-  // On-chain graduation is already handled via useGraduationEvent on the
-  // pool page, which will open a separate GraduationModal when the
-  // actual Graduated event fires. Keeping this modal closed by default
-  // avoids double/confusing graduation notifications.
-
   return (
     <div className={cn("space-y-2.5", className)}>
       {/* Header */}
@@ -161,14 +145,6 @@ export function ProgressToGraduation({
         {totalRaisedFormatted} IP raised / {targetRaiseDisplay} IP target
       </div>
 
-      {/* Graduation Modal */}
-      <GraduationModal
-        open={showGraduationModal}
-        onOpenChange={setShowGraduationModal}
-        tokenTicker={tokenTicker}
-        tokenName={tokenName}
-        tokenAddress={tokenAddress}
-      />
     </div>
   )
 }

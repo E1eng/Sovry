@@ -74,6 +74,8 @@ export type TokenData = {
   marketCap: bigint;
   isActive: boolean;
   totalSupply: bigint;
+  rtAddress: string;
+  totalLocked: bigint;
   reserveBalanceFormatted: string;
   marketCapFormatted: string;
   totalSupplyFormatted: string;
@@ -147,6 +149,8 @@ export function useTokenData(tokenAddress?: string | null) {
     };
 
     const launched = launchedRes.result as readonly unknown[] & {
+      rtAddress?: string;
+      totalLocked?: bigint;
       initialCurveSupply?: bigint;
     };
 
@@ -156,6 +160,8 @@ export function useTokenData(tokenAddress?: string | null) {
     );
     const currentSupply = BigInt((curve as any).currentSupply ?? (Array.isArray(curve) ? (curve[2] as any) : 0n) ?? 0n);
     const reserveBalance = BigInt((curve as any).reserveBalance ?? (Array.isArray(curve) ? (curve[3] as any) : 0n) ?? 0n);
+    const rtAddress = String((launched as any).rtAddress ?? (Array.isArray(launched) ? (launched[0] as any) : ""));
+    const totalLocked = BigInt((launched as any).totalLocked ?? (Array.isArray(launched) ? (launched[5] as any) : 0n) ?? 0n);
     const initialCurveSupply = BigInt(
       (launched as any).initialCurveSupply ?? (Array.isArray(launched) ? (launched[10] as any) : 0n) ?? 0n
     );
@@ -173,6 +179,8 @@ export function useTokenData(tokenAddress?: string | null) {
       marketCap,
       isActive,
       totalSupply,
+      rtAddress,
+      totalLocked,
       reserveBalanceFormatted: formatEther(reserveBalance),
       marketCapFormatted: formatEther(marketCap),
       totalSupplyFormatted: formatEther(totalSupply),

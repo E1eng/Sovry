@@ -17,6 +17,7 @@ They can be deployed as separate services.
 - `npm run worker` - alias for `start:worker`
 - `npm run worker:dev` - alias for `dev:worker`
 - `npm run bot` - run keeper bot (harvest + push + sync jobs, ts-node bot.ts)
+- `npm run royalty:inject -- <wrapperToken> <amountIP> [--min <amountIP>] [--no-harvest]` - inject royalties into a token's Story vault, then run a one-off harvest (and buyback+burn if graduated)
 
 > Windows note: if you run `nodemon start-worker.ts` directly, PowerShell may say **"nodemon is not recognized"**.
 > Use `npm run dev` / `npm run dev:worker` (recommended) or `npx nodemon start-worker.ts`.
@@ -47,6 +48,15 @@ They can be deployed as separate services.
 - `GRAPH_WEBHOOK_SECRET` – same secret as above
 - `DISCORD_WEBHOOK_URL` – for alerts (startup, tx success/fail, low balance)
 - Intervals (optional): `HARVEST_INTERVAL_MS` (default 10m), `PUSH_INTERVAL_MS` (default 1h), `SYNC_INTERVAL_MS` (default 60s)
+
+### Royalty Injection Test (royaltyInjectionTest.ts)
+
+This is a local/dev helper to test the **royalty injection → harvest → buyback+burn** pipeline.
+
+Requirements:
+- `KEEPER_PRIVATE_KEY` (or `HARVESTER_PRIVATE_KEY`) must hold `KEEPER_ROLE` on the Exchange.
+- The wallet must have enough native IP to wrap into WIP.
+- For buyback+burn behavior, the token must be **graduated** and have an active PiperX pool.
 
 ### Graduation (Worker)
 
