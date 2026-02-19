@@ -8,15 +8,24 @@ import { AlertLevel, sendDiscordAlert } from './services/alerts';
 
 const exchangeAbi = (exchangeArtifact as any).abi ?? exchangeArtifact;
 
-const RPC_URL = process.env.RPC_URL || process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL;
-const KEEPER_PRIVATE_KEY = process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
-const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
-const SUBGRAPH_URL = process.env.SUBGRAPH_URL || process.env.GOLDSKY_ENDPOINT || '';
+const RPC_URL = (process.env.RPC_URL || process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || '').trim();
+const KEEPER_PRIVATE_KEY = (process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY || '').trim();
+const EXCHANGE_ADDRESS = (process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS || '').trim();
+const SUBGRAPH_URL = (process.env.SUBGRAPH_URL || process.env.GOLDSKY_ENDPOINT || '').trim();
 
 if (!RPC_URL) throw new Error('RPC_URL (or RPC_PROVIDER_URL) is required');
 if (!KEEPER_PRIVATE_KEY) throw new Error('KEEPER_PRIVATE_KEY (or PRIVATE_KEY) is required');
 if (!EXCHANGE_ADDRESS) throw new Error('SOVRY_EXCHANGE_ADDRESS is required');
 if (!SUBGRAPH_URL) throw new Error('SUBGRAPH_URL is required for token discovery');
+
+if (!ethers.isAddress(EXCHANGE_ADDRESS)) {
+  throw new Error(`SOVRY_EXCHANGE_ADDRESS must be a valid 0x address (got: "${EXCHANGE_ADDRESS}")`);
+}
+
+const NORMALIZED_PRIVATE_KEY = KEEPER_PRIVATE_KEY.startsWith('0x') ? KEEPER_PRIVATE_KEY : `0x${KEEPER_PRIVATE_KEY}`;
+if (!ethers.isHexString(NORMALIZED_PRIVATE_KEY, 32)) {
+  throw new Error('KEEPER_PRIVATE_KEY must be a 32-byte hex string (with or without 0x prefix)');
+}
 
 const HARVEST_THRESHOLD = ethers.parseEther('0.01'); // 0.01 WIP
 const PUSH_THRESHOLD = ethers.parseEther('0.05'); // 0.05 ETH
@@ -29,9 +38,9 @@ const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || '';
 
 const LOW_BALANCE_THRESHOLD = ethers.parseEther('0.1');
 
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const signer = new ethers.Wallet(KEEPER_PRIVATE_KEY, provider);
-const exchange = new ethers.Contract(EXCHANGE_ADDRESS, exchangeAbi, signer);
+const provider = new ethers.JsonRpcProvider(RPC_URL, undefined, { staticNetwork: true });
+const signer = new ethers.Wallet(NORMALIZED_PRIVATE_KEY, provider);
+const exchange = new ethers.Contract(ethers.getAddress(EXCHANGE_ADDRESS), exchangeAbi, signer);
 
 const royaltyAbi = ['function unclaimedRevenue(address ipAsset,address recipient) view returns (uint256)'];
 

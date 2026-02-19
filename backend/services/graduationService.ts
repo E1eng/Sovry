@@ -6,37 +6,54 @@ import { retryTx } from './utils';
 
 const EXCHANGE_ABI = (EXCHANGE_ARTIFACT as any).abi ?? EXCHANGE_ARTIFACT;
 
-const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io';
-const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
-const KEEPER_PRIVATE_KEY = process.env.HARVESTER_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
+const RPC_PROVIDER_URL = (process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io').trim();
+const EXCHANGE_ADDRESS = (process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS || '').trim();
+const KEEPER_PRIVATE_KEY = (process.env.HARVESTER_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY || '').trim();
 
 let provider: ethers.JsonRpcProvider | null = null;
 let signer: ethers.Wallet | null = null;
 let exchange: ethers.Contract | null = null;
 
+function getExchangeAddress(): string {
+  if (!EXCHANGE_ADDRESS) {
+    throw new Error('SOVRY_EXCHANGE_ADDRESS (or EXCHANGE_ADDRESS) is not set');
+  }
+  if (!ethers.isAddress(EXCHANGE_ADDRESS)) {
+    throw new Error(`SOVRY_EXCHANGE_ADDRESS is not a valid 0x address: "${EXCHANGE_ADDRESS}"`);
+  }
+  return ethers.getAddress(EXCHANGE_ADDRESS);
+}
+
+function getKeeperPrivateKey(): string {
+  if (!KEEPER_PRIVATE_KEY) {
+    throw new Error('KEEPER_PRIVATE_KEY / HARVESTER_PRIVATE_KEY / PRIVATE_KEY is not set in environment');
+  }
+
+  const pk = KEEPER_PRIVATE_KEY.startsWith('0x') ? KEEPER_PRIVATE_KEY : `0x${KEEPER_PRIVATE_KEY}`;
+  if (!ethers.isHexString(pk, 32)) {
+    throw new Error('KEEPER_PRIVATE_KEY must be a 32-byte hex string (with or without 0x prefix)');
+  }
+  return pk;
+}
+
 function getProvider() {
   if (!provider) {
-    provider = new ethers.JsonRpcProvider(RPC_PROVIDER_URL);
+    provider = new ethers.JsonRpcProvider(RPC_PROVIDER_URL, undefined, { staticNetwork: true });
   }
   return provider;
 }
 
 function getSigner() {
   if (!signer) {
-    if (!KEEPER_PRIVATE_KEY) {
-      throw new Error('KEEPER_PRIVATE_KEY / HARVESTER_PRIVATE_KEY / PRIVATE_KEY is not set in environment');
-    }
-    signer = new ethers.Wallet(KEEPER_PRIVATE_KEY, getProvider());
+    signer = new ethers.Wallet(getKeeperPrivateKey(), getProvider());
   }
   return signer;
 }
 
 function getExchange() {
   if (!exchange) {
-    if (!EXCHANGE_ADDRESS) {
-      throw new Error('SOVRY_EXCHANGE_ADDRESS (or EXCHANGE_ADDRESS) is not set');
-    }
-    exchange = new ethers.Contract(EXCHANGE_ADDRESS, EXCHANGE_ABI, getSigner());
+    const address = getExchangeAddress();
+    exchange = new ethers.Contract(address, EXCHANGE_ABI, getSigner());
   }
   return exchange;
 }

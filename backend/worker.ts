@@ -13,6 +13,14 @@ class SovryWorker {
   private graduationIntervalId: NodeJS.Timeout | null = null;
   private memoryCache: { price: string | null; timestamp: string | null } = { price: null, timestamp: null };
 
+  private async safeRun(label: string, fn: () => Promise<unknown>) {
+    try {
+      await fn();
+    } catch (error) {
+      console.error(`❌ [WORKER] ${label} failed:`, error);
+    }
+  }
+
   async initializeCache() {
     console.log('⚡ Using in-memory cache for real-time updates');
     this.memoryCache = { price: null, timestamp: null };
@@ -82,27 +90,49 @@ class SovryWorker {
     this.isRunning = true;
     
     // Start royalty state sync listener
-    startRoyaltyStateListener();
+    await this.safeRun('royalty state listener start', async () => {
+      startRoyaltyStateListener();
+    });
     
-    await this.updateIPPrice();
-    await pushFeesJob();
-    await harvestJob();
-    await graduationJob();
+    await this.safeRun('update IP price (startup)', async () => {
+      await this.updateIPPrice();
+    });
+    await this.safeRun('push fees (startup)', async () => {
+      await pushFeesJob();
+    });
+    await this.safeRun('harvest (startup)', async () => {
+      await harvestJob();
+    });
+    await this.safeRun('graduation (startup)', async () => {
+      await graduationJob();
+    });
 
     this.intervalId = setInterval(async () => {
-      if (this.isRunning) await this.updateIPPrice();
+      if (!this.isRunning) return;
+      await this.safeRun('update IP price (interval)', async () => {
+        await this.updateIPPrice();
+      });
     }, config.scheduler.priceIntervalMs);
 
     this.pushIntervalId = setInterval(async () => {
-      if (this.isRunning) await pushFeesJob();
+      if (!this.isRunning) return;
+      await this.safeRun('push fees (interval)', async () => {
+        await pushFeesJob();
+      });
     }, config.scheduler.pushIntervalMs);
 
     this.harvestIntervalId = setInterval(async () => {
-      if (this.isRunning) await harvestJob();
+      if (!this.isRunning) return;
+      await this.safeRun('harvest (interval)', async () => {
+        await harvestJob();
+      });
     }, config.scheduler.harvestIntervalMs);
 
     this.graduationIntervalId = setInterval(async () => {
-      if (this.isRunning) await graduationJob();
+      if (!this.isRunning) return;
+      await this.safeRun('graduation (interval)', async () => {
+        await graduationJob();
+      });
     }, config.scheduler.graduationIntervalMs);
 
     console.log('✅ Sovry Backend Worker started successfully');

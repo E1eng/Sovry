@@ -7,11 +7,13 @@ const EXCHANGE_ABI = (EXCHANGE_ARTIFACT as any).abi ?? EXCHANGE_ARTIFACT;
 
 const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
 
-const RPC_PROVIDER_URL =
-  process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || config.rpcUrl || 'https://mainnet.storyrpc.io';
-const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
-const KEEPER_PRIVATE_KEY =
-  process.env.HARVESTER_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
+const RPC_PROVIDER_URL = (
+  process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || config.rpcUrl || 'https://mainnet.storyrpc.io'
+).trim();
+const EXCHANGE_ADDRESS = (process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS || '').trim();
+const KEEPER_PRIVATE_KEY = (
+  process.env.HARVESTER_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY || ''
+).trim();
 
 const WIP_ABI = [
   'function deposit() external payable',
@@ -46,12 +48,20 @@ async function main() {
   }
 
   if (!EXCHANGE_ADDRESS) throw new Error('SOVRY_EXCHANGE_ADDRESS (or EXCHANGE_ADDRESS) is not set');
+  if (!ethers.isAddress(EXCHANGE_ADDRESS)) {
+    throw new Error(`SOVRY_EXCHANGE_ADDRESS is not a valid 0x address: "${EXCHANGE_ADDRESS}"`);
+  }
   if (!KEEPER_PRIVATE_KEY) throw new Error('KEEPER_PRIVATE_KEY / HARVESTER_PRIVATE_KEY / PRIVATE_KEY is not set');
 
-  const provider = new ethers.JsonRpcProvider(RPC_PROVIDER_URL);
-  const signer = new ethers.Wallet(KEEPER_PRIVATE_KEY, provider);
+  const normalizedPrivateKey = KEEPER_PRIVATE_KEY.startsWith('0x') ? KEEPER_PRIVATE_KEY : `0x${KEEPER_PRIVATE_KEY}`;
+  if (!ethers.isHexString(normalizedPrivateKey, 32)) {
+    throw new Error('KEEPER_PRIVATE_KEY must be a 32-byte hex string (with or without 0x prefix)');
+  }
 
-  const exchange = new ethers.Contract(EXCHANGE_ADDRESS, EXCHANGE_ABI, signer);
+  const provider = new ethers.JsonRpcProvider(RPC_PROVIDER_URL, undefined, { staticNetwork: true });
+  const signer = new ethers.Wallet(normalizedPrivateKey, provider);
+
+  const exchange = new ethers.Contract(ethers.getAddress(EXCHANGE_ADDRESS), EXCHANGE_ABI, signer);
 
   const tokenInfo = await exchange.launchedTokens(wrapper);
   const ipAsset = (tokenInfo.ipAsset ?? tokenInfo[3]) as string;

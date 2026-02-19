@@ -4,8 +4,8 @@ import { supabase } from './supabaseClient';
 
 const EXCHANGE_ABI = (EXCHANGE_ARTIFACT as any).abi ?? EXCHANGE_ARTIFACT;
 
-const RPC_PROVIDER_URL = process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io';
-const EXCHANGE_ADDRESS = process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS;
+const RPC_PROVIDER_URL = (process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io').trim();
+const EXCHANGE_ADDRESS = (process.env.SOVRY_EXCHANGE_ADDRESS || process.env.EXCHANGE_ADDRESS || '').trim();
 
 const POLL_INTERVAL_MS = 15_000;
 const LOG_LOOKBACK_BLOCKS = 500n;
@@ -15,19 +15,28 @@ let exchange: ethers.Contract | null = null;
 let pollTimer: NodeJS.Timeout | null = null;
 let lastPolledBlock = 0n;
 
+function getExchangeAddress(): string {
+  if (!EXCHANGE_ADDRESS) {
+    throw new Error('SOVRY_EXCHANGE_ADDRESS (or EXCHANGE_ADDRESS) is not set');
+  }
+  if (!ethers.isAddress(EXCHANGE_ADDRESS)) {
+    // If the env var has leading/trailing spaces, ethers may treat it as a name and try ENS.
+    throw new Error(`SOVRY_EXCHANGE_ADDRESS is not a valid 0x address: "${EXCHANGE_ADDRESS}"`);
+  }
+  return ethers.getAddress(EXCHANGE_ADDRESS);
+}
+
 function getProvider() {
   if (!provider) {
-    provider = new ethers.JsonRpcProvider(RPC_PROVIDER_URL);
+    provider = new ethers.JsonRpcProvider(RPC_PROVIDER_URL, undefined, { staticNetwork: true });
   }
   return provider;
 }
 
 function getExchange() {
   if (!exchange) {
-    if (!EXCHANGE_ADDRESS) {
-      throw new Error('SOVRY_EXCHANGE_ADDRESS (or EXCHANGE_ADDRESS) is not set');
-    }
-    exchange = new ethers.Contract(EXCHANGE_ADDRESS, EXCHANGE_ABI, getProvider());
+    const address = getExchangeAddress();
+    exchange = new ethers.Contract(address, EXCHANGE_ABI, getProvider());
   }
   return exchange;
 }
@@ -90,6 +99,7 @@ async function pollRoyaltyStateEvents() {
   try {
     const p = getProvider();
     const ex = getExchange();
+    const exchangeAddress = getExchangeAddress();
     const currentBlock = BigInt(await p.getBlockNumber());
 
     if (lastPolledBlock === 0n) {
@@ -104,7 +114,7 @@ async function pollRoyaltyStateEvents() {
     const topic = eventFragment.topicHash;
 
     const logs = await p.getLogs({
-      address: EXCHANGE_ADDRESS,
+      address: exchangeAddress,
       topics: [topic],
       fromBlock: lastPolledBlock + 1n,
       toBlock: currentBlock,
