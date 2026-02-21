@@ -1,0 +1,15 @@
+ALTER TABLE public.tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.revenue_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.tokens;
+CREATE POLICY "Enable read access for all users" ON public.tokens FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.revenue_events;
+CREATE POLICY "Enable read access for all users" ON public.revenue_events FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Anyone can post comments." ON public.comments;
+CREATE POLICY "Anyone can post comments." ON public.comments FOR INSERT WITH CHECK (auth.role() = 'authenticated' AND LOWER(user_address) = LOWER(auth.jwt()->>'sub'));
+DROP POLICY IF EXISTS "Allow anon insert/select launches" ON public.launches;
+CREATE POLICY "Allow anon select launches" ON public.launches FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated insert launches" ON public.launches FOR INSERT WITH CHECK (auth.role() = 'authenticated' AND LOWER(creator_address) = LOWER(auth.jwt()->>'sub'));
+DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
+CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.role() = 'authenticated' AND LOWER(wallet_address) = LOWER(auth.jwt()->>'sub'));
+DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
+CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.role() = 'authenticated' AND LOWER(wallet_address) = LOWER(auth.jwt()->>'sub')) WITH CHECK (auth.role() = 'authenticated' AND LOWER(wallet_address) = LOWER(auth.jwt()->>'sub'));

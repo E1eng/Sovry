@@ -175,7 +175,7 @@ export async function harvestWrapper(
         tx_hash: tx.hash,
         token_address: wrapper,
         amount: harvestedAmountWei.toString(),
-        type: isPostGrad ? 'HARVEST_BUYBACK' : 'HARVEST',
+        type: isPostGrad ? 'HARVEST_BUYBACK' : 'HARVEST_RESERVE',
       });
       if (evtErr) console.warn('[HARVEST][DB] revenue_events insert failed:', evtErr.message || evtErr);
 
