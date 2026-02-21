@@ -1,10 +1,11 @@
-# Sovry Backend (API + Worker + Keeper Bot)
+# Sovry Backend (API + Worker)
 
 This folder contains:
 
 - API server: Express app exposing HTTP endpoints for the frontend and webhook ingest for revenue events
 - Worker: background scheduler (price cache, pool data)
-- Keeper bot (`bot.ts`): executes royalty pull/push jobs and syncs revenue events from subgraph to Supabase via webhook
+
+Keeper operations (push fees / harvest from vault / graduation) are handled by the **worker** process.
 
 They can be deployed as separate services.
 
@@ -16,8 +17,7 @@ They can be deployed as separate services.
 - `npm run start:worker` - start the worker process (ts-node start-worker.ts)
 - `npm run worker` - alias for `start:worker`
 - `npm run worker:dev` - alias for `dev:worker`
-- `npm run bot` - run keeper bot (harvest + push + sync jobs, ts-node bot.ts)
-- `npm run royalty:inject -- <wrapperToken> <amountIP> [--min <amountIP>] [--no-harvest]` - inject royalties into a token's Story vault, then run a one-off harvest (and buyback+burn if graduated)
+- `npm run bot` - alias for `npm run worker` (kept for backwards compatibility)
 
 > Windows note: if you run `nodemon start-worker.ts` directly, PowerShell may say **"nodemon is not recognized"**.
 > Use `npm run dev` / `npm run dev:worker` (recommended) or `npx nodemon start-worker.ts`.
@@ -30,7 +30,7 @@ They can be deployed as separate services.
 - `POST /api/refresh-price`
 - `GET /api/worker/status`
 
-## Environment Variables (API + Worker + Bot)
+## Environment Variables (API + Worker)
 
 ### Required (API)
 - `SUBGRAPH_URL` – Goldsky GraphQL endpoint for pool data
@@ -39,24 +39,10 @@ They can be deployed as separate services.
 - `SUPABASE_SERVICE_ROLE_KEY` – used by webhook to write revenue events/totals
 - `GRAPH_WEBHOOK_SECRET` – shared secret header `x-sovry-secret`
 
-### Keeper Bot (bot.ts)
-- `RPC_URL` – Story RPC (Aeneid)
+### Keeper (Worker)
+- `RPC_PROVIDER_URL` – Story RPC
 - `KEEPER_PRIVATE_KEY` – holds `KEEPER_ROLE`
 - `SOVRY_EXCHANGE_ADDRESS` – Exchange contract
-- `SUBGRAPH_URL` – same Goldsky endpoint
-- `WEBHOOK_URL` – Next.js webhook endpoint (`/api/webhooks/graph`)
-- `GRAPH_WEBHOOK_SECRET` – same secret as above
-- `DISCORD_WEBHOOK_URL` – for alerts (startup, tx success/fail, low balance)
-- Intervals (optional): `HARVEST_INTERVAL_MS` (default 10m), `PUSH_INTERVAL_MS` (default 1h), `SYNC_INTERVAL_MS` (default 60s)
-
-### Royalty Injection Test (royaltyInjectionTest.ts)
-
-This is a local/dev helper to test the **royalty injection → harvest → buyback+burn** pipeline.
-
-Requirements:
-- `KEEPER_PRIVATE_KEY` (or `HARVESTER_PRIVATE_KEY`) must hold `KEEPER_ROLE` on the Exchange.
-- The wallet must have enough native IP to wrap into WIP.
-- For buyback+burn behavior, the token must be **graduated** and have an active PiperX pool.
 
 ### Graduation (Worker)
 
@@ -96,12 +82,6 @@ Create **two Railway services** pointing to the same repo:
 - Root directory: `backend`
 - Start command: `npm run start:worker`
 - Set env vars: `SUBGRAPH_URL`, `FRONTEND_URLS`, (optional) `STORYSCAN_API_KEY`
-
-### 3) Keeper Bot
-
-- Root directory: `backend`
-- Start command: `npm run bot`
-- Env: `RPC_URL`, `KEEPER_PRIVATE_KEY`, `SOVRY_EXCHANGE_ADDRESS`, `SUBGRAPH_URL`, `WEBHOOK_URL`, `GRAPH_WEBHOOK_SECRET`, `DISCORD_WEBHOOK_URL` (optional alerts), optional intervals
 
 ## Local Development
 

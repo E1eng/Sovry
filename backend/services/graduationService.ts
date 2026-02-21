@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import EXCHANGE_ARTIFACT from '../abis/SovryExchange.json';
-import { querySubgraph } from './subgraphService';
+import { supabase } from './supabaseClient';
 import { txMutex } from './mutex';
 import { retryTx } from './utils';
 
@@ -63,23 +63,24 @@ function getExchange() {
   return exchange;
 }
 
-async function fetchUngraduatedWrapperIds(limit = 100): Promise<string[]> {
-  const query = `
-    query UngraduatedWrappers($first: Int!, $skip: Int!) {
-      wrapperTokens(first: $first, skip: $skip, where: { graduated: false }, orderBy: launchTime, orderDirection: desc) {
-        id
-      }
-    }
-  `;
+async function fetchWrapperIds(limit = 100): Promise<string[]> {
+  // Use Supabase tokens as the authoritative list of wrapper tokens we care about.
+  // This keeps graduation working even if the subgraph still points at an old deployment.
+  const { data, error } = await supabase
+    .from('tokens')
+    .select('token_address')
+    .order('created_at', { ascending: false })
+    .limit(limit);
 
-  const json = await querySubgraph<any>(query, { first: limit, skip: 0 });
-  if (json.errors && json.errors.length) {
-    const first = json.errors[0];
-    throw new Error(first && first.message ? first.message : 'Subgraph query failed');
+  if (error) {
+    throw new Error(`[DB] tokens select failed: ${error.message || error}`);
   }
 
-  const items = (json.data && (json.data as any).wrapperTokens) || [];
-  return items.map((w: any) => w.id as string);
+  const rows = (data || []) as Array<{ token_address?: string | null }>;
+  return rows
+    .map((r) => String(r.token_address || '').trim())
+    .filter((addr) => addr && ethers.isAddress(addr))
+    .map((addr) => ethers.getAddress(addr));
 }
 
 async function hasKeeperRole(): Promise<boolean> {
@@ -106,10 +107,10 @@ export async function graduationJob(opts?: { limit?: number }) {
   }
 
   const limit = opts?.limit ?? 100;
-  const wrappers = await fetchUngraduatedWrapperIds(limit);
+  const wrappers = await fetchWrapperIds(limit);
 
   if (!wrappers.length) {
-    console.log('[GRADUATION] No ungraduated wrappers found');
+    console.log('[GRADUATION] No wrappers found');
     return { processed: 0, graduated: 0, skipped: 0 };
   }
 

@@ -1,5 +1,4 @@
 import { ethers } from 'ethers';
-import { querySubgraph } from './subgraphService';
 import EXCHANGE_ARTIFACT from '../abis/SovryExchange.json';
 import { supabase } from './supabaseClient';
 import { txMutex } from './mutex';
@@ -8,7 +7,12 @@ import { retryTx } from './utils';
 const EXCHANGE_ABI = (EXCHANGE_ARTIFACT as any).abi ?? EXCHANGE_ARTIFACT;
 
 const ROYALTY_MODULE_ABI = [
-  'function claimAllRevenue(address ipId, address receiver) external returns (uint256)',
+  'function ipRoyaltyVaults(address ipId) view returns (address)',
+];
+
+const VAULT_ABI = [
+  'function claimableRevenue(address claimer, address token) view returns (uint256)',
+  'function claimRevenueOnBehalfByTokenBatch(address claimer, address[] calldata tokenList) external returns (uint256[] memory)',
 ];
 
 const RPC_PROVIDER_URL = (process.env.RPC_PROVIDER_URL || process.env.MAINNET_RPC_URL || 'https://mainnet.storyrpc.io').trim();
@@ -116,17 +120,28 @@ export async function harvestWrapper(
   const ipAsset = (tokenInfo.ipAsset ?? tokenInfo[3]) as string;
   const isPostGrad = Boolean(tokenInfo.graduated ?? tokenInfo[6]);
 
+  // Skip if ipAsset is zero address (token not properly registered in Exchange)
+  if (!ipAsset || ipAsset === '0x0000000000000000000000000000000000000000') {
+    return { status: 'skipped', wrapper, reason: 'ipAsset not set in Exchange (token launched on different Exchange)' };
+  }
+
   const royalty = opts?.royaltyModule ?? (await getRoyaltyModule(ex));
   const minClaimableWei = opts?.minClaimableWei ?? HARVEST_THRESHOLD_WEI;
 
   let claimableWei = 0n;
   try {
-    // Simulate the vault claim with msg.sender = Exchange to match on-chain behavior.
-    claimableWei = (await royalty.claimAllRevenue.staticCall(ipAsset, exchangeAddress, {
-      from: exchangeAddress,
-    })) as bigint;
+    const vaultAddress = await royalty.ipRoyaltyVaults(ipAsset);
+    if (!vaultAddress || vaultAddress === '0x0000000000000000000000000000000000000000') {
+       return { status: 'skipped', wrapper, reason: 'No Royalty Vault deployed for IP' };
+    }
+
+    const wipToken = await ex.wipToken();
+    const vault = new ethers.Contract(vaultAddress, VAULT_ABI, getProvider());
+    
+    // Query claimable revenue for the Exchange contract
+    claimableWei = (await vault.claimableRevenue(exchangeAddress, wipToken)) as bigint;
   } catch (err) {
-    return { status: 'skipped', wrapper, reason: 'claimAllRevenue staticCall reverted' };
+    return { status: 'skipped', wrapper, reason: 'Failed to read claimableRevenue from vault' };
   }
 
   if (claimableWei < minClaimableWei) {
@@ -188,21 +203,25 @@ export async function harvestWrapper(
 }
 
 async function fetchWrapperIds() {
-  const query = `
-    query Wrappers($first: Int!, $skip: Int!) {
-      wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
-        id
-      }
-    }
-  `;
+  // Use Supabase as the source of truth for which tokens we care about.
+  // This prevents keeper jobs from looping over stale subgraph wrappers after a redeploy.
+  const { data, error } = await supabase
+    .from('tokens')
+    .select('token_address')
+    .order('created_at', { ascending: false })
+    .limit(500);
 
-  const json = await querySubgraph<any>(query, { first: 100, skip: 0 });
-  if (json.errors && json.errors.length) {
-    const first = json.errors[0];
-    throw new Error(first && first.message ? first.message : 'Subgraph query failed');
+  if (error) {
+    throw new Error(`[DB] tokens select failed: ${error.message || error}`);
   }
-  const items = (json.data && (json.data as any).wrapperTokens) || [];
-  return items.map((w: any) => w.id as string);
+
+  const rows = (data || []) as Array<{ token_address?: string | null }>;
+  const wrappers = rows
+    .map((r) => String(r.token_address || '').trim())
+    .filter((addr) => addr && ethers.isAddress(addr))
+    .map((addr) => ethers.getAddress(addr));
+
+  return wrappers;
 }
 
 

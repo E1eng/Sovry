@@ -9,7 +9,7 @@ import "../interfaces/IRoyaltyModule.sol";
  * @notice Mock implementation of Story Protocol Royalty Workflows
  * @dev Used for testing - sends 1 ETH to the claimer on each claimAllRevenue call
  */
-contract MockRoyaltyWorkflows is IRoyaltyModule {
+contract MockRoyaltyWorkflows is IRoyaltyModule, IIpRoyaltyVault {
     event PayRoyaltyOnBehalfCalled(address indexed childIpId, address indexed payer, address indexed currencyToken, uint256 amount);
 
     address public wipToken;
@@ -20,10 +20,16 @@ contract MockRoyaltyWorkflows is IRoyaltyModule {
     uint256 public lastAmount;
     uint256 public totalRoyaltyPaid;
 
-    /**
-     * @notice Mock claimAllRevenue that transfers available WIP (or 1 wei fallback) to claimer and reports the amount
-     */
-    function claimAllRevenue(address, address claimer) external override returns (uint256) {
+    function ipRoyaltyVaults(address) external view override returns (address) {
+        return address(this);
+    }
+
+    function claimableRevenue(address, address) external pure override returns (uint256) {
+        return 0;
+    }
+
+    function claimRevenueOnBehalfByTokenBatch(address claimer, address[] calldata tokenList) external override returns (uint256[] memory) {
+        uint256[] memory amounts = new uint256[](tokenList.length);
         uint256 transferred;
 
         if (wipToken != address(0)) {
@@ -42,7 +48,11 @@ contract MockRoyaltyWorkflows is IRoyaltyModule {
             transferred = 1;
         }
 
-        return transferred;
+        if (tokenList.length > 0) {
+            amounts[0] = transferred;
+        }
+        
+        return amounts;
     }
 
     function payRoyaltyOnBehalf(address childIpId, address payer, address currencyToken, uint256 amount) external override {
@@ -53,7 +63,7 @@ contract MockRoyaltyWorkflows is IRoyaltyModule {
         totalRoyaltyPaid += amount;
 
         IERC20(currencyToken).transferFrom(payer, childIpId, amount);
-
+        
         emit PayRoyaltyOnBehalfCalled(childIpId, payer, currencyToken, amount);
     }
 

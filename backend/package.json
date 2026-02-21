@@ -13,9 +13,7 @@
     "dev:worker": "nodemon start-worker.ts",
     "worker": "ts-node start-worker.ts",
     "worker:dev": "nodemon start-worker.ts",
-    "bot": "ts-node bot.ts",
-    "backfill:tokens": "ts-node backfillTokens.ts",
-    "royalty:inject": "ts-node royaltyInjectionTest.ts"
+    "bot": "ts-node start-worker.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

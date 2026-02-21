@@ -206,7 +206,12 @@ contract SovryExchange is ReentrancyGuard, AccessControl, ISovryExchange {
 
         uint256 balanceBefore = IERC20(wipToken).balanceOf(address(this));
 
-        IRoyaltyModule(royaltyWorkflows).claimAllRevenue(token.ipAsset, address(this));
+        address vault = IRoyaltyModule(royaltyWorkflows).ipRoyaltyVaults(token.ipAsset);
+        if (vault != address(0)) {
+            address[] memory tokens = new address[](1);
+            tokens[0] = wipToken;
+            IIpRoyaltyVault(vault).claimRevenueOnBehalfByTokenBatch(address(this), tokens);
+        }
 
         uint256 balanceAfter = IERC20(wipToken).balanceOf(address(this));
         if (balanceAfter <= balanceBefore) return; // nothing harvested

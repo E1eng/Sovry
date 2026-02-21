@@ -3,6 +3,13 @@ import hre from "hardhat";
 import fs from "fs";
 import path from "path";
 
+// Story Protocol RoyaltyModule addresses (do not override with env)
+// Source: https://docs.story.foundation/developers/deployed-smart-contracts
+const STORY_ROYALTY_MODULE: Record<string, string> = {
+  mainnet: "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086",
+  aeneid: "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086",
+};
+
 async function main() {
   console.log("🚀 Deploying Sovry Protocol to", hre.network.name);
 
@@ -18,7 +25,9 @@ async function main() {
   const piperXV3SwapRouter = process.env.PIPERX_V3_SWAP_ROUTER || process.env.PIPERX_V3_SWAP_ROUTER_AENEID;
   const piperXV3PositionManager =
     process.env.PIPERX_V3_POSITION_MANAGER || process.env.PIPERX_V3_POSITION_MANAGER_AENEID;
-  const royaltyWorkflows = process.env.ROYALTY_WORKFLOWS || process.env.ROYALTY_WORKFLOWS_AENEID;
+  // Use Story Protocol RoyaltyModule (NOT Sovry contracts / random env overrides)
+  const royaltyWorkflows =
+    STORY_ROYALTY_MODULE[hre.network.name] || process.env.ROYALTY_WORKFLOWS || process.env.ROYALTY_WORKFLOWS_AENEID;
   const wipToken = process.env.WIP_ADDRESS || process.env.WIP_ADDRESS_AENEID;
   const keeperAddress = process.env.KEEPER_ADDRESS || deployer.address;
   const shouldVerify = !!process.env.STORYSCAN_API_KEY && process.env.SKIP_AUTO_VERIFY !== "true";
@@ -28,7 +37,7 @@ async function main() {
 
   if (!treasury || !piperXV3Factory || !piperXV3SwapRouter || !piperXV3PositionManager || !royaltyWorkflows || !wipToken) {
     throw new Error(
-      "Missing one or more required env vars: TREASURY_ADDRESS, PIPERX_V3_FACTORY, PIPERX_V3_SWAP_ROUTER, PIPERX_V3_POSITION_MANAGER, ROYALTY_WORKFLOWS, WIP_ADDRESS"
+      "Missing one or more required env vars: TREASURY_ADDRESS, PIPERX_V3_FACTORY, PIPERX_V3_SWAP_ROUTER, PIPERX_V3_POSITION_MANAGER, WIP_ADDRESS"
     );
   }
 
@@ -41,7 +50,7 @@ async function main() {
   console.log("  piperXV3Factory:", piperXV3Factory);
   console.log("  piperXV3SwapRouter:", piperXV3SwapRouter);
   console.log("  piperXV3PositionManager:", piperXV3PositionManager);
-  console.log("  royaltyWorkflows:", royaltyWorkflows);
+  console.log("  royaltyWorkflows (Story RoyaltyModule):", royaltyWorkflows);
   console.log("  wipToken:", wipToken);
   console.log("  graduationThreshold (ETH):", graduationThresholdEth);
   console.log("  keeper:", keeperAddress);

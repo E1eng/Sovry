@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const { data: tokenRow, error: selErr } = await supabase
       .from('tokens')
       .select('total_harvested_amount')
-      .eq('address', tokenAddress)
+      .eq('token_address', tokenAddress)
       .maybeSingle();
 
     if (selErr) {
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     const { error: upErr } = await supabase
       .from('tokens')
-      .upsert({ address: tokenAddress, total_harvested_amount: next }, { onConflict: 'address' });
+      .upsert({ token_address: tokenAddress, total_harvested_amount: next }, { onConflict: 'token_address' });
 
     if (upErr) {
       console.error('[webhook] upsert token failed:', upErr.message || upErr);

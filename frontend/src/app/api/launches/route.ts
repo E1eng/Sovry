@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createPublicClient, fallback, getAddress, http, type Address, formatEther } from "viem"
-import { getSubgraphUrl, STORY_RPC_URLS } from "@/lib/env"
+import { STORY_RPC_URLS } from "@/lib/env"
 import { exchangeReadAbi } from "@/constants/abis"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic"
 
 const GRADUATION_THRESHOLD_IP = 10_000
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+const SUBGRAPH_URL = String(process.env.NEXT_PUBLIC_SUBGRAPH_URL || "").trim()
 
 const RAW_EXCHANGE_ADDRESS = String(process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS || "").trim()
 if (!RAW_EXCHANGE_ADDRESS) throw new Error("NEXT_PUBLIC_EXCHANGE_ADDRESS is required")
@@ -106,7 +108,11 @@ interface EnrichedLaunch {
 }
 
 async function fetchSubgraphDirect(query: string, variables?: Record<string, unknown>) {
-  const url = getSubgraphUrl()
+  if (!SUBGRAPH_URL) {
+    return { ok: false, json: { error: "NEXT_PUBLIC_SUBGRAPH_URL not set" } }
+  }
+
+  const url = SUBGRAPH_URL
   const res = await fetch(url, {
     cache: "no-store",
     method: "POST",
@@ -129,34 +135,33 @@ async function fetchTokensFromDB(limit: number): Promise<TokenRow[]> {
   return data as TokenRow[]
 }
 
-async function resolveWrappers(addresses: string[]): Promise<Map<string, string>> {
+async function resolveWrappers(
+  client: ReturnType<typeof getPublicClient>,
+  addresses: string[]
+): Promise<Map<string, string>> {
   const mapped = new Map<string, string>()
   const valid = addresses.filter(isValidAddress)
   if (valid.length === 0) return mapped
 
-  const [byIdRes, byRtRes] = await Promise.all([
-    fetchSubgraphDirect(
-      `query($ids:[String!]!){wrapperTokens(where:{id_in:$ids}){id rt}}`,
-      { ids: valid }
-    ),
-    fetchSubgraphDirect(
-      `query($rts:[String!]!){wrapperTokens(where:{rt_in:$rts}){id rt}}`,
-      { rts: valid }
-    ),
-  ])
+  // Resolve RT -> wrapper directly from the exchange contract to avoid stale subgraph data.
+  const results = await Promise.allSettled(
+    valid.map(async (addr) => {
+      const wrapper = await client.readContract({
+        address: EXCHANGE_ADDRESS,
+        abi: exchangeReadAbi,
+        functionName: "rtToWrapper",
+        args: [addr as Address],
+      })
+      return { input: addr, wrapper: normalizeAddress(wrapper as string) }
+    })
+  )
 
-  const rowsById = (byIdRes.ok ? byIdRes.json?.data?.wrapperTokens || [] : []) as Array<{ id?: string; rt?: string }>
-  const rowsByRt = (byRtRes.ok ? byRtRes.json?.data?.wrapperTokens || [] : []) as Array<{ id?: string; rt?: string }>
-
-  for (const row of [...rowsById, ...rowsByRt]) {
-    const wrapper = normalizeAddress(row.id)
-    const rt = normalizeAddress(row.rt)
-    if (isValidAddress(wrapper)) {
-      mapped.set(wrapper, wrapper)
-      if (isValidAddress(rt)) {
-        mapped.set(rt, wrapper)
-      }
-    }
+  for (const r of results) {
+    if (r.status !== "fulfilled") continue
+    const { input, wrapper } = r.value
+    if (!isValidAddress(wrapper)) continue
+    mapped.set(input, wrapper)
+    mapped.set(wrapper, wrapper)
   }
 
   return mapped
@@ -302,14 +307,15 @@ export async function GET(req: Request) {
 
     const addresses = rows.map((r) => normalizeAddress(r.token_address))
 
-    // 2. Resolve wrapper addresses via subgraph
-    const wrapperMap = await resolveWrappers(addresses)
+    const client = getPublicClient()
+
+    // 2. Resolve wrapper addresses via exchange (no subgraph)
+    const wrapperMap = await resolveWrappers(client, addresses)
 
     const resolvedAddresses = addresses.map((addr) => wrapperMap.get(addr) || addr)
     const uniqueWrapperIds = Array.from(new Set(resolvedAddresses.filter(isValidAddress)))
 
     // 3. Fetch onchain state for each wrapper
-    const client = getPublicClient()
     const onchainResults = await Promise.allSettled(
       uniqueWrapperIds.map((w) => fetchOnchainState(client, w as Address))
     )
