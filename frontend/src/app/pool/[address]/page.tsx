@@ -567,7 +567,7 @@ export default function TokenDetailPage() {
                     )}
                   </div>
                   <div>
-                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Revenue Injected</div>
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Revenue</div>
                     <span className="text-xs font-mono text-foreground tabular-nums">{revenueInjectedLabel}</span>
                   </div>
                 </div>

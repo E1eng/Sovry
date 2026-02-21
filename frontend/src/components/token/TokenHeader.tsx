@@ -354,7 +354,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                       </div>
                     </div>
                     <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Revenue Injected</div>
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Revenue</div>
                       <div className="text-[11px] text-foreground font-mono tabular-nums">
                         {formatAmount(wrapperMeta.totalRoyaltiesHarvested, 18, 0)} WIP
                       </div>
