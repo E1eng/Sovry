@@ -14,6 +14,11 @@ let provider: ethers.JsonRpcProvider | null = null;
 let signer: ethers.Wallet | null = null;
 let exchange: ethers.Contract | null = null;
 
+function shortEthersError(err: unknown): string {
+  const e = err as any;
+  return String(e?.shortMessage || e?.reason || e?.message || err);
+}
+
 function getExchangeAddress(): string {
   if (!EXCHANGE_ADDRESS) {
     throw new Error('SOVRY_EXCHANGE_ADDRESS (or EXCHANGE_ADDRESS) is not set');
@@ -128,17 +133,32 @@ export async function graduationJob(opts?: { limit?: number }) {
 
       console.log(`[GRADUATION] Eligible: ${wrapper} marketCap=${ethers.formatEther(marketCap)} threshold=${thresholdFmt}`);
 
+      // The contract requires there to be non-zero curve reserves (nativeLiquidity) at graduation.
+      // With the current economics, marketCap can hit the threshold immediately at launch while
+      // reserveBalance is still 0 (no buys/harvest yet) -> graduate() reverts InvalidAmount.
+      try {
+        const curve = await ex.bondingCurves(wrapper);
+        const reserveBalance = (curve.reserveBalance ?? curve[3] ?? 0n) as bigint;
+        if (reserveBalance === 0n) {
+          skipped += 1;
+          console.log(`[GRADUATION] Skipping ${wrapper}: reserveBalance=0 (would revert InvalidAmount)`);
+          continue;
+        }
+      } catch {
+        // Best-effort: if curve read fails, fall back to staticCall simulation below.
+      }
+
       // Prevent repeated reverted txs (DexLiquidityFailed, missing pool preconditions, etc)
       // by simulating first.
       try {
         await ex.graduate.staticCall(wrapper);
       } catch (err: any) {
         skipped += 1;
-        const msg = err?.message ?? String(err);
+        const msg = shortEthersError(err);
         if (msg.includes('TokenGraduated') || msg.includes('already graduated')) {
           console.log(`[GRADUATION] ${wrapper} already graduated (subgraph not yet synced). Skipping.`);
         } else {
-          console.warn(`[GRADUATION] graduate() would revert for ${wrapper} (staticCall). Skipping tx.`, err);
+          console.warn(`[GRADUATION] graduate() would revert for ${wrapper} (staticCall). Skipping tx. ${msg}`);
         }
         continue;
       }
@@ -156,7 +176,7 @@ export async function graduationJob(opts?: { limit?: number }) {
       graduated += 1;
     } catch (err) {
       skipped += 1;
-      console.warn(`[GRADUATION] graduate() failed for ${wrapper}:`, err);
+      console.warn(`[GRADUATION] graduate() failed for ${wrapper}: ${shortEthersError(err)}`);
     }
   }
 

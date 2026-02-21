@@ -15,13 +15,13 @@
   },
   "contracts": {
     "BondingCurveLib": "0x15e659bDf00BD9e5569BF663De5D1C807f43E93a",
-    "SovryExchange": "0xc29889131CE0c7323a4A469FeC803510681e2AD0",
+    "SovryExchange": "0xE95349982e66D500019625D4cEF2e750B3aDE528",
     "SovryFactory": "0x1dA644f473d7278C94Ba1aD2f9969f399FEe6D80",
     "SovryRouter": "0x82A6272b54e51caE6cefe51bB3c2aF38358f00D3"
   },
   "blocks": {
     "BondingCurveLib": null,
-    "SovryExchange": 14289830,
+    "SovryExchange": 14360550,
     "SovryFactory": 14289832,
     "SovryRouter": 14289834,
     "subgraphStartBlock": 14289832

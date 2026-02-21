@@ -444,7 +444,7 @@ export default function CreatePage() {
 
       if (supabase && wrapperAddress) {
         const initialImageUrl = launchImageUrl.trim() || ipAsset.imageUrl || null;
-        await supabase.from("tokens").upsert(
+        const { error: tokenErr } = await supabase.from("tokens").upsert(
           {
             token_address: wrapperAddress,
             name: nameForLaunch,
@@ -455,6 +455,13 @@ export default function CreatePage() {
           },
           { onConflict: "token_address" }
         );
+
+        if (tokenErr) {
+          logger.error("Supabase tokens upsert failed (initial persist)", tokenErr);
+          toast.error(`Failed to save token to Supabase (tokens): ${tokenErr.message}`, {
+            duration: 6000,
+          });
+        }
       }
 
       try {
@@ -493,7 +500,7 @@ export default function CreatePage() {
         }
 
         if (supabase && wrapperAddress) {
-          await supabase.from("tokens").upsert(
+          const { error: tokenErr } = await supabase.from("tokens").upsert(
             {
               token_address: wrapperAddress,
               name: nameForLaunch,
@@ -504,6 +511,13 @@ export default function CreatePage() {
             },
             { onConflict: "token_address" }
           );
+
+          if (tokenErr) {
+            logger.error("Supabase tokens upsert failed (final metadata persist)", tokenErr);
+            toast.error(`Failed to save token to Supabase (tokens): ${tokenErr.message}`, {
+              duration: 6000,
+            });
+          }
         }
 
         const metadata = {
@@ -536,7 +550,7 @@ export default function CreatePage() {
         );
 
         if (supabase) {
-          await supabase.from("launches").insert({
+          const { error: launchErr } = await supabase.from("launches").insert({
             royalty_token_address: ipAsset.royaltyVaultAddress.toLowerCase(),
             creator_address: walletAddress?.toLowerCase() || null,
             ip_id: ipAsset.ipId, // backing IP Account on Story
@@ -549,6 +563,13 @@ export default function CreatePage() {
             website_url: normalizedWebsiteUrl || null,
             metadata_uri: metadataRes?.uri || ipAsset.metadataUri || null,
           });
+
+          if (launchErr) {
+            logger.error("Supabase launches insert failed", launchErr);
+            toast.error(`Failed to save launch metadata to Supabase (launches): ${launchErr.message}`, {
+              duration: 6000,
+            });
+          }
         }
       } catch (metaError) {
         logger.error("Failed to persist wrapper metadata", metaError);

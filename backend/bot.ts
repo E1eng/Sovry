@@ -42,8 +42,6 @@ const provider = new ethers.JsonRpcProvider(RPC_URL, undefined, { staticNetwork:
 const signer = new ethers.Wallet(NORMALIZED_PRIVATE_KEY, provider);
 const exchange = new ethers.Contract(ethers.getAddress(EXCHANGE_ADDRESS), exchangeAbi, signer);
 
-const royaltyAbi = ['function unclaimedRevenue(address ipAsset,address recipient) view returns (uint256)'];
-
 let lastSyncedBlock = 0n;
 
 async function fetchWrappers(): Promise<{ id: string; ipAsset: string }[]> {
@@ -60,16 +58,10 @@ async function fetchWrappers(): Promise<{ id: string; ipAsset: string }[]> {
   return res.data?.data?.wrapperTokens || [];
 }
 
-async function getUnclaimed(ipAsset: string, royaltyModule: string): Promise<bigint> {
-  if (!royaltyModule || royaltyModule === ethers.ZeroAddress) return 0n;
-  const mod = new ethers.Contract(royaltyModule, royaltyAbi, provider);
-  try {
-    const result: bigint = await mod.unclaimedRevenue(ipAsset, EXCHANGE_ADDRESS);
-    return result || 0n;
-  } catch (err) {
-    console.warn('[HARVEST] unclaimedRevenue failed:', err);
-    return 0n;
-  }
+
+function shortEthersError(err: unknown): string {
+  const e = err as any;
+  return String(e?.shortMessage || e?.reason || e?.message || err);
 }
 
 function mapToPayload(evt: any) {
@@ -145,14 +137,15 @@ async function runHarvestJob() {
       return;
     }
 
-    const royaltyModule: string = await exchange.royaltyWorkflows();
-
     for (const w of wrappers) {
       try {
-        const token = await exchange.launchedTokens(w.id);
-        const ipAsset = token.ipAsset as string;
-        const unclaimed = await getUnclaimed(ipAsset, royaltyModule);
-        if (unclaimed < HARVEST_THRESHOLD) continue;
+        // Avoid wasting gas on reverted txs (missing role, invalid wrapper, etc)
+        try {
+          await exchange.harvestFromVault.staticCall(w.id);
+        } catch (simErr) {
+          console.warn(`[HARVEST] harvestFromVault would revert for ${w.id}: ${shortEthersError(simErr)}`);
+          continue;
+        }
 
         await txMutex.runExclusive(async () => {
           const tx = await retryTx(async () => {
@@ -164,7 +157,7 @@ async function runHarvestJob() {
           await sendDiscordAlert('Harvest success', `Harvested for ${w.id} tx=${tx.hash}`, AlertLevel.INFO);
         });
       } catch (err) {
-        console.warn(`[HARVEST] Harvest failed for ${w.id}:`, err);
+        console.warn(`[HARVEST] Harvest failed for ${w.id}: ${shortEthersError(err)}`);
         await sendDiscordAlert('Harvest failed', `Wrapper ${w.id}: ${String(err)}`, AlertLevel.ERROR);
       }
     }

@@ -22,7 +22,7 @@ export interface LaunchData {
 
 async function fetchEnrichedLaunches(limit: number): Promise<LaunchData[]> {
   try {
-    const res = await fetch(`/api/launches?limit=${limit}`)
+    const res = await fetch(`/api/launches?limit=${limit}`, { cache: "no-store" })
     if (!res.ok) {
       logger.warn("Failed to fetch enriched launches", { status: res.status })
       return []

@@ -53,28 +53,36 @@ export async function handleRoyaltyStateUpdated(
   timestamp: Date
 ) {
   try {
-    console.log(`[ROYALTY_SYNC] Handling RoyaltyStateUpdated for ${wrapperToken}`);
+    const wrapperKey = String(wrapperToken || '').toLowerCase();
+    console.log(`[ROYALTY_SYNC] Handling RoyaltyStateUpdated for ${wrapperKey}`);
     
     // Update tokens table with latest harvested amount
-    const { error: tokErr } = await supabase
+    const { data: updatedTokens, error: tokErr } = await supabase
       .from('tokens')
-      .upsert({
-        token_address: wrapperToken,
+      // IMPORTANT: do NOT upsert here.
+      // The homepage list is sourced from Supabase `tokens` and manual deletes
+      // should stick. If we upsert on every on-chain event, deleted rows will
+      // reappear as "ghost" tokens.
+      .update({
         total_harvested_amount: totalHarvested.toString(),
         unclaimed_amount: accumulatedNative.toString(),
-        updated_at: timestamp.toISOString()
-      }, { onConflict: 'token_address' })
-      .select();
+      })
+      .eq('token_address', wrapperKey)
+      .select('token_address');
 
     if (tokErr) {
       console.error('[ROYALTY_SYNC] Failed to update tokens table:', tokErr.message);
       return false;
     }
 
+    if (!updatedTokens || updatedTokens.length === 0) {
+      console.log(`[ROYALTY_SYNC] tokens row missing for ${wrapperKey}; skipping tokens update (won't auto-insert)`);
+    }
+
     // Log sync event
     const { error: syncErr } = await supabase.from('royalty_sync_events').insert({
       tx_hash: txHash,
-      token_address: wrapperToken,
+      token_address: wrapperKey,
       total_harvested: totalHarvested.toString(),
       accumulated_native: accumulatedNative.toString(),
       synced_at: timestamp.toISOString(),

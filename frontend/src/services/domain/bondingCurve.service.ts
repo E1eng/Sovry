@@ -1,4 +1,4 @@
-import { encodeFunctionData, type Address } from "viem";
+import { encodeFunctionData, getAddress, type Address } from "viem";
 import { erc20Abi } from "viem";
 
 import { logger } from "@/lib/logger";
@@ -6,24 +6,34 @@ import { logger } from "@/lib/logger";
 import type { PrimaryWalletLike } from "./types";
 import { getStoryPublicClient } from "./clients";
 
-const RAW_LAUNCHPAD_ADDRESS = process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS;
-if (!RAW_LAUNCHPAD_ADDRESS) {
-  throw new Error("NEXT_PUBLIC_LAUNCHPAD_ADDRESS is required but not set in environment variables");
+function requireAddress(envName: string, value: string | undefined): Address {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    throw new Error(`${envName} is required but not set in environment variables`);
+  }
+
+  try {
+    return getAddress(trimmed);
+  } catch {
+    // Common footgun: values like " 0xabc..." (leading space) make viem treat it as invalid.
+    throw new Error(`${envName} must be a valid 0x address (got: "${trimmed}")`);
+  }
 }
 
-const RAW_ROUTER_ADDRESS = process.env.NEXT_PUBLIC_ROUTER_ADDRESS;
-if (!RAW_ROUTER_ADDRESS) {
-  throw new Error("NEXT_PUBLIC_ROUTER_ADDRESS is required but not set in environment variables");
-}
+export const SOVRY_LAUNCHPAD_ADDRESS = requireAddress(
+  "NEXT_PUBLIC_LAUNCHPAD_ADDRESS",
+  process.env.NEXT_PUBLIC_LAUNCHPAD_ADDRESS,
+);
 
-const RAW_EXCHANGE_ADDRESS = process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS;
-if (!RAW_EXCHANGE_ADDRESS) {
-  throw new Error("NEXT_PUBLIC_EXCHANGE_ADDRESS is required but not set in environment variables");
-}
+export const SOVRY_ROUTER_ADDRESS = requireAddress(
+  "NEXT_PUBLIC_ROUTER_ADDRESS",
+  process.env.NEXT_PUBLIC_ROUTER_ADDRESS,
+);
 
-export const SOVRY_LAUNCHPAD_ADDRESS = RAW_LAUNCHPAD_ADDRESS;
-export const SOVRY_ROUTER_ADDRESS = RAW_ROUTER_ADDRESS;
-export const SOVRY_EXCHANGE_ADDRESS = RAW_EXCHANGE_ADDRESS;
+export const SOVRY_EXCHANGE_ADDRESS = requireAddress(
+  "NEXT_PUBLIC_EXCHANGE_ADDRESS",
+  process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS,
+);
 
 const DEFAULT_BASE_PRICE_WEI = BigInt(process.env.NEXT_PUBLIC_BASE_PRICE_WEI || "2500000000000000");
 const DEFAULT_PRICE_INCREMENT_WEI = BigInt(process.env.NEXT_PUBLIC_PRICE_INCREMENT_WEI || "15625000000");

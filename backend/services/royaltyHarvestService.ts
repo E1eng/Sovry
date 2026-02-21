@@ -167,11 +167,18 @@ export async function harvestWrapper(
       const tokenAfter = await ex.launchedTokens(wrapper);
       const totalHarvested = (tokenAfter.totalRoyaltiesHarvested ?? tokenAfter[7]) as bigint;
 
-      const { error: tokErr } = await supabase
+      const wrapperKey = String(wrapper || '').toLowerCase();
+      const { data: updatedTokens, error: tokErr } = await supabase
         .from('tokens')
-        .upsert({ token_address: wrapper, total_harvested_amount: totalHarvested.toString() }, { onConflict: 'token_address' })
-        .select();
-      if (tokErr) console.warn('[HARVEST][DB] tokens upsert failed:', tokErr.message || tokErr);
+        // Don't upsert: manual deletes should stick and not reappear as "ghost" tokens.
+        .update({ total_harvested_amount: totalHarvested.toString() })
+        .eq('token_address', wrapperKey)
+        .select('token_address');
+      if (tokErr) {
+        console.warn('[HARVEST][DB] tokens update failed:', tokErr.message || tokErr);
+      } else if (!updatedTokens || updatedTokens.length === 0) {
+        console.log(`[HARVEST][DB] tokens row missing for ${wrapperKey}; skipping tokens update (won't auto-insert)`);
+      }
     } catch (dbErr) {
       console.warn('[HARVEST][DB] post-tx updates failed:', dbErr);
     }

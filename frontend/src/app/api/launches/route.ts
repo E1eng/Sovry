@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createPublicClient, fallback, http, type Address, formatEther } from "viem"
+import { createPublicClient, fallback, getAddress, http, type Address, formatEther } from "viem"
 import { getSubgraphUrl, STORY_RPC_URLS } from "@/lib/env"
 import { exchangeReadAbi } from "@/constants/abis"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
@@ -10,9 +10,14 @@ export const dynamic = "force-dynamic"
 const GRADUATION_THRESHOLD_IP = 10_000
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
-const EXCHANGE_ADDRESS = process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS as Address
-if (!EXCHANGE_ADDRESS) {
-  throw new Error("NEXT_PUBLIC_EXCHANGE_ADDRESS is required")
+const RAW_EXCHANGE_ADDRESS = String(process.env.NEXT_PUBLIC_EXCHANGE_ADDRESS || "").trim()
+if (!RAW_EXCHANGE_ADDRESS) throw new Error("NEXT_PUBLIC_EXCHANGE_ADDRESS is required")
+
+let EXCHANGE_ADDRESS: Address
+try {
+  EXCHANGE_ADDRESS = getAddress(RAW_EXCHANGE_ADDRESS)
+} catch {
+  throw new Error(`NEXT_PUBLIC_EXCHANGE_ADDRESS must be a valid 0x address (got: "${RAW_EXCHANGE_ADDRESS}")`)
 }
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
@@ -21,7 +26,15 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 let _sb: SupabaseClient | null = null
 function getSupabase(): SupabaseClient | null {
   if (!supabaseUrl || !supabaseKey) return null
-  if (!_sb) _sb = createClient(supabaseUrl, supabaseKey)
+  if (!_sb) {
+    // Disable Next.js fetch caching so Supabase reads reflect latest inserts/deletes.
+    _sb = createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...(init || {}), cache: "no-store" }),
+      },
+    })
+  }
   return _sb
 }
 
@@ -95,6 +108,7 @@ interface EnrichedLaunch {
 async function fetchSubgraphDirect(query: string, variables?: Record<string, unknown>) {
   const url = getSubgraphUrl()
   const res = await fetch(url, {
+    cache: "no-store",
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
@@ -283,7 +297,7 @@ export async function GET(req: Request) {
     // 1. Fetch tokens from Supabase
     const rows = await fetchTokensFromDB(limit)
     if (rows.length === 0) {
-      return NextResponse.json({ launches: [] })
+      return NextResponse.json({ launches: [] }, { headers: { "Cache-Control": "no-store" } })
     }
 
     const addresses = rows.map((r) => normalizeAddress(r.token_address))
@@ -347,10 +361,13 @@ export async function GET(req: Request) {
       }
     })
 
-    return NextResponse.json({ launches })
+    return NextResponse.json({ launches }, { headers: { "Cache-Control": "no-store" } })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error"
     console.error("[api/launches] Error:", message, err)
-    return NextResponse.json({ launches: [], error: message }, { status: 500 })
+    return NextResponse.json(
+      { launches: [], error: message },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
+    )
   }
 }
