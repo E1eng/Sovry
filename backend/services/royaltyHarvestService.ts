@@ -291,11 +291,13 @@ export async function harvestJob() {
       const res = await harvestWrapper(wrapper, { royaltyModule: royalty });
       if (res.status === 'harvested') {
         harvested += 1;
+        console.log(`[HARVEST] ✅ SUCCESS! Harvested ${ethers.formatEther(res.harvestedAmountWei)} WIP for ${wrapper}. Tx: ${res.txHash}`);
         if (res.buybackFailedReason) {
-          console.warn(`[HARVEST] Buyback failed for ${wrapper}:`, res.buybackFailedReason);
+          console.warn(`[HARVEST] ⚠️ Buyback failed for ${wrapper}:`, res.buybackFailedReason);
         }
       } else {
         skipped += 1;
+        console.log(`[HARVEST] Skipped ${wrapper}: ${res.reason}`);
       }
     } catch (err) {
       skipped += 1;
