@@ -63,7 +63,7 @@ async function main() {
   );
 
   // IP ID child yang akan dibayar royalty-nya
-  const CHILD_IP_ID = normalizeAddress("CHILD_IP_ID", "0x6DFA15fe0fd6BBee119DDe39F87587143D9190dB");
+  const CHILD_IP_ID = normalizeAddress("CHILD_IP_ID", "0xAA62756203047Ca9b6146934F4BB54D744c52A93");
 
   // Jumlah token yang mau di-inject (dalam smallest units, misal 1 * 10^decimals)
   const AMOUNT = ethers.utils.parseUnits("0.1", 18); // ganti 18 sesuai decimals token IP kamu

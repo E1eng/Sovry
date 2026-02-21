@@ -404,6 +404,7 @@ export function handleRoyaltiesHarvested(event: RoyaltiesHarvestedEvent): void {
     metric.totalHarvestedPostGrad = metric.totalHarvestedPostGrad.plus(event.params.amount);
   } else {
     metric.totalHarvestedPreGrad = metric.totalHarvestedPreGrad.plus(event.params.amount);
+    wrapper.dexReserve = wrapper.dexReserve.plus(event.params.amount);
   }
   metric.save();
 
