@@ -3,6 +3,17 @@ const path = require('path');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Force webpack (disable Turbopack for production builds)
+  experimental: {
+    turbo: false,
+    optimizePackageImports: ['lucide-react'],
+    serverComponentsExternalPackages: [
+      'thread-stream',
+      'pino',
+      'pino-pretty',
+      '@walletconnect/logger',
+    ],
+  },
   images: {
     remotePatterns: [
       {
@@ -52,11 +63,6 @@ const nextConfig = {
   },
   // Ensure output file tracing starts from the monorepo root (Sovry)
   outputFileTracingRoot: path.join(__dirname, ".."),
-  // Ignore parent directory lockfiles to prevent warnings
-  // This is a monorepo with backend/ and frontend/ structure
-  experimental: {
-    optimizePackageImports: ['lucide-react'],
-  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

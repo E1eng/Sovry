@@ -1,0 +1,10 @@
+backend/
+contracts/
+subgraph/
+docs/
+*.md
+!frontend/**
+.git/
+.vscode/
+.windsurf/
+node_modules/
