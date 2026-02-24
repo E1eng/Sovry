@@ -1,25 +1,9 @@
-// PM2 Ecosystem Config for Sovry
+// PM2 Ecosystem Config for Sovry Backend (VPS only)
+// Frontend runs on Vercel, this is backend worker only
 // Usage: pm2 start ecosystem.config.js
 
 module.exports = {
   apps: [
-    {
-      name: 'sovry-frontend',
-      cwd: './frontend',
-      script: 'npm',
-      args: 'start',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3000,
-      },
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '3G',
-      error_file: './logs/frontend-error.log',
-      out_file: './logs/frontend-out.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    },
     {
       name: 'sovry-backend',
       cwd: './backend',
