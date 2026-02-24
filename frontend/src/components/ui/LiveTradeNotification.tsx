@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchSubgraph } from "@/services/subgraph";
-import { formatEther, formatUnits } from "viem";
+import { formatEther } from "viem";
 import { logger } from "@/lib/logger";
 
 type TradeData = {
@@ -18,17 +18,20 @@ export default function LiveTradeNotification() {
   const [tradeQueue, setTradeQueue] = useState<TradeData[]>([]);
   const [currentTrade, setCurrentTrade] = useState<TradeData | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [lastCheckedTimestamp, setLastCheckedTimestamp] = useState<number>(Math.floor(Date.now() / 1000));
-  const processingRef = useRef(false);
+  // We keep a monotonic cursor (seconds) plus a seen-id set to avoid missing trades
+  // that share the same second timestamp.
+  const [cursorTs, setCursorTs] = useState<number>(Math.floor(Date.now() / 1000));
+  const seenTradeIdsRef = useRef<Set<string>>(new Set());
+
+  // Ticker animation duration in ms (and CSS seconds). Keep in sync.
+  const ANIM_MS = 12_000;
+  const ANIM_S = useMemo(() => `${ANIM_MS / 1000}s`, []);
 
   // Poll subgraph for new trades
   useEffect(() => {
-    console.log("[LiveTradeNotification] Starting polling, lastCheckedTimestamp:", lastCheckedTimestamp);
-    
+    // NOTE: This is client-side polling. The subgraph can lag a few seconds.
     const fetchNewTrades = async () => {
       try {
-        console.log("[LiveTradeNotification] Fetching trades newer than:", lastCheckedTimestamp);
-        
         const query = `
           query GetRecentTrades($timestamp: Int!) {
             trades(
@@ -47,20 +50,13 @@ export default function LiveTradeNotification() {
           }
         `;
 
-        const { ok, json } = await fetchSubgraph(query, { timestamp: lastCheckedTimestamp });
-        
-        console.log("[LiveTradeNotification] Subgraph response:", { ok, data: json?.data });
-        
+        const { ok, json } = await fetchSubgraph(query, { timestamp: cursorTs });
         if (!ok || !json?.data?.trades) {
-          console.log("[LiveTradeNotification] No valid response from subgraph");
           return;
         }
 
         const rawTrades = json.data.trades as any[];
-        console.log("[LiveTradeNotification] Raw trades count:", rawTrades.length);
-        
         if (rawTrades.length === 0) {
-          console.log("[LiveTradeNotification] No new trades found");
           return;
         }
 
@@ -99,7 +95,7 @@ export default function LiveTradeNotification() {
               const cost = t.value ? formatEther(BigInt(t.value)) : "0";
               const wrapperId = (t.wrapper?.id || "").toLowerCase();
               const symbol = symbolMap.get(wrapperId) || "TOKEN";
-              
+
               return {
                 id: t.id,
                 type: t.type === "SELL" ? "SELL" : "BUY",
@@ -109,25 +105,25 @@ export default function LiveTradeNotification() {
                 timestamp: Number(t.timestamp),
               };
             } catch (err) {
-              console.error("[LiveTradeNotification] Error parsing trade:", err);
               return null;
             }
           })
           .filter((t): t is TradeData => t !== null);
 
         if (newTrades.length > 0) {
-          console.log("[LiveTradeNotification] ✅ New trades detected:", newTrades.length, newTrades);
-          setTradeQueue((prev) => {
-            const updated = [...prev, ...newTrades];
-            console.log("[LiveTradeNotification] Queue updated, length:", updated.length);
-            return updated;
-          });
-          const maxTimestamp = Math.max(...newTrades.map((t) => t.timestamp));
-          console.log("[LiveTradeNotification] Updating lastCheckedTimestamp to:", maxTimestamp);
-          setLastCheckedTimestamp(maxTimestamp);
+          // Dedupe by trade.id (subgraph entity id)
+          const unseen = newTrades.filter((t) => !seenTradeIdsRef.current.has(t.id));
+          if (unseen.length === 0) return;
+          for (const t of unseen) seenTradeIdsRef.current.add(t.id);
+
+          setTradeQueue((prev) => [...prev, ...unseen]);
+
+          // Move cursor forward, but keep it monotonic.
+          // Subgraph timestamps are in seconds, so multiple trades may share a timestamp.
+          const maxTimestamp = Math.max(...unseen.map((t) => t.timestamp));
+          setCursorTs((prev) => (maxTimestamp > prev ? maxTimestamp : prev));
         }
       } catch (error) {
-        console.error("[LiveTradeNotification] Error fetching trades:", error);
         logger.error("[LiveTradeNotification] Error fetching trades:", error);
       }
     };
@@ -135,32 +131,25 @@ export default function LiveTradeNotification() {
     fetchNewTrades();
     const interval = setInterval(fetchNewTrades, 5000);
     return () => {
-      console.log("[LiveTradeNotification] Cleaning up polling interval");
       clearInterval(interval);
     };
-  }, [lastCheckedTimestamp]);
+  }, [cursorTs]);
 
   // Process queue - trigger when animation ends
   useEffect(() => {
     if (isAnimating) {
-      console.log("[LiveTradeNotification] Currently animating, waiting...");
       return;
     }
 
     if (tradeQueue.length === 0) {
-      console.log("[LiveTradeNotification] Queue is empty");
       return;
     }
 
     const nextTrade = tradeQueue[0];
-    console.log("[LiveTradeNotification] ▶ Starting animation for trade:", nextTrade);
-    
     setCurrentTrade(nextTrade);
     setIsAnimating(true);
     setTradeQueue((prev) => {
-      const updated = prev.slice(1);
-      console.log("[LiveTradeNotification] Removed from queue, remaining:", updated.length);
-      return updated;
+      return prev.slice(1);
     });
   }, [isAnimating, tradeQueue]);
 
@@ -168,15 +157,12 @@ export default function LiveTradeNotification() {
   useEffect(() => {
     if (!isAnimating || !currentTrade) return;
 
-    console.log("[LiveTradeNotification] Animation timer started (12s)");
     const timer = setTimeout(() => {
-      console.log("[LiveTradeNotification] ⏹ Animation complete");
       setIsAnimating(false);
       setCurrentTrade(null);
-    }, 12000);
+    }, ANIM_MS);
 
     return () => {
-      console.log("[LiveTradeNotification] Cleaning up animation timer");
       clearTimeout(timer);
     };
   }, [isAnimating, currentTrade]);
@@ -191,7 +177,7 @@ export default function LiveTradeNotification() {
   return (
     <>
       <div className="pointer-events-none fixed inset-x-0 top-20 z-50 overflow-hidden">
-        <div className="animate-[ticker-scroll_12s_linear_forwards]">
+        <div className={`animate-[ticker-scroll_${ANIM_S}_linear_forwards]`}>
           <div className="inline-block border border-[#262626] bg-black px-6 py-2.5 shadow-lg">
             <p className="text-xs font-mono tracking-[0.2em] text-foreground">
               <span className={currentTrade.type === "BUY" ? "text-[#CCFF00]" : "text-red-400"}>
