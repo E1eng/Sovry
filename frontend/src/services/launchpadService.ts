@@ -46,6 +46,7 @@ export interface LaunchInfo {
   royaltyVault: string;
   ipAsset?: string;
   totalRaised: bigint;
+  marketCap?: bigint;
   tokensSold: bigint;
   graduated: boolean;
   reserveBalance: bigint;
@@ -108,6 +109,7 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
         const tokensSold = initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
 
         const totalRaised = BigInt((marketCapRaw as bigint | undefined) ?? 0n);
+        const marketCap = BigInt((marketCapRaw as bigint | undefined) ?? 0n);
 
         return {
           creator,
@@ -116,6 +118,7 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
           royaltyVault: vaultAddress,
           ipAsset,
           totalRaised,
+          marketCap,
           tokensSold,
           graduated,
           reserveBalance,
@@ -139,7 +142,10 @@ export function getBondingProgress(info: LaunchInfo | null, thresholdOverride?: 
   const threshold = thresholdOverride && thresholdOverride > 0n ? thresholdOverride : TARGET_RAISE_IP;
   if (!info || threshold === 0n) return 0;
   if (info.graduated) return 100;
-  const ratio = Number(info.totalRaised) / Number(threshold);
+  // Use marketCap (which represents the valuation) against the threshold, 
+  // falling back to totalRaised if marketCap is somehow missing or 0.
+  const valuation = info.marketCap && info.marketCap > 0n ? info.marketCap : info.totalRaised;
+  const ratio = Number(valuation) / Number(threshold);
   return Math.max(0, Math.min(100, ratio * 100));
 }
 

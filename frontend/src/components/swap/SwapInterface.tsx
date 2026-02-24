@@ -542,6 +542,11 @@ function SwapInterfaceComponent({
       const slippagePercent = parseFloat(slippage) || 1
       const ipAmountBigInt = parseEther(fromAmount)
 
+      if (!curveParams) {
+        toast.error("Curve parameters not loaded");
+        return;
+      }
+
       const { amount: tokenAmount } = estimateBuyAmountForIp(curveParams, ipAmountBigInt)
       if (tokenAmount <= 0n) {
         toast.error("Amount too small for current bonding curve", {

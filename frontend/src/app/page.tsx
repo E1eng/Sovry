@@ -30,6 +30,7 @@ export default function Home() {
 
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<"latest" | "top">("latest");
 
   const markImageError = useCallback((key: string) => {
     setImageErrors((prev) => {
@@ -61,7 +62,24 @@ export default function Home() {
     if (marketMoverIds.has(id)) return false;
     return true;
   });
-  const marketBoardLaunches = marketBoardSource.length > 0 ? marketBoardSource : launches;
+  let marketBoardLaunches = marketBoardSource.length > 0 ? marketBoardSource : launches;
+
+  // Apply filter
+  if (filterType === "top") {
+    marketBoardLaunches = [...marketBoardLaunches].sort((a, b) => {
+      const changeA = typeof a.dailyChangePct === "number" ? a.dailyChangePct : -9999;
+      const changeB = typeof b.dailyChangePct === "number" ? b.dailyChangePct : -9999;
+      return changeB - changeA;
+    });
+  } else {
+    // "latest" is already the default sort order from API (created_at desc)
+    marketBoardLaunches = [...marketBoardLaunches].sort((a, b) => {
+      const timeA = typeof a.createdAt === "number" ? a.createdAt : 0;
+      const timeB = typeof b.createdAt === "number" ? b.createdAt : 0;
+      return timeB - timeA;
+    });
+  }
+
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const filteredMarketBoard = normalizedQuery
     ? marketBoardLaunches.filter((item) => {
@@ -208,21 +226,35 @@ export default function Home() {
                       </Link>
                     );
                   })}
-            </div>
           </div>
         </div>
       </div>
+      </div>
       </section>
-
-      {/* Market Board */}
       <section className="px-4 sm:px-6 py-8 lg:py-10 bg-[#050505]">
         <div className="border border-[#262626] bg-[#0A0A0A] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)]">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6 py-4 border-b border-[#262626]">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-2 w-2 rounded-full bg-[#CCFF00] shadow-[0_0_0_4px_rgba(204,255,0,0.15)]" />
-              <h2 className="text-sm font-semibold tracking-[0.25em] uppercase text-muted-foreground">Market Board</h2>
-            </div>
             <div className="flex items-center gap-2">
+              <div className="flex items-center rounded-sm border border-[#262626] bg-[#0d0d0d] p-0.5">
+                <button
+                  onClick={() => setFilterType("latest")}
+                  className={`px-3 py-1.5 text-xs font-mono uppercase tracking-[0.1em] rounded-[2px] transition-colors ${
+                    filterType === "latest" ? "bg-[#262626] text-white" : "text-muted-foreground hover:text-white"
+                  }`}
+                >
+                  Latest
+                </button>
+                <button
+                  onClick={() => setFilterType("top")}
+                  className={`px-3 py-1.5 text-xs font-mono uppercase tracking-[0.1em] rounded-[2px] transition-colors ${
+                    filterType === "top" ? "bg-[#262626] text-white" : "text-muted-foreground hover:text-white"
+                  }`}
+                >
+                  Top Gainers
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

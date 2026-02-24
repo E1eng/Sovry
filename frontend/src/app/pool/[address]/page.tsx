@@ -541,34 +541,38 @@ export default function TokenDetailPage() {
                     </div>
                   )}
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-border px-4 py-3">
-                  <div>
-                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
+                <div className="grid grid-cols-2 gap-4 border-t border-border px-4 py-4 sm:grid-cols-4 bg-muted/20">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-1.5">
+                      <Copy className="h-3 w-3" /> IPID
+                    </div>
                     {details.ipId ? (
-                      <button type="button" onClick={() => copyToClipboard(details.ipId as string, "IPID")} className="text-xs font-mono text-foreground hover:underline decoration-dotted">
+                      <button type="button" onClick={() => copyToClipboard(details.ipId as string, "IPID")} className="text-xs font-mono text-foreground hover:text-primary transition-colors flex items-center gap-1.5">
                         {truncateAddress(details.ipId)}
                       </button>
                     ) : (
                       <span className="text-xs font-mono text-muted-foreground">—</span>
                     )}
                   </div>
-                  <div>
-                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Token</div>
-                    <button type="button" onClick={() => copyToClipboard(details.tokenAddress, "Token address")} className="text-xs font-mono text-foreground hover:underline decoration-dotted">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-1.5">
+                      <Copy className="h-3 w-3" /> Token
+                    </div>
+                    <button type="button" onClick={() => copyToClipboard(details.tokenAddress, "Token address")} className="text-xs font-mono text-foreground hover:text-primary transition-colors flex items-center gap-1.5">
                       {truncateAddress(details.tokenAddress)}
                     </button>
                   </div>
-                  <div>
+                  <div className="space-y-1">
                     <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Metadata</div>
                     {metadataUri ? (
-                      <a href={metadataHref || "#"} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-foreground hover:underline decoration-dotted">View</a>
+                      <a href={metadataHref || "#"} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-foreground hover:text-primary transition-colors underline decoration-dotted underline-offset-2">View On IPFS</a>
                     ) : (
                       <span className="text-xs font-mono text-muted-foreground">—</span>
                     )}
                   </div>
-                  <div>
+                  <div className="space-y-1">
                     <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Revenue</div>
-                    <span className="text-xs font-mono text-foreground tabular-nums">{revenueInjectedLabel}</span>
+                    <span className="text-xs font-mono text-primary font-semibold tabular-nums">{revenueInjectedLabel}</span>
                   </div>
                 </div>
               </Card>
