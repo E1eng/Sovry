@@ -3,16 +3,15 @@ const path = require('path');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Force webpack (disable Turbopack for production builds)
+  // External packages (moved from experimental in Next.js 16)
+  serverExternalPackages: [
+    'thread-stream',
+    'pino',
+    'pino-pretty',
+    '@walletconnect/logger',
+  ],
   experimental: {
-    turbo: false,
     optimizePackageImports: ['lucide-react'],
-    serverComponentsExternalPackages: [
-      'thread-stream',
-      'pino',
-      'pino-pretty',
-      '@walletconnect/logger',
-    ],
   },
   images: {
     remotePatterns: [
