@@ -513,7 +513,7 @@ export default function ProfilePage() {
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {tab === "holdings" ? "Holdings" : tab === "launches" ? "My Launches" : "Real Yield"}
+                {tab === "holdings" ? "Holdings" : tab === "launches" ? "My Launches" : "Royalty Yield"}
               </button>
             ))}
           </div>
