@@ -1,37 +1,54 @@
 # Sovry
 
-Sovry is a launchpad for Story Protocol IP assets.
+**IP-Fi Launchpad for Story Protocol** – Tokenize IP assets with bonding curves and royalty injection.
 
-Creators lock a fixed amount of their **Story Protocol Royalty Tokens (RT)** into the Launchpad (currently **100 RT per launch**), which deploys a branded ERC‑20 **wrapper token** and sells it on a bonding curve. When the raise target is hit, the wrapper graduates to a **PiperX V3** pool. The LP position is minted as an NFT and custody is held by the Exchange. All fees (trade, royalties, DEX) are split **50% treasury / 50% IP Asset**.
+Sovry enables creators to launch tradeable tokens backed by their **Story Protocol IP assets**. Creators lock **Royalty Tokens (RT)** into a bonding curve, which deploys a branded ERC-20 wrapper token. When the raise target is hit (10,000 IP market cap), the token graduates to a **PiperX V3 DEX pool**. All royalties from Story Protocol are automatically injected back into the token's liquidity.
+
+🌐 **Live on Story Mainnet**: [sovry.xyz](https://sovry.xyz)
 
 ---
 
 ## 🏗 Architecture
 
-- **Blockchain**: Story Protocol – Aeneid Testnet (chainId `1315`)
-- **Core Contracts** (Aeneid):
-  - `SovryFactory.sol` – launching (nonpayable, no launch fee; delegates to Exchange)
-  - `SovryExchange.sol` – bonding curve vault (trading, graduation, keeper harvest, LP NFT custody)
-  - `SovryRouter.sol` – user gateway for common write actions
-  - `SovryToken.sol` – ERC‑20 wrapper token deployed per launch
-- **Deployed Addresses (Aeneid testnet)**
-  - Factory (launchpad): `0x2eC6513800426cA9B3530bd04cdB5A8f47c9C038`
-  - Exchange: `0xc7E8fc2C1da57eB7103bdf180B5D82E24e5e3d8D`
-  - Router: `0xa3B5471F43FFac986E66100E901D6cb4247D12C9`
-  - Royalty Workflows: `0x9515faE61E0c0447C6AC6dEe5628A2097aFE1890`
-  - PiperX V3 Router: `0x8295c195CEe31404ea082d253a140310b9a0A37e`
-- **Frontend**: Next.js + TypeScript (App Router) in `frontend/`
-  - `/` – Launch gallery (from Goldsky subgraph + metadata)
-  - `/create` – Launch existing IP from Story (Get RT → Configure → Launch)
-  - `/profile` – Portfolio + creator dashboard (royalty claim + WIP transfer)
-  - `/pool/[address]` – Trading terminal (chart + buy/sell)
-- **Wallet**: Dynamic.xyz (EVM connectors only, via `frontend/src/app/providers.tsx`)
-- **Indexing**: Goldsky subgraph indexing `SovryFactory` + `SovryExchange` events
-- **Story Protocol Integration**:
-  - Story SDK client + HTTP API for IP assets, royalty vaults, and `claimAllRevenue`
-- **Storage / Social**:
-  - Supabase for `profiles`, `launches`, `comment` tables
-  - Pinata (IPFS) for wrapper token logos + metadata JSON
+### **Blockchain**
+- **Network**: Story Protocol Mainnet (chainId `1514`)
+- **Testnet**: Story Aeneid (chainId `1315`)
+
+### **Core Contracts (Mainnet)**
+- `SovryFactory.sol` – Token launch entrypoint (delegates to Exchange)
+- `SovryExchange.sol` – Bonding curve vault (trading, graduation, royalty injection, LP custody)
+- `SovryRouter.sol` – User-facing gateway for buy/sell/launch operations
+- `SovryToken.sol` – ERC-20 wrapper token (deployed per launch)
+
+**Deployed Addresses (Mainnet):**
+- Factory (Launchpad): `0x501047D4D5E323DB64855c14557aC1D3B7393298`
+- Exchange: `0xA2b90B0c02B422F66cacBe5B6515Fd5702B7074D`
+- Router: `0xfCDBa29166Bc61f23F63977655141C7e99804302`
+
+### **Frontend Stack**
+- **Framework**: Next.js 16 (App Router) + TypeScript
+- **Styling**: TailwindCSS + shadcn/ui components
+- **Wallet**: Dynamic.xyz (multi-wallet support)
+- **Charts**: Lightweight Charts (TradingView-style)
+- **Deployment**: Vercel (production) or VPS (self-hosted)
+
+**Key Pages:**
+- `/` – Token gallery (trending, new launches, search)
+- `/create` – Launch new IP-backed tokens
+- `/profile` – Portfolio + creator dashboard
+- `/pool/[address]` – Trading terminal (chart + swap interface)
+
+### **Backend Services**
+- **Indexing**: Goldsky subgraph (GraphQL API for trades, launches, holders)
+- **Database**: Supabase (token metadata, profiles, royalty state)
+- **Storage**: Pinata IPFS (token logos, metadata JSON)
+- **Worker**: Node.js background jobs (royalty harvesting, price updates, graduation checks)
+
+### **Story Protocol Integration**
+- IP Asset Registry (fetch IP metadata, ownership)
+- Royalty Module (harvest royalties, inject into liquidity)
+- Licensing Module (display license terms)
+- Story SDK + HTTP API for on-chain interactions
 
 ---
 
@@ -257,8 +274,21 @@ npm run dev          # frontend: http://localhost:3000, backend: http://localhos
 # Or only frontend
 npm run dev:frontend
 
-# Or only backend API (if you use it)
+# Or only backend worker
 npm run dev:backend
+```
+
+### Local Testing
+
+```bash
+# Test frontend build
+cd frontend
+npm run build
+npm start
+
+# Test backend
+cd backend
+npm start
 ```
 
 Subgraph (Goldsky / The Graph):
@@ -382,17 +412,99 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
 ### Phase 5: Launch & Marketing (Go-to-Market) 🚀
 **Focus:** Public release and user acquisition.
 
-- [ ] **Testnet Beta**
-  - Deploy to **Story Aeneid Testnet**.
-  - Community event: "Launch your Test IP" campaign.
+- [x] **Testnet Beta**
+  - Deployed to **Story Aeneid Testnet**.
+  - Community testing completed.
+
+- [x] **Mainnet Launch**
+  - Deployed contracts to **Story Mainnet** (chainId `1514`).
+  - Live at [sovry.xyz](https://sovry.xyz).
 
 - [ ] **Documentation**
-  - Publish Gitbook/Docs explaining the "IP Backed Token" mechanism.
-  - Create "How-to" video tutorials for creators.
+  - Publish comprehensive docs explaining the "IP Backed Token" mechanism.
+  - Create video tutorials for creators.
 
-- [ ] **Mainnet Launch**
-  - Deploy final contracts to **Story Mainnet**.
-  - Launch Marketing Campaign.
+- [ ] **Marketing Campaign**
+  - Community outreach and partnerships.
+  - Creator onboarding program.
+
+---
+
+---
+
+## 🚀 Deployment
+
+### **Production (Vercel + VPS)**
+
+**Frontend (Vercel):**
+```bash
+# Automatic deployment on push to main
+git push origin main
+
+# Manual deployment
+vercel --prod
+```
+
+**Backend (VPS/Railway/Fly.io):**
+```bash
+# VPS deployment (see VPS_DEPLOY.md)
+ssh root@your_vps_ip
+cd /var/www/Sovry
+bash deploy.sh
+
+# Railway deployment (see RAILWAY_DEPLOY.md)
+railway up
+
+# Fly.io deployment (see FLY_IO_DEPLOY.md)
+fly deploy
+```
+
+**Environment Variables:**
+- Frontend: See `frontend/.env.example`
+- Backend: See `backend/.env.example`
+
+**Deployment Guides:**
+- `DEPLOYMENT.md` – Full deployment guide
+- `QUICK_DEPLOY.md` – 5-minute quick start
+- `VPS_DEPLOY.md` – VPS deployment (recommended)
+- `RAILWAY_DEPLOY.md` – Railway.app deployment
+- `FLY_IO_DEPLOY.md` – Fly.io deployment
+- `PRE_DEPLOY_CHECKLIST.md` – Pre-deployment checklist
+
+---
+
+## ✨ Key Features
+
+### **Bonding Curve Economics**
+- Linear bonding curve with configurable parameters
+- Graduation threshold: **10,000 IP market cap**
+- Trade fee: **1% total** (0.5% treasury / 0.5% IP asset)
+- Graduation fee: **10% of reserves** (50/50 split)
+
+### **Royalty Injection**
+- Automatic harvesting of Story Protocol royalties
+- Royalties injected back into token liquidity
+- Background worker handles all automation
+- Real-time royalty tracking in creator dashboard
+
+### **Live Features**
+- 🔴 **Live Trade Notifications** – Real-time ticker showing all trades across the platform
+- 📊 **Real-time Charts** – TradingView-style charts with live price updates
+- 💬 **Social Layer** – Comments, profiles, and community engagement
+- 🎨 **IP Metadata** – Rich IP asset display with images, licenses, and terms
+- 📱 **Mobile Responsive** – Full mobile support with optimized UX
+
+### **Creator Tools**
+- One-click IP token launch
+- Royalty dashboard with harvest tracking
+- Portfolio analytics
+- Token management interface
+
+### **Investor Tools**
+- Portfolio tracking
+- Trade history
+- Holder distribution analytics
+- Real-time price alerts
 
 ---
 
@@ -400,4 +512,22 @@ Below is the development roadmap for Sovry, focused on pivoting from a standard 
 
 - [Story Protocol Docs](https://docs.story.foundation)
 - [Dynamic.xyz Docs](https://www.dynamic.xyz/docs)
-- [Goldsky / The Graph Docs](https://docs.goldsky.com)
+- [Goldsky Docs](https://docs.goldsky.com)
+- [Vercel Docs](https://vercel.com/docs)
+- [Next.js Docs](https://nextjs.org/docs)
+
+---
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+
+---
+
+**Built with ❤️ for Story Protocol**

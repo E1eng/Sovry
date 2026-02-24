@@ -3,6 +3,16 @@ const path = require('path');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // External packages (moved from experimental in Next.js 16)
+  serverExternalPackages: [
+    'thread-stream',
+    'pino',
+    'pino-pretty',
+    '@walletconnect/logger',
+  ],
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
   images: {
     remotePatterns: [
       {
@@ -27,36 +37,8 @@ const nextConfig = {
       },
     ],
   },
-  // Empty turbopack config to silence Next.js 16 warning (we use webpack)
-  turbopack: {
-    resolveAlias: {
-      pino: path.resolve(__dirname, 'src/lib/pino-mock.js'),
-      'pino/pino.js': path.resolve(__dirname, 'src/lib/pino-mock.js'),
-      'pino/browser': path.resolve(__dirname, 'src/lib/pino-mock.js'),
-      'pino/browser.js': path.resolve(__dirname, 'src/lib/pino-mock.js'),
-      '@walletconnect/logger': path.resolve(__dirname, 'src/lib/walletconnect-logger-mock.js'),
-      '@walletconnect/logger/dist/index.es.js': path.resolve(__dirname, 'src/lib/walletconnect-logger-mock.js'),
-      '@walletconnect/logger/dist/index.cjs': path.resolve(__dirname, 'src/lib/walletconnect-logger-mock.js'),
-      '@react-native-async-storage/async-storage': path.resolve(__dirname, 'src/lib/async-storage-mock.js'),
-      'thread-stream': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      'thread-stream/index.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      'thread-stream/test/indexes.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      'thread-stream/test/helper.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      'why-is-node-running': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      'why-is-node-running/index.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      tape: path.resolve(__dirname, 'src/lib/empty-module.js'),
-      'tape/index.js': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      'fs-extra': path.resolve(__dirname, 'src/lib/empty-module.js'),
-      mkdirp: path.resolve(__dirname, 'src/lib/empty-module.js'),
-    },
-  },
   // Ensure output file tracing starts from the monorepo root (Sovry)
   outputFileTracingRoot: path.join(__dirname, ".."),
-  // Ignore parent directory lockfiles to prevent warnings
-  // This is a monorepo with backend/ and frontend/ structure
-  experimental: {
-    optimizePackageImports: ['lucide-react'],
-  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -76,36 +58,23 @@ const nextConfig = {
       };
     }
     
-    // Handle Dynamic dependencies properly - exclude problematic modules
-    const nodeModulesToExclude = [
+    // Exclude problematic Node-only modules by aliasing to false
+    const modulesToExclude = [
       'thread-stream',
       'why-is-node-running',
       'tape',
       'fs-extra',
-      'mkdirp'
+      'mkdirp',
+      'pino',
+      '@walletconnect/logger',
+      '@react-native-async-storage/async-storage'
     ];
     
-    // Exclude these modules by aliasing them to false (empty module)
-    nodeModulesToExclude.forEach(module => {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        [module]: false
-      };
+    modulesToExclude.forEach(module => {
+      config.resolve.alias[module] = false;
     });
     
-    // Provide a mock for pino and related browser-only deps instead of excluding them
-    const browserSafeAliases = {
-      'pino': path.resolve(__dirname, 'src/lib/pino-mock.js'),
-      '@walletconnect/logger': path.resolve(__dirname, 'src/lib/walletconnect-logger-mock.js'),
-      '@react-native-async-storage/async-storage': path.resolve(__dirname, 'src/lib/async-storage-mock.js'),
-    };
-
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      ...browserSafeAliases,
-    };
-    
-    // Ignore test files and other non-code files from thread-stream
+    // Ignore test files from thread-stream
     config.module = config.module || {};
     config.module.rules = config.module.rules || [];
     config.module.rules.push({
