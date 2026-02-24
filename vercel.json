@@ -5,11 +5,6 @@
   "installCommand": "npm install",
   "framework": "nextjs",
   "regions": ["sin1"],
-  "build": {
-    "env": {
-      "NEXT_DISABLE_TURBOPACK": "1"
-    }
-  },
   "headers": [
     {
       "source": "/api/:path*",
