@@ -65,7 +65,7 @@ const ERC20_ABI = [
 const ROYALTY_MODULE_ABI = [
   {
     inputs: [{ internalType: "address", name: "ipId", type: "address" }],
-    name: "getRoyaltyVaultAddress",
+    name: "ipRoyaltyVaults",
     outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
@@ -144,7 +144,7 @@ export async function claimRevenueToWalletAndPump(
   }
 }
 
-export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: PrimaryWalletLike): Promise<string | null> {
+export async function getRoyaltyVaultAddress(ipId: string, _primaryWallet?: PrimaryWalletLike): Promise<string | null> {
   try {
     if (
       !ipId ||
@@ -156,31 +156,32 @@ export async function getRoyaltyVaultAddress(ipId: string, primaryWallet?: Prima
       return null;
     }
 
-    const client = (await createStoryProtocolClient(primaryWallet)) as any;
-    const royaltyVaultAddress = await client.royalty.getRoyaltyVaultAddress(ipId as Address);
+    const client = getStoryPublicClient();
+    const royaltyModuleAddress =
+      (process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS as Address | undefined) ||
+      ("0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086" as Address);
 
-    return royaltyVaultAddress;
-  } catch (error) {
-    logger.error("Error getting royalty vault address from SDK:", error);
-
-    try {
-      const client = getStoryPublicClient();
-      const royaltyModuleAddress =
-        process.env.NEXT_PUBLIC_STORY_ROYALTY_MODULE_ADDRESS || "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086";
-
-      const royaltyVaultAddress = await client.readContract({
-        address: royaltyModuleAddress as Address,
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const royaltyVaultAddress = (await client.readContract({
+        address: royaltyModuleAddress,
         abi: ROYALTY_MODULE_ABI,
-        functionName: "getRoyaltyVaultAddress",
+        functionName: "ipRoyaltyVaults",
         args: [ipId as Address],
-      });
+      })) as string;
 
-      return royaltyVaultAddress;
-    } catch (contractError) {
-      logger.error("Contract call also failed:", contractError);
-      logger.error("This IP might not exist or have no royalty vault:", ipId);
-      return null;
+      if (royaltyVaultAddress && royaltyVaultAddress !== "0x0000000000000000000000000000000000000000") {
+        return royaltyVaultAddress;
+      }
+
+      if (attempt < 4) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
     }
+
+    return null;
+  } catch (error) {
+    logger.warn("Royalty vault lookup failed (treating as no vault)", error);
+    return null;
   }
 }
 

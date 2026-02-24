@@ -13,6 +13,7 @@ interface PinataUploadResult {
 }
 
 const PINATA_API_BASE = "https://api.pinata.cloud";
+const PINATA_GATEWAY_BASE = "https://gateway.pinata.cloud/ipfs";
 
 async function assertJwt() {
   if (!PINATA_JWT) {
@@ -20,7 +21,22 @@ async function assertJwt() {
   }
 }
 
+function mockUploadResult(name?: string): PinataUploadResult {
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const cid = `mock-${name ? `${name}-` : ""}${suffix}`;
+  return {
+    cid,
+    uri: `ipfs://${cid}`,
+    gatewayUrl: `${PINATA_GATEWAY_BASE}/${cid}`,
+  };
+}
+
 export async function pinJSONToIPFS<T>(data: T, name?: string): Promise<PinataUploadResult> {
+  if (!PINATA_JWT) {
+    logger.warn("Pinata JWT missing; returning mock IPFS URI for JSON upload");
+    return mockUploadResult(name);
+  }
+
   await assertJwt();
   const response = await fetch(`${PINATA_API_BASE}/pinning/pinJSONToIPFS`, {
     method: "POST",
@@ -44,11 +60,16 @@ export async function pinJSONToIPFS<T>(data: T, name?: string): Promise<PinataUp
   return {
     cid,
     uri: `ipfs://${cid}`,
-    gatewayUrl: `https://ipfs.io/ipfs/${cid}`,
+    gatewayUrl: `${PINATA_GATEWAY_BASE}/${cid}`,
   };
 }
 
 export async function pinFileToIPFS(file: Blob | File, fileName: string): Promise<PinataUploadResult> {
+  if (!PINATA_JWT) {
+    logger.warn("Pinata JWT missing; returning mock IPFS URI for file upload");
+    return mockUploadResult(fileName);
+  }
+
   await assertJwt();
   const formData = new FormData();
   formData.append("file", file, fileName);
@@ -71,6 +92,6 @@ export async function pinFileToIPFS(file: Blob | File, fileName: string): Promis
   return {
     cid,
     uri: `ipfs://${cid}`,
-    gatewayUrl: `https://ipfs.io/ipfs/${cid}`,
+    gatewayUrl: `${PINATA_GATEWAY_BASE}/${cid}`,
   };
 }

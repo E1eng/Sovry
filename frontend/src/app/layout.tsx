@@ -28,12 +28,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} overflow-x-hidden`}
+        className={`${inter.variable} ${jetbrainsMono.variable}`}
       >
         <Providers>
-          <div className="min-h-screen bg-background bg-[linear-gradient(to_right,#262626_1px,transparent_1px),linear-gradient(to_bottom,#262626_1px,transparent_1px)] bg-[size:4rem_4rem] flex flex-col overflow-x-hidden">
+          <div className="min-h-screen bg-background bg-[linear-gradient(to_right,#262626_1px,transparent_1px),linear-gradient(to_bottom,#262626_1px,transparent_1px)] bg-[size:4rem_4rem] flex flex-col">
             <TopBar />
-            <main className="flex-1 pb-12 md:pb-10 overflow-x-hidden">
+            <main className="flex-1 pb-20 md:pb-16">
               <div className="w-full px-0 py-2 sm:py-3">{children}</div>
             </main>
             <StatusBar />

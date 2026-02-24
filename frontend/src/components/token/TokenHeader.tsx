@@ -95,7 +95,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
 
   const getIpIdExplorerUrl = (ipId: string | undefined | null) => {
     if (!ipId) return undefined
-    return `https://aeneid.explorer.story.foundation/ipa/${ipId}`
+    return `https://explorer.story.foundation/ipa/${ipId}`
   }
 
   const getAddressExplorerUrl = (address: string | undefined | null) => {
@@ -201,7 +201,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
               </div>
             )}
 
-            <TokenRevenueStats wrapperAddress={details.tokenAddress} className="mt-2" />
+            <TokenRevenueStats tokenAddress={details.tokenAddress} className="mt-2" />
 
             {/* Creator Address */}
             {creator && (
@@ -354,7 +354,7 @@ export function TokenHeader({ details, className }: TokenHeaderProps) {
                       </div>
                     </div>
                     <div className="w-full rounded-sm border border-border bg-muted px-2 py-1.5">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Revenue Injected</div>
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Revenue</div>
                       <div className="text-[11px] text-foreground font-mono tabular-nums">
                         {formatAmount(wrapperMeta.totalRoyaltiesHarvested, 18, 0)} WIP
                       </div>

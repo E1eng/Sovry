@@ -5,6 +5,7 @@ require("ts-node/register/transpile-only");
 require("dotenv/config");
 
 const AENEID_RPC_URL = process.env.AENEID_RPC_URL || "https://aeneid.storyrpc.io";
+const MAINNET_RPC_URL = process.env.MAINNET_RPC_URL || "https://mainnet.storyrpc.io";
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://sepolia.infura.io/v3/";
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "";
 const TESTNET_PRIVATE_KEY = process.env.TESTNET_PRIVATE_KEY || "";
@@ -17,7 +18,7 @@ const config = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 10, // Minimal runs value to reduce bytecode size for Mainnet deployment
+        runs: 200, // Minimal runs value to reduce bytecode size for Mainnet deployment
       },
       viaIR: true, // Enable viaIR to handle stack depth
     },
@@ -44,6 +45,12 @@ const config = {
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       gasPrice: 20000000000, // 20 gwei
     },
+    mainnet: {
+      url: MAINNET_RPC_URL,
+      chainId: 1514,
+      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+      gasPrice: "auto",
+    },
     sepolia: {
       url: SEPOLIA_RPC_URL,
       chainId: 11155111,
@@ -61,6 +68,14 @@ const config = {
         urls: {
           apiURL: "https://aeneid.storyscan.io/api",
           browserURL: "https://aeneid.storyscan.io",
+        },
+      },
+      {
+        network: "mainnet",
+        chainId: 1514,
+        urls: {
+          apiURL: "https://www.storyscan.io/api",
+          browserURL: "https://www.storyscan.io",
         },
       },
     ],

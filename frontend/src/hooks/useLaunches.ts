@@ -2,15 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { logger } from "@/lib/logger"
-import { fetchSubgraph } from "@/services/subgraph"
-
-interface BasicLaunch {
-  id: string
-  token: string
-  creator: string
-  createdAt: number
-  graduated: boolean
-}
 
 export interface LaunchData {
   id: string
@@ -22,36 +13,24 @@ export interface LaunchData {
   imageUrl?: string
   marketCap?: string
   bondingProgress?: number
+  currentPrice?: number
+  volume24h?: string
+  dailyChangePct?: number | null
   category?: string
   graduated?: boolean
 }
 
-async function fetchLaunches(first: number, skip: number): Promise<BasicLaunch[]> {
+async function fetchEnrichedLaunches(limit: number): Promise<LaunchData[]> {
   try {
-    const query = `
-      query GetWrapperTokens($first: Int!, $skip: Int!) {
-        wrapperTokens(first: $first, skip: $skip, orderBy: launchTime, orderDirection: desc) {
-          id
-          creator
-          launchTime
-          graduated
-        }
-      }
-    `
-
-    const { ok, json } = await fetchSubgraph(query, { first, skip })
-
-    if (!ok) return []
-    const raw = json?.data?.wrapperTokens || []
-
-    return raw.map((l: any) => ({
-      id: l.id as string,
-      token: l.id as string,
-      creator: l.creator as string,
-      createdAt: Number(l.launchTime || 0),
-      graduated: Boolean(l.graduated),
-    }))
-  } catch {
+    const res = await fetch(`/api/launches?limit=${limit}`, { cache: "no-store" })
+    if (!res.ok) {
+      logger.warn("Failed to fetch enriched launches", { status: res.status })
+      return []
+    }
+    const json = await res.json()
+    return (json?.launches || []) as LaunchData[]
+  } catch (err) {
+    logger.error("Error fetching enriched launches:", err)
     return []
   }
 }
@@ -66,23 +45,8 @@ export function useLaunches(limit: number = 8) {
       setLoading(true)
       setError(null)
 
-      // Fetch basic launch data
-      const basicLaunches = await fetchLaunches(limit, 0)
-      
-      if (basicLaunches.length === 0) {
-        setLaunches([])
-        setLoading(false)
-        return
-      }
-
-      // Subgraph-only data for home list (no RPC)
-      const merged: LaunchData[] = basicLaunches.map((basic) => ({
-        ...basic,
-        marketCap: undefined,
-        bondingProgress: undefined,
-      }))
-
-      setLaunches(merged)
+      const enriched = await fetchEnrichedLaunches(limit)
+      setLaunches(enriched)
     } catch (err) {
       logger.error("Error loading launches:", err)
       setError(err instanceof Error ? err.message : "Failed to load launches")

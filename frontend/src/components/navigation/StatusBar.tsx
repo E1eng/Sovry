@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { Twitter } from "lucide-react";
 
@@ -57,15 +56,14 @@ export function StatusBar() {
           >
             <DiscordIcon className="h-3.5 w-3.5" />
           </a>
-          <Link href="/docs" className="hover:text-foreground transition-colors">
+          <a
+            href="https://docs.story.foundation"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
             Docs
-          </Link>
-          <Link href="/terms" className="hover:text-foreground transition-colors">
-            Terms
-          </Link>
-          <Link href="/policy" className="hover:text-foreground transition-colors">
-            Policy
-          </Link>
+          </a>
         </div>
       </div>
     </div>

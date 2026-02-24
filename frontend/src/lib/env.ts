@@ -6,11 +6,19 @@ export function getSubgraphUrl(): string {
   return raw;
 }
 
-export const STORY_RPC_URL = process.env.NEXT_PUBLIC_STORY_RPC_URL || "https://aeneid.storyrpc.io";
+const RAW_STORY_RPC_URLS =
+  process.env.NEXT_PUBLIC_STORY_RPC_URLS ||
+  process.env.NEXT_PUBLIC_STORY_RPC_URL ||
+  "https://mainnet.storyrpc.io,https://rpc.ankr.com/story_mainnet";
 
-export const TENDERLY_RPC_URL = process.env.NEXT_PUBLIC_TENDERLY_RPC_URL || STORY_RPC_URL;
+export const STORY_RPC_URLS = RAW_STORY_RPC_URLS.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
-export const STORYSCAN_BASE_URL = process.env.NEXT_PUBLIC_STORYSCAN_BASE_URL || "https://aeneid.storyscan.io";
+export const STORY_RPC_URL = STORY_RPC_URLS[0] || "https://mainnet.storyrpc.io";
+
+
+export const STORYSCAN_BASE_URL = process.env.NEXT_PUBLIC_STORYSCAN_BASE_URL || "https://www.storyscan.io";
 
 export const IPFS_GATEWAY =
   process.env.NEXT_PUBLIC_IPFS_GATEWAY?.replace(/\/$/, "") || "https://ipfs.io/ipfs";

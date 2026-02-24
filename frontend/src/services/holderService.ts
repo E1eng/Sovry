@@ -1,5 +1,6 @@
 import { logger } from "@/lib/logger";
 import { fetchSubgraph } from "@/services/subgraph";
+import { formatEther } from "viem";
 
 export interface HolderBalance {
   address: string;
@@ -77,7 +78,7 @@ export async function getHolderDistribution(
 
     if (balanceRaw <= 0n) continue;
 
-    const balanceFloat = Number(balanceRaw) / 1e6; // wrapper uses 6 decimals
+    const balanceFloat = Number(formatEther(balanceRaw));
     let balanceFormatted = balanceFloat.toFixed(4);
     // Trim unnecessary trailing zeros (e.g. 222637.0000 -> 222637, 1.1200 -> 1.12)
     balanceFormatted = balanceFormatted.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
@@ -104,10 +105,10 @@ export async function getHolderDistribution(
 
   const trimmed = holders.slice(0, maxHolders);
   const totalBalance = trimmed.reduce((acc, h) => acc + h.balanceRaw, 0n);
-  const totalFloat = Number(totalBalance) / 1e6 || 1; // avoid divide-by-zero
+  const totalFloat = Number(formatEther(totalBalance)) || 1; // avoid divide-by-zero
 
   trimmed.forEach((h) => {
-    const value = Number(h.balanceRaw) / 1e6;
+    const value = Number(formatEther(h.balanceRaw));
     h.percentage = (value / totalFloat) * 100;
   });
 

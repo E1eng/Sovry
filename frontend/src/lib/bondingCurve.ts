@@ -49,7 +49,7 @@ export interface BondingCurveParams {
   initialCurveSupply: bigint;
 }
 
-export const WRAP_UNIT = 10n ** 6n;
+export const WRAP_UNIT = 10n ** 18n;
 const TOTAL_FEE_BPS = 100n; // 1%
 const BPS_DENOMINATOR = 10_000n;
 
@@ -64,9 +64,7 @@ export function calculateBondingCurveBuyCost(params: BondingCurveParams, amount:
   const amountUnits = amount / WRAP_UNIT;
   if (amountUnits === 0n) return 0n;
   const baseCost = params.basePrice * amountUnits;
-  const term1 = params.priceIncrement * soldUnits * amountUnits;
-  const term2 = (params.priceIncrement * amountUnits * amountUnits) / 2n;
-  const incrementCost = term1 + term2;
+  const incrementCost = params.priceIncrement * ((soldUnits * amountUnits) + ((amountUnits * (amountUnits - 1n)) / 2n));
   return baseCost + incrementCost;
 }
 
@@ -81,9 +79,7 @@ export function calculateBondingCurveSellProceeds(params: BondingCurveParams, am
   const amountUnits = amount / WRAP_UNIT;
   if (amountUnits === 0n) return 0n;
   const baseProceeds = params.basePrice * amountUnits;
-  const term1 = params.priceIncrement * soldUnits * amountUnits;
-  const term2 = (params.priceIncrement * amountUnits * amountUnits) / 2n;
-  const incrementProceeds = term1 - term2;
+  const incrementProceeds = params.priceIncrement * ((amountUnits * (soldUnits - 1n)) - ((amountUnits * (amountUnits - 1n)) / 2n));
   return baseProceeds + incrementProceeds;
 }
 

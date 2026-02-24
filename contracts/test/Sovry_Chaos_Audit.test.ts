@@ -104,8 +104,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
       params.amountToLock,
       params.ipAsset ?? params.rt.address,
       "Wrapper",
-      "WRP",
-      { value: ethers.utils.parseEther("1") }
+      "WRP"
     );
 
     const receipt = await tx.wait();
@@ -226,10 +225,9 @@ describe("Sovry Protocol - Chaos Audit", function () {
     }
   });
 
-  it("Graduation DoS: if PiperX router reverts addLiquidityETH, keeper-triggered graduate() is blocked", async function () {
-    // WHY: Graduation depends on an external router call. If the router reverts (misconfig/upgrade/external failure),
-    // graduation becomes impossible and the token remains stuck on the bonding curve.
-    const { factory, exchange, rt, creator, trader } = await deployFixture({
+  it("Graduation safety: if V3 mint reverts, graduation reverts and token stays non-transferable", async function () {
+    // WHY: Graduation must be atomic. If LP mint fails, state must not fall back to unlocked/free-trading mode.
+    const { factory, exchange, rt, creator, trader, keeper } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
       revertMint: true,
       basePriceWei: "0.000000000000000010",
@@ -255,10 +253,19 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const block = await ethers.provider.getBlock("latest");
     const deadline = block.timestamp + 3600;
 
-    // Trading should still work (graduation is NOT auto-triggered by buy anymore)
     await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
 
-    await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
+    const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
+
+    await expect(exchange.connect(keeper).graduate(wrapperAddress)).to.be.reverted;
+
+    const tokenAfter = await exchange.launchedTokens(wrapperAddress);
+    expect(tokenAfter.graduated).to.equal(false);
+    expect(await exchange.bondingCurveActive(wrapperAddress)).to.equal(true);
+    expect(await exchange.dexPools(wrapperAddress)).to.equal(ethers.constants.AddressZero);
+
+    expect(await wrapper.owner()).to.equal(exchange.address);
+    expect(await wrapper.transfersLocked()).to.equal(true);
   });
 
   it("MEV surface: post-graduation buyback uses harvested WIP and routes via keeper", async function () {
@@ -283,7 +290,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const deadline = block.timestamp + 3600;
     await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
 
-    await exchange.graduate(wrapperAddress);
+    await exchange.connect(keeper).graduate(wrapperAddress);
 
     // Fund WIP and deposit royalties after graduation.
     // Fund mock vault with WIP so harvestFromVault can pull it
@@ -396,10 +403,9 @@ describe("Sovry Protocol - Chaos Audit", function () {
     await expect(exchange.redeem(wrapperAddress, 1, creator.address)).to.be.revertedWithCustomError(exchange, "InvalidAmount");
   });
 
-  it("Graduation fallback: if addLiquidityETH reverts, wrapper liquidity goes to treasury and wrapper ownership is renounced", async function () {
-    const { factory, exchange, rt, creator, trader, treasury } = await deployFixture({
+  it("Graduation safety: pre-existing pool blocks graduation so migration price cannot be front-run", async function () {
+    const { factory, exchange, rt, creator, trader, keeper, piperXV3PositionManager, wip } = await deployFixture({
       graduationThresholdWei: "0.000000000000000001",
-      revertMint: true,
       basePriceWei: "0.000000000000000010",
       priceIncrementWei: "0.000000000000000001",
     });
@@ -418,26 +424,29 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const deadline = block.timestamp + 3600;
     await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
 
-    const tokenBefore = await exchange.launchedTokens(wrapperAddress);
-    const curveBefore = await exchange.bondingCurves(wrapperAddress);
-    const tokenLiquidity = tokenBefore.dexReserve.mul(wrapPerRt).add(curveBefore.currentSupply);
+    const [token0, token1] =
+      wrapperAddress.toLowerCase() < wip.address.toLowerCase()
+        ? [wrapperAddress, wip.address]
+        : [wip.address, wrapperAddress];
+
+    const q96 = ethers.BigNumber.from(2).pow(96);
+    await piperXV3PositionManager
+      .connect(trader)
+      .createAndInitializePoolIfNecessary(token0, token1, 10_000, q96);
+
+    await expect(exchange.connect(keeper).graduate(wrapperAddress)).to.be.revertedWithCustomError(exchange, "DexLiquidityFailed");
+
+    const tokenAfter = await exchange.launchedTokens(wrapperAddress);
+    expect(tokenAfter.graduated).to.equal(false);
+    expect(await exchange.bondingCurveActive(wrapperAddress)).to.equal(true);
 
     const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
-    const treasuryWrapperBefore = await wrapper.balanceOf(treasury.address);
-
-    await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
-
-    const treasuryWrapperAfter = await wrapper.balanceOf(treasury.address);
-    expect(treasuryWrapperAfter.sub(treasuryWrapperBefore)).to.equal(tokenLiquidity);
-
-    const curveAfter = await exchange.bondingCurves(wrapperAddress);
-    expect(curveAfter.currentSupply).to.equal(0);
-
-    expect(await wrapper.owner()).to.equal(ethers.constants.AddressZero);
+    expect(await wrapper.owner()).to.equal(exchange.address);
+    expect(await wrapper.transfersLocked()).to.equal(true);
   });
 
   it("Devil advocate: redeem() remains enabled after graduation (potential RT drain)", async function () {
-    const { factory, exchange, rt, creator, trader, owner } = await deployFixture();
+    const { factory, exchange, rt, creator, trader, keeper, owner } = await deployFixture();
 
     const RT_UNIT = ethers.BigNumber.from("1000000");
     const amountToLock = RT_UNIT.mul(100);
@@ -457,7 +466,7 @@ describe("Sovry Protocol - Chaos Audit", function () {
     const deadline = block.timestamp + 3600;
     await exchange.connect(trader).buy(wrapperAddress, buyAmount, totalCost, deadline, trader.address, { value: totalCost });
 
-    await expect(exchange.graduate(wrapperAddress)).to.emit(exchange, "Graduated");
+    await expect(exchange.connect(keeper).graduate(wrapperAddress)).to.emit(exchange, "Graduated");
 
     const wrapper = await ethers.getContractAt("SovryToken", wrapperAddress);
     const supplyBefore = await wrapper.totalSupply();

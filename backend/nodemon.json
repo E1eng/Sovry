@@ -1,0 +1,7 @@
+{
+  "watch": ["."],
+  "ext": "ts,json",
+  "ignore": ["dist/**", "node_modules/**", "**/*.test.ts", "**/*.spec.ts"],
+  "exec": "ts-node",
+  "signal": "SIGTERM"
+}

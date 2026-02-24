@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+// Alerts replaced with inline divs for consistent sizing
 import { Settings, Loader2, AlertTriangle, CheckCircle, ExternalLink } from "lucide-react"
-import { parseEther, formatEther } from "viem"
+import { parseEther, formatEther, formatUnits } from "viem"
 import toast from "react-hot-toast"
 import { cn } from "@/lib/utils"
 import { getStoryPublicClient } from "@/services/viem/storyPublicClient"
@@ -26,6 +26,10 @@ import { trackTrade, trackEvent } from "@/lib/analytics"
 import { logger } from "@/lib/logger"
 import { memo, useEffect as useReactEffect } from "react"
 import { useTokenData } from "@/hooks/useTokenData"
+import { launchpadService } from "@/services/launchpadService"
+import { getPiperXDexUrl } from "@/lib/piperx"
+
+type TradeTab = "buy" | "sell" | "redeem"
 
 function trimToDecimals(value: string, maxDecimals: number): string {
   if (!value || maxDecimals < 0) return value
@@ -35,6 +39,16 @@ function trimToDecimals(value: string, maxDecimals: number): string {
   const decimals = value.slice(dot + 1)
   const trimmed = decimals.slice(0, maxDecimals).replace(/0+$/, "")
   return trimmed.length > 0 ? `${integer}.${trimmed}` : integer
+}
+
+function formatDisplayAmount(value: string, fractionDigits: number = 2): string {
+  if (!value) return "0.00"
+  const num = parseFloat(value)
+  if (!isFinite(num)) return "0.00"
+  return num.toLocaleString(undefined, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })
 }
 
 function formatBalance(value: string | null, maxDecimals: number): string {
@@ -48,6 +62,7 @@ export interface SwapInterfaceProps {
   tokenAddress?: string
   tokenSymbol?: string
   className?: string
+  mode?: "trade" | "redeem"
   onSwap?: (direction: "buy" | "sell", amount: string) => void
   isGraduated?: boolean
   piperXPoolAddress?: string
@@ -57,11 +72,12 @@ function SwapInterfaceComponent({
   tokenAddress,
   tokenSymbol = "TOKEN",
   className,
+  mode = "trade",
   onSwap: _onSwap,
   isGraduated = false,
   piperXPoolAddress,
 }: SwapInterfaceProps) {
-  const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy")
+  const [activeTab, setActiveTab] = useState<TradeTab>(() => (mode === "redeem" || isGraduated ? "redeem" : "buy"))
   const [fromAmount, setFromAmount] = useState("")
   const [toAmount, setToAmount] = useState("")
   const [showSlippageSettings, setShowSlippageSettings] = useState(false)
@@ -87,13 +103,14 @@ function SwapInterfaceComponent({
   const [tradeSuccess, setTradeSuccess] = useState(false)
   const [userBalance, setUserBalance] = useState<string | null>(null)
   const [tokenBalance, setTokenBalance] = useState<string | null>(null)
+  const [rtBalance, setRtBalance] = useState<string | null>(null)
   const [minReceive, setMinReceive] = useState<string | null>(null)
   const [balanceError, setBalanceError] = useState<string | null>(null)
   const [slippageError, setSlippageError] = useState<string | null>(null)
-  const [isSimulatingTx, setIsSimulatingTx] = useState(false)
-  const [simulationStatus, setSimulationStatus] = useState<string | null>(null)
-  const [simulationError, setSimulationError] = useState<string | null>(null)
   const [balanceRefreshNonce, setBalanceRefreshNonce] = useState(0)
+
+  // On-chain token state (multicall) for gating
+  const { data: tokenData, isLoading: tokenDataLoading } = useTokenData(tokenAddress)
 
   const curveParams = useMemo<BondingCurveParams | null>(() => {
     if (!tokenData) return null
@@ -127,9 +144,6 @@ function SwapInterfaceComponent({
   // Fetch launch details (for loading state and auxiliary info)
   const { loading: detailsLoading } = useLaunchDetails(tokenAddress || null)
 
-  // On-chain token state (multicall) for gating
-  const { data: tokenData, isLoading: tokenDataLoading } = useTokenData(tokenAddress)
-
   // Load real  // Loaders and state are handled per-quote and per-tx using fresh curve params
 
   // Debounce timer ref
@@ -146,8 +160,8 @@ function SwapInterfaceComponent({
 
   // Calculate output amount with debouncing
   const calculateOutput = useCallback(
-    async (amount: string, isBuy: boolean) => {
-      if (!amount || parseFloat(amount) <= 0 || !tokenAddress || tokenDataLoading || !tokenData || !curveParams) {
+    async (amount: string, tab: TradeTab) => {
+      if (!amount || parseFloat(amount) <= 0 || !tokenAddress || tokenDataLoading || !tokenData) {
         setToAmount("")
         setMinReceive(null)
         setPriceImpact(null)
@@ -159,6 +173,31 @@ function SwapInterfaceComponent({
 
       try {
         const amountBigInt = parseEther(amount)
+
+        if (tab === "redeem") {
+          const supplyBefore = tokenData.totalSupply
+          const totalLocked = tokenData.totalLocked
+
+          if (supplyBefore <= 0n || totalLocked <= 0n || amountBigInt <= 0n) {
+            setToAmount("")
+            setMinReceive(null)
+            setPriceImpact(null)
+            setExchangeRate("")
+            return
+          }
+
+          const rtOut = (amountBigInt * totalLocked) / supplyBefore
+          const rtOutFormatted = formatUnits(rtOut, 6)
+
+          setToAmount(formatDisplayAmount(rtOutFormatted, 4))
+          setMinReceive(null)
+          setPriceImpact(null)
+
+          const rate = parseFloat(rtOutFormatted) / parseFloat(amount)
+          setExchangeRate(`1 ${tokenSymbol} = ${Number.isFinite(rate) ? rate.toFixed(6) : "—"} RT`)
+          return
+        }
+
         const paramsForQuote = curveParams
         if (!paramsForQuote) {
           setToAmount("")
@@ -167,8 +206,9 @@ function SwapInterfaceComponent({
           setExchangeRate("")
           return
         }
+
         let impact: number
-        if (isBuy) {
+        if (tab === "buy") {
           const { amount: tokenAmount, totalCost } = estimateBuyAmountForIp(paramsForQuote, amountBigInt)
           if (tokenAmount === 0n || totalCost === 0n) {
             setToAmount("")
@@ -178,26 +218,24 @@ function SwapInterfaceComponent({
             return
           }
 
-          // Convert 6-decimal wrapper units to 18-decimal token units for display
-          const tokenWei = tokenAmount * (10n ** 12n)
-          const expectedTokensStr = formatEther(tokenWei)
+          // Wrapper token uses 18 decimals; amount is already in wei
+          const expectedTokensStr = formatEther(tokenAmount)
           const expectedTokens = parseFloat(expectedTokensStr)
 
           // Display expected tokens received
-          setToAmount(trimToDecimals(expectedTokensStr, 6))
+          setToAmount(formatDisplayAmount(expectedTokensStr, 2))
 
           const slippagePercent = parseFloat(slippage) || 0.5
           const slippageBps = BigInt(Math.floor(slippagePercent * 100))
-          const minTokenWei = tokenWei * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
-          setMinReceive(trimToDecimals(formatEther(minTokenWei), 6))
+          const minTokenWei = tokenAmount * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
+          setMinReceive(formatDisplayAmount(formatEther(minTokenWei), 2))
 
           impact = calculateRealPriceImpact(paramsForQuote, tokenAmount, true)
           const rate = expectedTokens / parseFloat(amount)
           setExchangeRate(`1 IP = ${rate.toFixed(6)} ${tokenSymbol}`)
         } else {
-          // SELL: convert 18-dec UI amount to 6-dec wrapper units
-          const tokenWeiIn = amountBigInt
-          const wrapperAmount = tokenWeiIn / (10n ** 12n)
+          // SELL: wrapper token uses 18 decimals; UI amount is already wei
+          const wrapperAmount = amountBigInt
           if (wrapperAmount <= 0n) {
             setToAmount("")
             setMinReceive(null)
@@ -228,13 +266,14 @@ function SwapInterfaceComponent({
           const expectedIpOutStr = formatEther(netProceeds)
           const minIpOutStr = formatEther(minProceeds)
 
-          setToAmount(trimToDecimals(expectedIpOutStr, 8))
-          setMinReceive(trimToDecimals(minIpOutStr, 8))
+          setToAmount(formatDisplayAmount(expectedIpOutStr, 2))
+          setMinReceive(formatDisplayAmount(minIpOutStr, 2))
 
           impact = calculateRealPriceImpact(paramsForQuote, wrapperAmount, false)
           const rate = parseFloat(formatEther(netProceeds)) / parseFloat(amount)
           setExchangeRate(`1 ${tokenSymbol} = ${rate.toFixed(6)} IP`)
         }
+
         setPriceImpact(impact)
       } catch (error) {
         logger.error("Error calculating output:", error)
@@ -259,7 +298,7 @@ function SwapInterfaceComponent({
     // Set timer (0.5s debounce for estimation)
     debounceTimerRef.current = setTimeout(() => {
       if (fromAmount) {
-        calculateOutput(fromAmount, activeTab === "buy")
+        calculateOutput(fromAmount, activeTab)
       } else {
         setToAmount("")
         setMinReceive(null)
@@ -283,7 +322,7 @@ function SwapInterfaceComponent({
     if (!debouncedFromAmount || !tokenAddress) return
 
     const interval = setInterval(() => {
-      calculateOutput(debouncedFromAmount, activeTab === "buy")
+      calculateOutput(debouncedFromAmount, activeTab)
     }, 10000) // 10s refresh
 
     return () => clearInterval(interval)
@@ -291,7 +330,7 @@ function SwapInterfaceComponent({
 
   // Handle tab change - direction is always IP -> TOKEN for buy, TOKEN -> IP for sell
   const handleTabChange = (value: string) => {
-    const newTab = value as "buy" | "sell"
+    const newTab = value as TradeTab
     setActiveTab(newTab)
 
     // Clear amounts and errors
@@ -357,8 +396,7 @@ function SwapInterfaceComponent({
       }
 
       try {
-        // Fetch token balance (wrapper uses 6 decimals). Convert to 18-decimal
-        // units for display to keep UI consistent with the buy/sell inputs.
+        // Wrapper token uses 18 decimals.
         const balance = await publicClient.readContract({
           address: tokenAddress as `0x${string}`,
           abi: erc20Abi,
@@ -366,8 +404,7 @@ function SwapInterfaceComponent({
           args: [primaryWallet.address as `0x${string}`],
         }) as bigint
 
-        const tokenWei = balance * (10n ** 12n)
-        setTokenBalance(formatEther(tokenWei))
+        setTokenBalance(formatEther(balance))
       } catch (error) {
         logger.error("Error fetching token balance/approval:", error)
         setTokenBalance(null)
@@ -377,11 +414,94 @@ function SwapInterfaceComponent({
     fetchTokenBalance()
   }, [primaryWallet?.address, tokenAddress, publicClient, balanceRefreshNonce])
 
+  // Fetch user's RT balance (shown on Redeem tab)
+  useEffect(() => {
+    const fetchRtBalance = async () => {
+      if (activeTab !== "redeem") {
+        setRtBalance(null)
+        return
+      }
+      if (!primaryWallet?.address || !tokenData?.rtAddress) {
+        setRtBalance(null)
+        return
+      }
+
+      try {
+        const rtAddr = tokenData.rtAddress
+        if (!rtAddr || rtAddr === "0x0000000000000000000000000000000000000000") {
+          setRtBalance(null)
+          return
+        }
+
+        const balance = await publicClient.readContract({
+          address: rtAddr as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [primaryWallet.address as `0x${string}`],
+        }) as bigint
+
+        setRtBalance(formatUnits(balance, 6))
+      } catch (error) {
+        logger.error("Error fetching RT balance:", error)
+        setRtBalance(null)
+      }
+    }
+
+    fetchRtBalance()
+  }, [activeTab, primaryWallet?.address, tokenData?.rtAddress, publicClient, balanceRefreshNonce])
+
+  // If the token is graduated, force the UI to the redeem tab (buy/sell are disabled).
+  useEffect(() => {
+    if (!isGraduated) return
+    if (activeTab !== "redeem") {
+      setActiveTab("redeem")
+      setFromAmount("")
+      setToAmount("")
+      setMinReceive(null)
+      setPriceImpact(null)
+      setExchangeRate("")
+      setBalanceError(null)
+      setSlippageError(null)
+    }
+  }, [isGraduated, activeTab])
+
+  const resetAfterSuccess = () => {
+    setTimeout(() => {
+      setFromAmount("")
+      setToAmount("")
+      setPriceImpact(null)
+      setExchangeRate("")
+      setMinReceive(null)
+      setTradeSuccess(false)
+    }, 2000)
+  }
+
+  const dispatchPostTxRefresh = () => {
+    if (typeof window === "undefined") return
+
+    // Balances are a little async post-tx (indexing / RPC), so refresh with a delay.
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("refresh-balances"))
+    }, 2000)
+
+    window.dispatchEvent(
+      new CustomEvent("refresh-trades", {
+        detail: { tokenAddress },
+      })
+    )
+  }
+
   // Handle place trade
   const handlePlaceTrade = async () => {
     if (!fromAmount || parseFloat(fromAmount) <= 0 || !tokenAddress) return
-    if (tokenDataLoading || !tokenData || !tokenData.isActive || !curveParams) {
-      toast.error("Token state unavailable or inactive", { duration: 3000 })
+
+    if (tokenDataLoading || !tokenData) {
+      toast.error("Token state unavailable", { duration: 3000 })
+      return
+    }
+
+    if ((activeTab === "buy" || activeTab === "sell") && (!tokenData.isActive || !curveParams)) {
+      toast.error("Bonding curve is inactive (token may have graduated)", { duration: 3000 })
       return
     }
 
@@ -422,6 +542,11 @@ function SwapInterfaceComponent({
       const slippagePercent = parseFloat(slippage) || 1
       const ipAmountBigInt = parseEther(fromAmount)
 
+      if (!curveParams) {
+        toast.error("Curve parameters not loaded");
+        return;
+      }
+
       const { amount: tokenAmount } = estimateBuyAmountForIp(curveParams, ipAmountBigInt)
       if (tokenAmount <= 0n) {
         toast.error("Amount too small for current bonding curve", {
@@ -429,48 +554,8 @@ function SwapInterfaceComponent({
         })
         return
       }
-      const tokenWei = tokenAmount * (10n ** 12n)
-      const actualTokensOutFormatted = parseFloat(formatEther(tokenWei))
+      const actualTokensOutFormatted = parseFloat(formatEther(tokenAmount))
       const minTokensOut = actualTokensOutFormatted * (1 - slippagePercent / 100)
-
-      // Run Tenderly simulation before sending real transaction
-      setSimulationStatus(null)
-      setSimulationError(null)
-      setIsSimulatingTx(true)
-      try {
-        await launchpadService.simulateBuy(
-          tokenAddress,
-          fromAmount,
-          primaryWallet.address as string,
-        )
-        // Simulation passed; proceed silently to on-chain execution
-      } catch (simError: any) {
-        const message = simError?.message || "Simulation failed"
-        logger.error("Tenderly simulation error (buy)", simError)
-        const lower = message.toLowerCase()
-        const isRateLimited = lower.includes("429") || simError?.status === 429
-        const isMethodMissing =
-          lower.includes("tenderly_simulate") ||
-          lower.includes("does not exist") ||
-          lower.includes("is not available")
-
-        if (isRateLimited || isMethodMissing) {
-          setSimulationError(
-            "Tenderly simulation is unavailable. Proceeding without preview."
-          )
-          toast.error(`Simulation unavailable: ${message}`, {
-            duration: 5000,
-          })
-        } else {
-          setSimulationError(message)
-          toast.error(`Simulation failed: ${message}`, {
-            duration: 5000,
-          })
-          setIsSimulatingTx(false)
-          return
-        }
-      }
-      setIsSimulatingTx(false)
 
       setIsTrading(true)
       setTradeSuccess(false)
@@ -499,32 +584,8 @@ function SwapInterfaceComponent({
             icon: "✅",
           })
 
-          // Refresh balances after successful trade
-          if (primaryWallet?.address) {
-            setTimeout(() => {
-              // Trigger balance refresh
-              const event = new CustomEvent("refresh-balances")
-              window.dispatchEvent(event)
-            }, 2000)
-          }
-
-          // Trigger recent activity refresh for this token
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(
-              new CustomEvent("refresh-trades", {
-                detail: { tokenAddress },
-              })
-            )
-          }
-
-          // Reset form after 2 seconds
-          setTimeout(() => {
-            setFromAmount("")
-            setToAmount("")
-            setPriceImpact(null)
-            setExchangeRate("")
-            setTradeSuccess(false)
-          }, 2000)
+          dispatchPostTxRefresh()
+          resetAfterSuccess()
         } else {
           trackTrade("buy", tokenAddress, fromAmount, false, result.error)
           const parsedError = parseTransactionError(result.error || new Error("Unknown error"))
@@ -605,72 +666,34 @@ function SwapInterfaceComponent({
         return
       }
 
-      // Run Tenderly simulation before sending real transaction
-      setSimulationStatus(null)
-      setSimulationError(null)
-      setIsSimulatingTx(true)
-      try {
-        const tokenWeiIn = parseEther(fromAmount)
-        const wrapperAmount = tokenWeiIn / (10n ** 12n)
-        if (wrapperAmount <= 0n) {
-          throw new Error("Amount too small for current bonding curve")
-        }
-
-        const baseProceeds = calculateBondingCurveSellProceeds(curveParams, wrapperAmount)
-        if (baseProceeds <= 0n) {
-          throw new Error("Amount too small for current bonding curve")
-        }
-
-        const slippagePercentLocal = parseFloat(slippage) || 1
-        const fee = (baseProceeds * FEE_BPS) / BPS_DENOMINATOR
-        const netProceeds = baseProceeds - fee
-        const slippageBps = BigInt(Math.floor(slippagePercentLocal * 100))
-        const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
-        const minIpOutStr = formatEther(minProceeds)
-
-        await launchpadService.simulateSell(
-          tokenAddress,
-          fromAmount,
-          minIpOutStr,
-          primaryWallet.address as string,
-        )
-        // Simulation passed; proceed silently to on-chain execution
-      } catch (simError: any) {
-        const message = simError?.message || "Simulation failed"
-        logger.error("Tenderly simulation error (sell)", simError)
-        const lower = message.toLowerCase()
-        const isRateLimited = lower.includes("429") || simError?.status === 429
-        const isMethodMissing =
-          lower.includes("tenderly_simulate") ||
-          lower.includes("does not exist") ||
-          lower.includes("is not available")
-
-        if (isRateLimited || isMethodMissing) {
-          setSimulationError(
-            "Tenderly simulation is unavailable. Proceeding without preview."
-          )
-          toast.error(`Simulation unavailable: ${message}`, {
-            duration: 5000,
-          })
-        } else {
-          setSimulationError(message)
-          toast.error(`Simulation failed: ${message}`, {
-            duration: 5000,
-          })
-          setIsSimulatingTx(false)
-          return
-        }
-      }
-      setIsSimulatingTx(false)
-
       // Proceed with sell using launchpadService.sell (which manages approvals internally)
       await handleSell()
+    } else if (activeTab === "redeem") {
+      // Validate wrapper token balance
+      if (!tokenBalance || parseFloat(tokenBalance) < parseFloat(fromAmount)) {
+        const errorMsg = `Insufficient token balance. You have ${tokenBalance || "0"} ${tokenSymbol}, but need ${fromAmount} ${tokenSymbol}.`
+        setBalanceError(errorMsg)
+        toast.error(`Insufficient token balance: You have ${tokenBalance || "0"} ${tokenSymbol}`, {
+          duration: 4000,
+        })
+        logError(new Error(errorMsg), "SwapInterface")
+        return
+      }
+
+      setBalanceError(null)
+
+      await handleRedeem()
     }
   }
 
   // Handle sell transaction
   const handleSell = async () => {
     if (!tokenAddress || !primaryWallet || !fromAmount) return
+
+    if (!curveParams) {
+      toast.error("Token state unavailable or inactive", { duration: 3000 })
+      return
+    }
 
     setIsTrading(true)
     setTradeSuccess(false)
@@ -688,8 +711,7 @@ function SwapInterfaceComponent({
 
     try {
       // Calculate minIpOut using real bonding curve math, matching SovryLaunchpad.sell
-      const tokenWeiIn = parseEther(fromAmount)
-      const wrapperAmount = tokenWeiIn / (10n ** 12n)
+      const wrapperAmount = parseEther(fromAmount)
       if (wrapperAmount <= 0n) {
         toast.error("Amount too small for current bonding curve", {
           duration: 3000,
@@ -711,7 +733,6 @@ function SwapInterfaceComponent({
       const minProceeds = netProceeds * (BPS_DENOMINATOR - slippageBps) / BPS_DENOMINATOR
       const minIpOutStr = formatEther(minProceeds)
 
-      const { launchpadService } = await import("@/services/launchpadService")
       const result = await launchpadService.sell(tokenAddress, fromAmount, minIpOutStr, primaryWallet)
 
       if (result.success) {
@@ -722,31 +743,8 @@ function SwapInterfaceComponent({
           icon: "✅",
         })
 
-        // Refresh balances after successful trade
-        if (primaryWallet?.address) {
-          setTimeout(() => {
-            const event = new CustomEvent("refresh-balances")
-            window.dispatchEvent(event)
-          }, 2000)
-        }
-
-        // Trigger recent activity refresh for this token
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("refresh-trades", {
-              detail: { tokenAddress },
-            })
-          )
-        }
-
-        // Reset form after 2 seconds
-        setTimeout(() => {
-          setFromAmount("")
-          setToAmount("")
-          setPriceImpact(null)
-          setExchangeRate("")
-          setTradeSuccess(false)
-        }, 2000)
+        dispatchPostTxRefresh()
+        resetAfterSuccess()
       } else {
         trackTrade("sell", tokenAddress, fromAmount, false, result.error)
         const parsedError = parseTransactionError(result.error || new Error("Unknown error"))
@@ -805,175 +803,232 @@ function SwapInterfaceComponent({
     }
   }
 
-  // Get PiperX DEX URL
-  const getPiperXDEXUrl = () => {
-    if (piperXPoolAddress) {
-      return `https://piperx.io/pool/${piperXPoolAddress}`
+  const handleRedeem = async () => {
+    if (!tokenAddress || !primaryWallet || !fromAmount) return
+
+    setIsTrading(true)
+    setTradeSuccess(false)
+
+    trackEvent("redeem_initiated", {
+      tokenAddress,
+      amount: fromAmount,
+    })
+
+    try {
+      const result = await launchpadService.redeem(tokenAddress, fromAmount, primaryWallet)
+
+      if (result.success) {
+        setTradeSuccess(true)
+        trackEvent("redeem", {
+          tokenAddress,
+          amount: fromAmount,
+          success: true,
+        })
+
+        toast.success("Redeem Successful!", {
+          duration: 2000,
+          icon: "✅",
+        })
+
+        dispatchPostTxRefresh()
+        resetAfterSuccess()
+      } else {
+        const parsedError = parseTransactionError(result.error || new Error("Unknown error"))
+        logError(result.error || new Error("Unknown error"), "SwapInterface.redeem")
+        trackEvent("redeem", {
+          tokenAddress,
+          amount: fromAmount,
+          success: false,
+          error: parsedError.message,
+        })
+
+        const details = parsedError.suggestion || parsedError.message
+        toast.error(
+          details ? `${parsedError.userFriendlyMessage}: ${details}` : parsedError.userFriendlyMessage,
+          {
+            duration: 5000,
+          },
+        )
+      }
+    } catch (error) {
+      const parsedError = parseTransactionError(error)
+      logError(error, "SwapInterface.redeem")
+      trackEvent("redeem", {
+        tokenAddress,
+        amount: fromAmount,
+        success: false,
+        error: parsedError.message,
+      })
+
+      const details = parsedError.suggestion || parsedError.message
+      toast.error(details ? `${parsedError.userFriendlyMessage}: ${details}` : parsedError.userFriendlyMessage, {
+        duration: 5000,
+      })
+    } finally {
+      setIsTrading(false)
     }
-    if (tokenAddress) {
-      return `https://piperx.io/token/${tokenAddress}`
-    }
-    return "https://piperx.io"
   }
 
   const handleTradeOnPiperX = () => {
-    window.open(getPiperXDEXUrl(), "_blank", "noopener,noreferrer")
-  }
-
-  // If graduated, show disabled state with message
-  if (isGraduated) {
-    return (
-      <Card className={cn("overflow-hidden", className)}>
-        <CardHeader className="border-b border-border bg-muted/60">
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                Trade Console
-              </div>
-              <h3 className="text-lg font-semibold text-foreground">Swap</h3>
-            </div>
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Graduated
-            </span>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert variant="default" className="border-border bg-muted/40">
-            <AlertTriangle className="h-4 w-4 text-secondary" />
-            <AlertDescription className="text-muted-foreground">
-              This token has graduated to PiperX
-            </AlertDescription>
-          </Alert>
-          <Button
-            onClick={handleTradeOnPiperX}
-            className="w-full h-12 font-mono text-xs uppercase tracking-[0.2em] bg-primary text-primary-foreground hover:bg-primary/90 touch-manipulation min-h-[44px]"
-          >
-            <ExternalLink className="h-5 w-5 mr-2" />
-            Trade on PiperX
-          </Button>
-        </CardContent>
-      </Card>
+    window.open(
+      getPiperXDexUrl({
+        poolAddress: piperXPoolAddress,
+        tokenAddress,
+      }),
+      "_blank",
+      "noopener,noreferrer",
     )
   }
 
+  const fromBalance = activeTab === "buy" ? userBalance : tokenBalance
+  const fromSymbol = activeTab === "buy" ? "IP" : tokenSymbol
+  const receiveSymbol = activeTab === "buy" ? tokenSymbol : activeTab === "sell" ? "IP" : "RT"
+
   return (
     <Card className={cn("overflow-hidden", className)}>
-      <CardHeader className="border-b border-border bg-muted/60">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Trade Console
+      <div className="border-b border-border bg-muted/40 px-4 py-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-foreground">{mode === "redeem" ? "Redeem" : "Swap"}</span>
+          {mode === "trade" && isGraduated ? (
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Graduated</span>
+          ) : mode === "trade" && activeTab !== "redeem" ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSlippageSettings(true)}
+                className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Slippage tolerance settings"
+              >
+                Slip: <span className="text-foreground tabular-nums">{slippage}%</span>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                onClick={() => {
+                  setShowSlippageSettings(true)
+                  trackEvent("slippage_changed", { action: "open_settings" })
+                }}
+                aria-label="Slippage settings"
+                title="Slippage tolerance settings"
+              >
+                <Settings className="h-3 w-3" />
+              </Button>
             </div>
-            <h3 className="text-lg font-semibold text-foreground">Swap</h3>
+          ) : null}
+        </div>
+
+        {/* Buy/Sell/Redeem Tabs */}
+        {mode === "trade" && (
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-2.5">
+            <TabsList className="grid w-full grid-cols-3 rounded-sm border border-border bg-background/40 p-0.5">
+              <TabsTrigger
+                value="buy"
+                disabled={isGraduated}
+                className={cn(
+                  "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
+                  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+                  "data-[state=active]:hover:bg-primary/90"
+                )}
+                aria-label="Buy tokens"
+              >
+                Buy
+              </TabsTrigger>
+              <TabsTrigger
+                value="sell"
+                disabled={isGraduated}
+                className={cn(
+                  "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
+                  "data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground",
+                  "data-[state=active]:hover:bg-secondary/90"
+                )}
+                aria-label="Sell tokens"
+              >
+                Sell
+              </TabsTrigger>
+              <TabsTrigger
+                value="redeem"
+                className={cn(
+                  "rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground py-1.5",
+                  "data-[state=active]:bg-foreground data-[state=active]:text-background",
+                  "data-[state=active]:hover:bg-foreground/90"
+                )}
+                aria-label="Redeem tokens"
+              >
+                Redeem
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+      </div>
+
+      <CardContent className="p-3 space-y-2">
+        {mode === "trade" && isGraduated && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 rounded-sm border border-border bg-muted/30 px-2.5 py-2">
+              <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+              <span className="text-[10px] font-mono text-muted-foreground">This token has graduated to PiperX</span>
+            </div>
+            <Button
+              onClick={handleTradeOnPiperX}
+              className="w-full h-10 font-mono text-xs uppercase tracking-[0.2em] bg-primary text-primary-foreground hover:bg-primary/90 touch-manipulation"
+            >
+              <ExternalLink className="h-3.5 w-3.5 mr-2" />
+              Trade on PiperX
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
-            onClick={() => {
-              setShowSlippageSettings(true)
-              trackEvent("slippage_changed", { action: "open_settings" })
-            }}
-            aria-label="Slippage settings"
-            title="Slippage tolerance settings"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
+        )}
 
-        {/* Slippage Display */}
-        <div className="flex items-center justify-end">
-          <button
-            onClick={() => setShowSlippageSettings(true)}
-            className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Slippage tolerance settings"
-          >
-            Slippage: <span className="text-foreground tabular-nums">{slippage}%</span>
-          </button>
-        </div>
+        {activeTab === "redeem" && (
+          <div className="flex items-center justify-between rounded-sm border border-border/50 bg-muted/20 px-3 py-2">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">RT Balance</span>
+            <span className="text-xs font-mono tabular-nums text-foreground">
+              {formatBalance(rtBalance, 4)} RT
+            </span>
+          </div>
+        )}
 
-        {/* Buy/Sell Tabs */}
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-4">
-          <TabsList className="grid w-full grid-cols-2 rounded-sm border border-border bg-background/40 p-1">
-            <TabsTrigger
-              value="buy"
-              className={cn(
-                "rounded-sm text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground",
-                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
-                "data-[state=active]:hover:bg-primary/90"
-              )}
-              aria-label="Buy tokens"
-            >
-              Buy
-            </TabsTrigger>
-            <TabsTrigger
-              value="sell"
-              className={cn(
-                "rounded-sm text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground",
-                "data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground",
-                "data-[state=active]:hover:bg-secondary/90"
-              )}
-              aria-label="Sell tokens"
-            >
-              Sell
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
         {/* You Pay Section */}
-        <div className="space-y-2">
-          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
-          <div className="flex flex-col sm:flex-row gap-2">
+        <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Pay</label>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Bal:{" "}
+              <span className="text-foreground tabular-nums">
+                {formatBalance(fromBalance, 4)} {fromSymbol}
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
             <Input
               type="text"
               value={fromAmount}
               onChange={(e) => {
                 setFromAmount(e.target.value)
-                // Clear errors when user types
                 setBalanceError(null)
                 setSlippageError(null)
-                // Calculation will be handled by debounced effect
               }}
               onKeyDown={(e) => {
-                // Allow: backspace, delete, tab, escape, enter, decimal point
                 if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
-                    // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
                     (e.keyCode === 65 && e.ctrlKey === true) ||
                     (e.keyCode === 67 && e.ctrlKey === true) ||
                     (e.keyCode === 86 && e.ctrlKey === true) ||
                     (e.keyCode === 88 && e.ctrlKey === true) ||
-                    // Allow: home, end, left, right
                     (e.keyCode >= 35 && e.keyCode <= 39)) {
                   return
                 }
-                // Ensure that it is a number and stop the keypress
                 if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
                   e.preventDefault()
                 }
               }}
               placeholder={detailsLoading ? "Loading..." : "0.0"}
               disabled={detailsLoading || !tokenAddress || isTrading}
-              className="flex-1 text-base sm:text-lg font-semibold font-mono tabular-nums"
-              aria-label={`Amount to ${activeTab === "buy" ? "spend" : "sell"}`}
+              className="h-9 flex-1 text-sm font-mono tabular-nums bg-background/60 border-border/40"
+              aria-label={`Amount to ${activeTab === "buy" ? "spend" : activeTab === "sell" ? "sell" : "redeem"}`}
               aria-describedby={balanceError ? "balance-error" : undefined}
             />
-          </div>
-          {/* Balance Display - Stack below on mobile */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-2 pt-1">
-            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-              Balance:{" "}
-              <span className="text-foreground tabular-nums">
-                {activeTab === "buy" 
-                  ? formatBalance(userBalance, 4)
-                  : formatBalance(tokenBalance, 4)
-                } {activeTab === "buy" ? "IP" : tokenSymbol}
-              </span>
-            </span>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => {
                 const balance = activeTab === "buy" ? userBalance : tokenBalance
@@ -982,7 +1037,7 @@ function SwapInterfaceComponent({
                 }
               }}
               disabled={!isConnected || (activeTab === "buy" ? !userBalance : !tokenBalance)}
-              className="h-6 px-2 text-[10px] font-mono uppercase tracking-[0.2em] text-primary hover:text-primary/80 hover:bg-primary/10"
+              className="h-9 px-3 text-[10px] font-mono uppercase tracking-[0.2em] text-primary border-primary/30 hover:bg-primary/10"
               aria-label="Set maximum balance"
             >
               MAX
@@ -991,157 +1046,95 @@ function SwapInterfaceComponent({
         </div>
 
         {/* Estimated Receive */}
-        <div className="space-y-2">
-          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Estimated Receive</label>
-          <div className="flex items-center justify-between rounded-sm border border-border bg-muted/30 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold font-mono tabular-nums">
-                {toAmount || (isCalculating ? "…" : "0.0")}
-              </span>
-              <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                {activeTab === "buy" ? tokenSymbol : "IP"}
-              </span>
-            </div>
-            {isCalculating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        <div className="rounded-sm border border-border/50 bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">You Receive</label>
+            {isCalculating && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-mono tabular-nums text-foreground">
+              {toAmount || (isCalculating ? "…" : "0.0")}
+            </span>
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              {receiveSymbol}
+            </span>
           </div>
           {minReceive && (
-            <div className="pt-1">
-              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                Min received ({slippage}% slippage):{ " " }
-                <span className="text-foreground tabular-nums">
-                  {minReceive} {activeTab === "buy" ? tokenSymbol : "IP"}
-                </span>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              Min ({slippage}% slip):{" "}
+              <span className="text-foreground tabular-nums">
+                {minReceive} {receiveSymbol}
               </span>
-            </div>
+            </span>
           )}
         </div>
 
         {/* Exchange Rate and Price Impact */}
         {(exchangeRate || priceImpact !== null) && (
-          <div className="pt-3 border-t border-border space-y-2">
+          <div className="pt-2 border-t border-border/50 space-y-1.5">
             {exchangeRate && (
-              <p className="text-[11px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
+              <p className="text-[10px] font-mono text-muted-foreground text-center">{exchangeRate}</p>
             )}
             {priceImpact !== null && priceImpact > 0 && (
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                  Price Impact
-                </span>
-                <span
-                  className={cn(
-                    "text-[11px] font-mono tabular-nums",
-                    priceImpact > 5 ? "text-secondary" : "text-foreground"
-                  )}
-                >
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Impact</span>
+                <span className={cn("text-[10px] font-mono tabular-nums", priceImpact > 5 ? "text-secondary" : "text-foreground")}>
                   {priceImpact.toFixed(2)}%
                 </span>
-                {priceImpact > 5 && (
-                  <AlertTriangle className="h-3 w-3 text-secondary" aria-hidden="true" />
-                )}
+                {priceImpact > 5 && <AlertTriangle className="h-2.5 w-2.5 text-secondary flex-shrink-0" aria-hidden="true" />}
               </div>
             )}
             {priceImpact !== null && priceImpact > 5 && (
-              <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10" role="alert">
-                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                <AlertDescription className="text-[11px] text-secondary">
-                  High price impact! This trade will significantly affect the token price.
-                </AlertDescription>
-              </Alert>
+              <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5" role="alert">
+                <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" aria-hidden="true" />
+                <span className="text-[10px] font-mono text-secondary">High price impact!</span>
+              </div>
             )}
           </div>
         )}
 
         {/* Error Messages */}
         {balanceError && (
-          <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-[11px] text-secondary">
-              {balanceError}
-            </AlertDescription>
-          </Alert>
+          <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
+            <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+            <span className="text-[10px] font-mono text-secondary">{balanceError}</span>
+          </div>
         )}
 
         {slippageError && (
-          <Alert variant="destructive" className="py-2 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-[11px] text-secondary">
+          <div className="flex items-center gap-1.5 rounded-sm border border-secondary/30 bg-secondary/5 px-2.5 py-1.5">
+            <AlertTriangle className="h-3 w-3 text-secondary flex-shrink-0" />
+            <span className="text-[10px] font-mono text-secondary">
               {slippageError}
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 ml-1 text-[10px] font-mono uppercase tracking-[0.2em] text-secondary underline"
-                onClick={() => setShowSlippageSettings(true)}
-              >
-                Increase slippage
-              </Button>
-            </AlertDescription>
-          </Alert>
+              <button type="button" className="ml-1 underline hover:no-underline" onClick={() => setShowSlippageSettings(true)}>Increase slippage</button>
+            </span>
+          </div>
         )}
 
-        {/* Simulation feedback */}
-        {simulationStatus && (
-          <Alert className="mt-2 border-primary/40 bg-primary/10">
-            <CheckCircle className="h-3 w-3 text-primary" />
-            <AlertDescription className="text-[11px] font-mono text-primary">
-              {simulationStatus}
-            </AlertDescription>
-          </Alert>
-        )}
-        {simulationError && (
-          <Alert variant="destructive" className="mt-2 py-2 border-secondary/40 bg-secondary/10">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-[11px] text-secondary">
-              {simulationError}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Single trade button: simulate on Tenderly, then execute on-chain */}
-        <div className="mt-3 flex flex-col gap-2">
-          <Button
-            onClick={handlePlaceTrade}
-            disabled={
-              !fromAmount ||
-              parseFloat(fromAmount) <= 0 ||
-              !isConnected ||
-              isTrading ||
-              isSimulatingTx ||
-              detailsLoading ||
-              !tokenAddress ||
-              !!balanceError
-            }
-            className={cn(
-              "w-full h-12 sm:h-12 font-semibold font-mono text-sm tracking-[0.08em] touch-manipulation min-h-[44px]",
-              "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
-              activeTab === "buy"
-                ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
-                : "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
-            )}
-          >
-            {isSimulatingTx ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Simulating on Tenderly...
-              </>
-            ) : isTrading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {simulationError ? "Confirming (no preview)" : "Confirming..."}
-              </>
-            ) : tradeSuccess ? (
-              <>
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Trade Successful!
-              </>
-            ) : !isConnected ? (
-              "Connect Wallet"
-            ) : simulationError ? (
-              "Retry (simulation failed)"
-            ) : (
-              "Place Trade"
-            )}
-          </Button>
-        </div>
+        {/* Trade button */}
+        <Button
+          onClick={handlePlaceTrade}
+          disabled={!fromAmount || parseFloat(fromAmount) <= 0 || !isConnected || isTrading || detailsLoading || !tokenAddress || !!balanceError}
+          className={cn(
+            "w-full h-10 font-mono text-xs uppercase tracking-[0.2em] touch-manipulation",
+            "shadow-[0_0_0_rgba(204,255,0,0)] transition-shadow duration-200",
+            activeTab === "buy"
+              ? "bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+              : activeTab === "sell"
+                ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.35)]"
+                : "bg-foreground hover:bg-foreground/90 text-background disabled:opacity-60 hover:shadow-[0_0_24px_rgba(204,255,0,0.22)]"
+          )}
+        >
+          {isTrading ? (
+            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Confirming...</>
+          ) : tradeSuccess ? (
+            <><CheckCircle className="h-3.5 w-3.5 mr-1.5" />Success!</>
+          ) : !isConnected ? (
+            "Connect Wallet"
+          ) : (
+            activeTab === "redeem" ? "Redeem" : "Place Trade"
+          )}
+        </Button>
       </CardContent>
 
       {/* Slippage Settings Dialog */}
@@ -1161,6 +1154,7 @@ export const SwapInterface = memo(SwapInterfaceComponent, (prevProps, nextProps)
   return (
     prevProps.tokenAddress === nextProps.tokenAddress &&
     prevProps.tokenSymbol === nextProps.tokenSymbol &&
+    (prevProps.mode ?? "trade") === (nextProps.mode ?? "trade") &&
     prevProps.isGraduated === nextProps.isGraduated &&
     prevProps.piperXPoolAddress === nextProps.piperXPoolAddress
   )

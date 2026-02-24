@@ -91,9 +91,9 @@ export async function fetchTrades(
       const amountIP = valueRaw + feeRaw;
       const amountTokens = amountRaw;
 
-      // amountTokens is 6-decimal wrapper units, amountIP is 18-decimal IP (wei)
+      // amountTokens is 18-decimal wrapper units, amountIP is 18-decimal IP (wei)
       const ipFloat = Number(formatEther(amountIP));
-      const tokenFloat = Number(amountTokens) / 1e6; // full wrapper tokens
+      const tokenFloat = Number(formatEther(amountTokens)); // full wrapper tokens
 
       const price = tokenFloat > 0 ? ipFloat / tokenFloat : 0; // IP per wrapper token
       const volume = ipFloat;

@@ -5,17 +5,18 @@ import dynamic from "next/dynamic"
 import Image from "next/image"
 import { useState, useEffect, useCallback, useRef } from "react"
 import toast from "react-hot-toast"
-import { isAddress } from "viem"
-import { AlertCircle, Home, ArrowLeft, RefreshCw } from "lucide-react"
+import { isAddress, formatEther } from "viem"
+import { AlertCircle, Home, ArrowLeft, RefreshCw, ArrowUpDown, Globe, Twitter, Send, Copy } from "lucide-react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+
 import { Breadcrumb } from "@/components/ui/breadcrumb"
 import { useLaunchDetails } from "@/hooks/useLaunchDetails"
 import { useGraduationEvent } from "@/hooks/useGraduationEvent"
 import { GraduationModal } from "@/components/token/GraduationModal"
 import { ProgressToGraduation } from "@/components/token/ProgressBar"
 import { SwapInterface } from "@/components/swap/SwapInterface"
-import { TokenRevenueStats } from "@/components/token/TokenRevenueStats"
+
 import { TokenDetailSkeleton } from "@/components/token/TokenDetailSkeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ import { logError, isNetworkError, isRPCError } from "@/lib/errorUtils"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { IPFS_GATEWAY } from "@/lib/env"
 import { truncateAddress } from "@/lib/utils"
+import { getPiperXPoolUrl } from "@/lib/piperx"
 
 const TradingChart = dynamic(
   () => import("@/components/trading/TradingChart").then((m) => m.TradingChart),
@@ -56,7 +58,8 @@ export default function TokenDetailPage() {
     liquidityPoolAddress: string
   } | null>(null)
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const [dailyChangePct, setDailyChangePct] = useState<number | null>(null)
+  const [_dailyChangePct, setDailyChangePct] = useState<number | null>(null)
+  const [showSwapSheet, setShowSwapSheet] = useState(false)
   const copyToClipboard = useCallback((text: string, label: string) => {
     if (!text) return
     navigator.clipboard?.writeText(text)
@@ -94,9 +97,7 @@ export default function TokenDetailPage() {
       // Optional: Redirect to PiperX pool page after 5 seconds
       if (eventData.liquidityPoolAddress) {
         redirectTimerRef.current = setTimeout(() => {
-          // Construct PiperX DEX URL (adjust based on your DEX structure)
-          const piperXUrl = `https://piperx.io/pool/${eventData.liquidityPoolAddress}`
-          window.open(piperXUrl, "_blank", "noopener,noreferrer")
+          window.open(getPiperXPoolUrl(eventData.liquidityPoolAddress), "_blank", "noopener,noreferrer")
         }, 5000)
       }
     },
@@ -164,7 +165,7 @@ export default function TokenDetailPage() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>Invalid token address</AlertDescription>
               </Alert>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground">
                 The address {address} is not a valid Ethereum address.
               </p>
               <div className="flex gap-3 justify-center">
@@ -204,10 +205,10 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>Token not found</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     The token address you are looking for does not exist or could not be loaded.
                   </p>
-                  <p className="text-xs text-zinc-500 mt-2">
+                  <p className="text-xs text-muted-foreground/60 mt-2">
                     If you just created this token, it may take a few moments to appear. Please try again shortly.
                   </p>
                 </>
@@ -219,7 +220,7 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>Network error</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     Unable to connect to the network. Please check your internet connection.
                   </p>
                 </>
@@ -231,7 +232,7 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>Blockchain network error</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     The blockchain network may be congested. Try switching networks or try again in a moment.
                   </p>
                 </>
@@ -243,7 +244,7 @@ export default function TokenDetailPage() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     An error occurred while loading the token.
                   </p>
                 </>
@@ -282,6 +283,58 @@ export default function TokenDetailPage() {
     ? `${IPFS_GATEWAY}/${metadataUri.replace("ipfs://", "")}`
     : metadataUri
   const mediaTypeLabel = details.mediaType || "image"
+  const dailyChangePct =
+    typeof _dailyChangePct === "number" && Number.isFinite(_dailyChangePct)
+      ? _dailyChangePct
+      : null
+  const dailyChangeLabel = dailyChangePct !== null
+    ? `${dailyChangePct >= 0 ? "+" : ""}${dailyChangePct.toFixed(2)}%`
+    : "—"
+  const dailyChangeTone = dailyChangePct === null
+    ? "text-muted-foreground"
+    : dailyChangePct >= 0
+      ? "text-primary"
+      : "text-secondary"
+  const launchTimeLabel = details.wrapperMeta?.launchTime
+    ? new Date(details.wrapperMeta.launchTime * 1000).toLocaleDateString("en-US", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—"
+  const formatTokenAmount = (amount?: bigint, fractionDigits = 2) => {
+    if (amount === undefined || amount === null) return "—"
+    try {
+      const num = Number(formatEther(amount))
+      if (!Number.isFinite(num)) return "—"
+      return num.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })
+    } catch {
+      return "—"
+    }
+  }
+  const formatRawUnits = (raw?: string, decimals = 18, fractionDigits = 0) => {
+    if (!raw) return "—"
+    try {
+      const value = BigInt(raw)
+      const base = 10n ** BigInt(decimals)
+      const integer = value / base
+      const fraction = value % base
+      const num = Number(integer) + Number(fraction) / Number(base)
+      if (!Number.isFinite(num)) return "—"
+      return num.toLocaleString(undefined, { maximumFractionDigits: fractionDigits })
+    } catch {
+      return "—"
+    }
+  }
+  const tokensSoldLabel = launchInfo
+    ? `${formatTokenAmount(launchInfo.tokensSold, 2)} ${ticker}`
+    : "—"
+  const supplyLockedLabel = details.wrapperMeta
+    ? `${formatRawUnits(details.wrapperMeta.totalLocked, 6, 0)} RT`
+    : "—"
+  const revenueInjectedLabel = details.wrapperMeta
+    ? `${formatRawUnits(details.wrapperMeta.totalRoyaltiesHarvested, 18, 2)} WIP`
+    : "—"
 
   // Breadcrumb items
   const breadcrumbItems = [
@@ -291,227 +344,146 @@ export default function TokenDetailPage() {
   ]
 
   const socials = [
-    { label: "Website", url: (details.launchInfo as any)?.websiteUrl || (details.wrapperMeta as any)?.website },
-    { label: "Twitter", url: (details.launchInfo as any)?.twitterUrl || (details.wrapperMeta as any)?.twitter },
-    { label: "Telegram", url: (details.launchInfo as any)?.telegramUrl || (details.wrapperMeta as any)?.telegram },
+    {
+      label: "Website",
+      icon: Globe,
+      url: details.website || (details.launchInfo as any)?.websiteUrl || (details.wrapperMeta as any)?.website,
+    },
+    {
+      label: "Twitter",
+      icon: Twitter,
+      url: details.twitter || (details.launchInfo as any)?.twitterUrl || (details.wrapperMeta as any)?.twitter,
+    },
+    {
+      label: "Telegram",
+      icon: Send,
+      url: details.telegram || (details.launchInfo as any)?.telegramUrl || (details.wrapperMeta as any)?.telegram,
+    },
   ].filter((s) => !!s.url)
+
+  const headerCard = (
+    <div className="border border-border bg-card rounded-sm overflow-hidden">
+      <div className="relative px-4 py-4 sm:px-5">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(520px_circle_at_top_right,_rgba(255,255,255,0.08),_transparent_70%)]" />
+        <div className="relative flex flex-wrap items-center gap-4">
+          {/* Avatar */}
+          <div className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-sm overflow-hidden border border-border bg-muted/40 flex-shrink-0">
+            {details.imageUrl ? (
+              <Image src={details.imageUrl} alt={tokenName} fill unoptimized className="object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <span className="text-base font-semibold text-muted-foreground">{tokenName.charAt(0).toUpperCase()}</span>
+              </div>
+            )}
+          </div>
+          {/* Name + creator */}
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">{tokenName}</h1>
+              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex-shrink-0">{ticker}</span>
+              {isTokenGraduated && (
+                <span className="inline-flex items-center rounded-sm bg-primary/10 border border-primary/30 px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-primary flex-shrink-0">
+                  Graduated
+                </span>
+              )}
+            </div>
+            {creatorAddress && (
+              <button
+                type="button"
+                onClick={() => copyToClipboard(creatorAddress, "Creator")}
+                className="text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+              >
+                Created by {truncateAddress(creatorAddress)} <Copy className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+          {/* Socials */}
+          {socials.length > 0 && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {socials.map((s) => {
+                const Icon = s.icon
+                return (
+                  <a key={s.label} href={s.url as string} target="_blank" rel="noopener noreferrer" title={s.label}
+                    className="h-7 w-7 flex items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
+                    <Icon className="h-3.5 w-3.5" />
+                  </a>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Meta bar */}
+      <div className="border-t border-border bg-muted/30 px-4 py-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Status</span>
+            <span className="text-xs font-mono tabular-nums text-foreground">
+              {isTokenGraduated ? "Graduated" : "Active"}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Tokens Sold</span>
+            <span className="text-xs font-mono tabular-nums text-foreground">{tokensSoldLabel}</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Supply Locked</span>
+            <span className="text-xs font-mono tabular-nums text-foreground">{supplyLockedLabel}</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Launched</span>
+            <span className="text-xs font-mono tabular-nums text-foreground">{launchTimeLabel}</span>
+          </div>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">24h Change</span>
+          <span className={`text-xs font-mono tabular-nums ${dailyChangeTone}`}>{dailyChangeLabel}</span>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 pt-2 sm:pt-5 lg:pt-6 pb-8">
-        <div className="w-full space-y-5 sm:space-y-6">
+      <div className="min-h-screen px-3 sm:px-4 md:px-6 lg:px-8 pt-2 sm:pt-4 lg:pt-6 pb-8">
+        <div className="w-full space-y-4">
           {/* Breadcrumbs */}
           <Breadcrumb items={breadcrumbItems} />
 
-          {/* Bento Grid Layout */}
-          <div className="grid gap-4 lg:gap-5 lg:grid-cols-12">
-            {/* Left Column: Chart -> Media -> Comments */}
-            <div className="lg:col-span-8 space-y-4">
-              {/* Trading Chart */}
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 120ms both",
-                }}
-              >
-                <CardHeader className="border-b border-border bg-muted/60">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                        Price Chart
-                      </div>
-                      <CardTitle className="text-lg font-semibold text-foreground">
-                        {ticker}/IP
-                      </CardTitle>
-                    </div>
-                    {dailyChangePct !== null && isFinite(dailyChangePct) && (
-                      <div className="text-sm font-mono tabular-nums">
-                        <span
-                          className={
-                            dailyChangePct > 0
-                              ? "text-primary"
-                              : dailyChangePct < 0
-                              ? "text-secondary"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {dailyChangePct > 0 ? "+" : ""}
-                          {dailyChangePct.toFixed(2)}%
-                        </span>
-                        <span className="ml-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                          24h
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  <TradingChart
-                    tokenAddress={address}
-                    height={420}
-                    currentPrice={details.currentPrice || null}
-                    marketCap={marketCapForChart}
-                    reserveBalance={reserveForChart}
-                    onDailyChangePct={setDailyChangePct}
-                  />
-                </CardContent>
-              </Card>
+          {/* ── Token Header (mobile) ── */}
+          <div className="lg:hidden">
+            {headerCard}
+          </div>
 
-              {/* IP Media */}
-              <Card
-                className="overflow-hidden"
-                style={{
-                  animation: "fadeIn 0.5s ease-out 160ms both",
-                }}
-              >
-                <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-2">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">IP Media</span>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
-                    {mediaTypeLabel}
-                  </span>
+          {/* ── Two-column grid ── */}
+          <div className="grid gap-3 lg:gap-4 lg:grid-cols-12 lg:items-start max-w-full">
+
+            {/* Left column */}
+            <div className="order-last lg:order-none lg:col-span-8 lg:col-start-1 space-y-3 min-w-0">
+
+              {/* Token Header (desktop) */}
+              <div className="hidden lg:block">
+                {headerCard}
+              </div>
+
+              {/* Chart */}
+              <Card>
+                <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">{ticker}/IP</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Price Chart</span>
                 </div>
-                <div className="relative aspect-square w-full overflow-hidden bg-muted">
-                  {details.imageUrl ? (
-                    <Image
-                      src={details.imageUrl}
-                      alt={tokenName}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xl font-semibold text-muted-foreground">
-                        {tokenName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
+                <CardContent className="p-0 overflow-hidden">
+                  <div className="hidden sm:block"><TradingChart tokenAddress={address} height={420} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
+                  <div className="sm:hidden"><TradingChart tokenAddress={address} height={280} currentPrice={details.currentPrice || null} marketCap={marketCapForChart} reserveBalance={reserveForChart} onDailyChangePct={setDailyChangePct} /></div>
+                </CardContent>
+              </Card>
+
+              {/* Holders */}
+              <Card>
+                <div className="border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">Holders</span>
                 </div>
-                <CardContent className="p-3 space-y-3">
-                  <div className="space-y-1">
-                    <div className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Asset</div>
-                    <div className="text-sm font-semibold text-foreground truncate">{tokenName}</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Symbol</div>
-                      <div className="font-mono text-foreground tabular-nums">{ticker}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">IPID</div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(details.ipId, "IPID")}
-                        className="font-mono text-foreground hover:underline decoration-dotted"
-                      >
-                        {truncateAddress(details.ipId)}
-                      </button>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Creator</div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(creatorAddress || "", "Creator")}
-                        className="font-mono text-foreground hover:underline decoration-dotted"
-                      >
-                        {truncateAddress(creatorAddress)}
-                      </button>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Token</div>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(details.tokenAddress, "Token address")}
-                        className="font-mono text-foreground hover:underline decoration-dotted"
-                      >
-                        {truncateAddress(details.tokenAddress)}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Metadata URI</div>
-                    {metadataUri ? (
-                      <a
-                        href={metadataHref || "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-[11px] font-mono text-foreground hover:underline decoration-dotted underline-offset-2 truncate"
-                      >
-                        {metadataUri}
-                      </a>
-                    ) : (
-                      <span className="text-[11px] font-mono text-muted-foreground">—</span>
-                    )}
-                  </div>
-
-                  {socials.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Socials</div>
-                      <div className="flex flex-wrap gap-2 text-[11px]">
-                        {socials.map((s) => (
-                          <a
-                            key={s.label}
-                            href={s.url as string}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-sm border border-border px-2 py-1 hover:bg-muted/60"
-                          >
-                            {s.label}
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Comments */}
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 200ms both",
-                }}
-              >
-                <CardHeader className="border-b border-border bg-muted/60">
-                  <CardTitle className="text-sm font-semibold text-foreground">Comments</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <PoolComments tokenAddress={address} tokenName={tokenName} />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right Column: sticky swap stack */}
-            <div className="lg:col-span-4 space-y-4 lg:sticky lg:top-4">
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 140ms both",
-                }}
-              >
-                <CardContent className="p-0">
-                  <SwapInterface
-                    tokenAddress={address}
-                    tokenSymbol={ticker}
-                    isGraduated={launchInfo?.graduated || false}
-                    piperXPoolAddress={graduationData?.liquidityPoolAddress}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 160ms both",
-                }}
-              >
-                <CardContent className="p-4 sm:p-5">
-                  <TokenRevenueStats tokenAddress={address} />
-                </CardContent>
-              </Card>
-
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 180ms both",
-                }}
-              >
-                <CardContent className="p-4 sm:p-5">
+                <CardContent className="p-4">
                   <HolderDistribution
                     tokenAddress={address}
                     tokenSymbol={ticker}
@@ -520,33 +492,90 @@ export default function TokenDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card
-                style={{
-                  animation: "fadeIn 0.5s ease-out 200ms both",
-                }}
-              >
-                <CardContent className="p-4 sm:p-5">
-                  <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
-                </CardContent>
-              </Card>
+              {/* Recent Activity (component renders its own Card) */}
+              <TransactionHistory tokenAddress={address} tokenSymbol={ticker} limit={20} />
 
+              {/* Comments (component renders its own Card) */}
+              <PoolComments tokenAddress={address} tokenName={tokenName} />
+            </div>
+
+            {/* Right column — shows FIRST on mobile (progress/holders), sticky on desktop */}
+            <div className="order-first lg:order-none lg:col-span-4 lg:col-start-9 space-y-3 min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar">
+
+              {/* Swap (desktop only) */}
+              <div className="hidden lg:block">
+                <SwapInterface
+                  tokenAddress={address}
+                  tokenSymbol={ticker}
+                  mode="trade"
+                  isGraduated={launchInfo?.graduated || false}
+                  piperXPoolAddress={graduationData?.liquidityPoolAddress}
+                />
+              </div>
+
+              {/* Progress */}
               {launchInfo && launchInfo.totalRaised && (
-                <Card
-                  style={{
-                    animation: "fadeIn 0.5s ease-out 220ms both",
-                  }}
-                >
-                  <CardContent className="p-4 sm:p-5">
+                <Card>
+                  <CardContent className="p-4">
                     <ProgressToGraduation
                       totalRaised={launchInfo.totalRaised}
-                      tokenTicker={ticker}
-                      tokenName={tokenName}
-                      tokenAddress={address}
+                      targetRaise={details.graduationThreshold}
                       isGraduated={launchInfo.graduated}
                     />
                   </CardContent>
                 </Card>
               )}
+
+              {/* IP Media */}
+              <Card className="overflow-hidden">
+                <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+                  <span className="text-xs font-semibold text-foreground">IP Media</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">{mediaTypeLabel}</span>
+                </div>
+                <div className="relative aspect-video max-h-[320px] w-full overflow-hidden bg-muted">
+                  {details.imageUrl ? (
+                    <Image src={details.imageUrl} alt={tokenName} fill className="object-contain" unoptimized />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xl font-semibold text-muted-foreground">{tokenName.charAt(0).toUpperCase()}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4 border-t border-border px-4 py-4 sm:grid-cols-4 bg-muted/20">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-1.5">
+                      <Copy className="h-3 w-3" /> IPID
+                    </div>
+                    {details.ipId ? (
+                      <button type="button" onClick={() => copyToClipboard(details.ipId as string, "IPID")} className="text-xs font-mono text-foreground hover:text-primary transition-colors flex items-center gap-1.5">
+                        {truncateAddress(details.ipId)}
+                      </button>
+                    ) : (
+                      <span className="text-xs font-mono text-muted-foreground">—</span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-1.5">
+                      <Copy className="h-3 w-3" /> Token
+                    </div>
+                    <button type="button" onClick={() => copyToClipboard(details.tokenAddress, "Token address")} className="text-xs font-mono text-foreground hover:text-primary transition-colors flex items-center gap-1.5">
+                      {truncateAddress(details.tokenAddress)}
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Metadata</div>
+                    {metadataUri ? (
+                      <a href={metadataHref || "#"} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-foreground hover:text-primary transition-colors underline decoration-dotted underline-offset-2">View On IPFS</a>
+                    ) : (
+                      <span className="text-xs font-mono text-muted-foreground">—</span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Revenue</div>
+                    <span className="text-xs font-mono text-primary font-semibold tabular-nums">{revenueInjectedLabel}</span>
+                  </div>
+                </div>
+              </Card>
             </div>
           </div>
 
@@ -557,11 +586,49 @@ export default function TokenDetailPage() {
               onOpenChange={setShowGraduationModal}
               tokenTicker={details.symbol || "TOKEN"}
               tokenName={details.name || "Token"}
-              tokenAddress={graduationData?.liquidityPoolAddress || address}
+              poolAddress={graduationData?.liquidityPoolAddress}
+              tokenAddress={address}
             />
           )}
+
+          {/* Mobile: Sticky Trade button */}
+          <div className="sticky bottom-0 z-40 lg:hidden -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 pb-3 pt-2 bg-gradient-to-t from-background via-background to-transparent">
+            <button
+              type="button"
+              onClick={() => setShowSwapSheet(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-sm bg-primary px-6 py-3 text-xs font-mono uppercase tracking-[0.2em] text-primary-foreground shadow-lg hover:brightness-110 active:scale-[0.98] transition-all"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              Trade {ticker}
+            </button>
+          </div>
+
         </div>
       </div>
+
+      {/* Mobile: Bottom sheet */}
+      {showSwapSheet && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowSwapSheet(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-card border-t border-border rounded-t-2xl">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+              <span className="text-xs font-mono uppercase tracking-[0.2em] text-foreground">Trade {ticker}</span>
+              <button type="button" onClick={() => setShowSwapSheet(false)} className="h-7 w-7 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto">
+              <SwapInterface
+                tokenAddress={address}
+                tokenSymbol={ticker}
+                mode="trade"
+                isGraduated={launchInfo?.graduated || false}
+                piperXPoolAddress={graduationData?.liquidityPoolAddress}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </ErrorBoundary>
   )
 }

@@ -20,6 +20,8 @@ export interface LaunchDetails {
   marketCap?: string
   reserveBalance?: string
   bondingProgress?: number
+  graduated?: boolean
+  graduationThreshold?: bigint
   category?: string
   currentPrice?: string
   rtAddress?: string
@@ -52,29 +54,33 @@ export function useLaunchDetails(tokenAddress: string | null) {
       setLoading(true)
       setError(null)
 
-      const { getLaunchInfo } = await import("@/services/launchpadService")
-      const { enrichLaunchData } = await import("@/services/launchDataService")
+      const { getLaunchInfo, getBondingProgress, getMarketCap, getGraduationThreshold } = await import("@/services/launchpadService")
 
-      // Fetch launch info, enriched data, graduation info, and subgraph wrapper metadata in parallel
-      const [launchInfo, enrichedData, graduationInfo, wrapperMeta] = await Promise.all([
+      // Fetch launch info, graduation info, market cap, and subgraph wrapper metadata in parallel
+      const [launchInfo, graduationInfo, marketCapStr, wrapperMeta, graduationThreshold] = await Promise.all([
         getLaunchInfo(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getLaunchInfo")
-          return null
-        }),
-        enrichLaunchData(tokenAddress).catch((err) => {
-          logError(err, "useLaunchDetails.enrichLaunchData")
-          // If enrichment fails, we can still show basic info
           return null
         }),
         getGraduationInfo(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getGraduationInfo")
           return null
         }),
+        getMarketCap(tokenAddress).catch((err) => {
+          logError(err, "useLaunchDetails.getMarketCap")
+          return null
+        }),
         getWrapperTokenMeta(tokenAddress).catch((err) => {
           logError(err, "useLaunchDetails.getWrapperTokenMeta")
           return null
         }),
+        getGraduationThreshold().catch((err) => {
+          logError(err, "useLaunchDetails.getGraduationThreshold")
+          return null
+        }),
       ])
+
+      const bondingProgress = getBondingProgress(launchInfo, graduationThreshold ?? undefined)
 
       // Load socials and optional metadata overrides from Supabase
       // `launches` table. We may have stored either the RT, the royalty
@@ -88,16 +94,35 @@ export function useLaunchDetails(tokenAddress: string | null) {
       let symbolFromSupabase: string | undefined
       let metadataUriFromSupabase: string | undefined
       let mediaTypeFromSupabase: string | undefined
+      let ipIdFromSupabase: string | undefined
 
       try {
+        const wrapperCandidates = new Set<string>()
+        wrapperCandidates.add(tokenAddress)
+        wrapperCandidates.add(tokenAddress.toLowerCase())
+
+        if (supabase) {
+          const { data: tokenRows, error: tokenErr } = await supabase
+            .from("tokens")
+            .select("token_address, name, symbol, image_uri")
+            .in("token_address", Array.from(wrapperCandidates))
+            .limit(1)
+
+          if (!tokenErr && Array.isArray(tokenRows) && tokenRows.length > 0) {
+            const token = tokenRows[0] as any
+            nameFromSupabase = token.name || undefined
+            symbolFromSupabase = token.symbol || undefined
+            imageUrlFromSupabase = token.image_uri || undefined
+          }
+        }
+
         const candidates = new Set<string>()
 
         const rtFromWrapper = (wrapperMeta as any)?.rt as string | undefined
-        const rtFromEnriched = (enrichedData as any)?.rtAddress as string | undefined
         const rtFromLaunchInfo = (launchInfo as any)?.royaltyToken as string | undefined
         const vaultFromLaunchInfo = (launchInfo as any)?.royaltyVault as string | undefined
 
-        for (const addr of [rtFromWrapper, rtFromEnriched, rtFromLaunchInfo, vaultFromLaunchInfo]) {
+        for (const addr of [rtFromWrapper, rtFromLaunchInfo, vaultFromLaunchInfo]) {
           if (addr) {
             // Support both original- and lower-case storage in Supabase
             candidates.add(addr)
@@ -111,7 +136,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
           const { data, error: supabaseError } = await supabase
             .from("launches")
             .select(
-              "twitter_url, telegram_url, website_url, royalty_token_address, image_url, name, symbol, metadata_uri",
+              "twitter_url, telegram_url, website_url, royalty_token_address, image_url, name, symbol, metadata_uri, ip_id",
             )
             .in("royalty_token_address", candidateArray)
             .limit(1)
@@ -121,10 +146,11 @@ export function useLaunchDetails(tokenAddress: string | null) {
             twitter = row.twitter_url || undefined
             telegram = row.telegram_url || undefined
             website = row.website_url || undefined
-            imageUrlFromSupabase = row.image_url || undefined
-            nameFromSupabase = row.name || undefined
-            symbolFromSupabase = row.symbol || undefined
+            imageUrlFromSupabase = imageUrlFromSupabase ?? row.image_url ?? undefined
+            nameFromSupabase = nameFromSupabase ?? row.name ?? undefined
+            symbolFromSupabase = symbolFromSupabase ?? row.symbol ?? undefined
             metadataUriFromSupabase = row.metadata_uri || undefined
+            ipIdFromSupabase = row.ip_id || undefined
           }
         }
       } catch (supabaseErr) {
@@ -132,9 +158,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
       }
 
       // Check if token exists on-chain even if not in subgraph
-      if (!launchInfo && !enrichedData) {
-        // Token might be recently created and not yet indexed
-        // Try to check if it's a valid contract address
+      if (!launchInfo) {
         const errorMsg = "Token not found. If you just created this token, it may take a few moments to appear in the indexer."
         setError(errorMsg)
         setDetails(null)
@@ -144,12 +168,16 @@ export function useLaunchDetails(tokenAddress: string | null) {
 
       setDetails({
         tokenAddress,
-        ...(enrichedData || {}),
-        marketCap: enrichedData?.marketCap,
-        reserveBalance: launchInfo ? formatEther(launchInfo.reserveBalance) : undefined,
-        imageUrl: imageUrlFromSupabase ?? enrichedData?.imageUrl,
-        name: nameFromSupabase ?? enrichedData?.name,
-        symbol: symbolFromSupabase ?? enrichedData?.symbol,
+        rtAddress: launchInfo.royaltyToken || undefined,
+        graduated: launchInfo.graduated,
+        graduationThreshold: graduationThreshold ?? undefined,
+        category: "IP Asset",
+        marketCap: marketCapStr || undefined,
+        bondingProgress: bondingProgress || undefined,
+        reserveBalance: formatEther(launchInfo.reserveBalance),
+        imageUrl: imageUrlFromSupabase,
+        name: nameFromSupabase,
+        symbol: symbolFromSupabase,
         metadataUri: metadataUriFromSupabase,
         metadata_uri: metadataUriFromSupabase,
         // Default mediaType to 'image' when we have metadata_uri but no explicit media_type
@@ -160,6 +188,7 @@ export function useLaunchDetails(tokenAddress: string | null) {
         launchInfo: launchInfo || null,
         graduationInfo: graduationInfo || null,
         wrapperMeta: wrapperMeta || null,
+        ipId: ipIdFromSupabase || launchInfo.ipAsset || undefined,
       })
     } catch (err) {
       logError(err, "useLaunchDetails")

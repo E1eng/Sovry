@@ -102,6 +102,7 @@
     font-feature-settings: "tnum";
     font-variant-numeric: tabular-nums;
     scrollbar-width: none; /* Firefox */
+    overflow-x: hidden; /* Prevent horizontal scroll on mobile */
   }
 
   body::-webkit-scrollbar {

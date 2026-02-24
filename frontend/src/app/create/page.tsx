@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FileUpload } from "@/components/ui/file-upload";
@@ -28,6 +28,7 @@ import Link from "next/link";
 import {
   fetchWalletIPAssets,
   IPAsset,
+  getRoyaltyVaultAddress,
   getTokenBalance,
   TokenBalance,
   SOVRY_EXCHANGE_ADDRESS,
@@ -38,15 +39,40 @@ import { pinFileToIPFS, pinJSONToIPFS } from "@/services/pinataService";
 import { supabase } from "@/lib/supabaseClient";
 import { logger } from "@/lib/logger";
 import { truncateAddress } from "@/lib/utils";
+import { STORYSCAN_BASE_URL } from "@/lib/env";
 
 export default function CreatePage() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext();
-  const router = useRouter();
+  const _router = useRouter();
 
   const externalImageLoader = ({ src }: { src: string }) => src;
 
   const isConnected = !!primaryWallet;
-  const walletAddress = primaryWallet?.address;
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveAddress = async () => {
+      if (!primaryWallet) {
+        setWalletAddress(null);
+        return;
+      }
+
+      try {
+        const resolved = await primaryWallet.address;
+        if (!cancelled) setWalletAddress(resolved);
+      } catch {
+        if (!cancelled) setWalletAddress(null);
+      }
+    };
+
+    resolveAddress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryWallet]);
 
   const [ipAssets, setIpAssets] = useState<IPAsset[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,6 +95,11 @@ export default function CreatePage() {
   const [telegramUrl, setTelegramUrl] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [previewImageErrored, setPreviewImageErrored] = useState(false);
+
+  const lastAutofillIpIdRef = useRef<string | null>(null);
+  const tokenNameTouchedRef = useRef(false);
+  const launchDescriptionTouchedRef = useRef(false);
+  const launchImageTouchedRef = useRef(false);
 
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchedTokenAddress, setLaunchedTokenAddress] = useState<string | null>(null);
@@ -103,6 +134,7 @@ export default function CreatePage() {
   );
 
   const handleLogoFileChange = (file: File | null) => {
+    launchImageTouchedRef.current = true;
     setLaunchLogoFile(file);
   };
 
@@ -125,22 +157,36 @@ export default function CreatePage() {
 
   // Auto-populate fields from Story Protocol when IP is selected
   useEffect(() => {
-    if (!selectedIP) return;
+    if (!selectedIP) {
+      lastAutofillIpIdRef.current = null;
+      tokenNameTouchedRef.current = false;
+      launchDescriptionTouchedRef.current = false;
+      launchImageTouchedRef.current = false;
+      return;
+    }
 
     const asset = displayIPAssets.find((a) => a.ipId === selectedIP);
     if (!asset) return;
 
-    if (asset.imageUrl) {
+    // Only autofill once per selected IP, and never overwrite manual user edits.
+    if (lastAutofillIpIdRef.current !== selectedIP) {
+      lastAutofillIpIdRef.current = selectedIP;
+      tokenNameTouchedRef.current = false;
+      launchDescriptionTouchedRef.current = false;
+      launchImageTouchedRef.current = false;
+    }
+
+    if (!launchImageTouchedRef.current && asset.imageUrl) {
       setLaunchImageUrl(asset.imageUrl);
       // Clear manual upload when auto-populating from Story Protocol
       setLaunchLogoFile(null);
     }
 
-    if (asset.name) {
+    if (!tokenNameTouchedRef.current && asset.name) {
       setTokenName(asset.name);
     }
 
-    if (asset.description) {
+    if (!launchDescriptionTouchedRef.current && asset.description) {
       setLaunchDescription(asset.description);
     }
   }, [selectedIP, displayIPAssets]);
@@ -151,30 +197,9 @@ export default function CreatePage() {
       setLoading(true);
       setError(null);
       try {
-        const assets = await fetchWalletIPAssets(walletAddress, primaryWallet);
+        const assets = await fetchWalletIPAssets(walletAddress, primaryWallet ?? undefined);
         setIpAssets(assets);
-
-        const balanceResults = await Promise.all(
-          assets.map(async (asset) => {
-            if (!asset.royaltyVaultAddress) {
-              return { ipId: asset.ipId, balance: null as TokenBalance | null };
-            }
-            try {
-              const balance = await getTokenBalance(walletAddress, asset.royaltyVaultAddress);
-              return { ipId: asset.ipId, balance };
-            } catch {
-              return { ipId: asset.ipId, balance: null };
-            }
-          })
-        );
-
-        const balances: Record<string, TokenBalance> = {};
-        for (const { ipId, balance } of balanceResults) {
-          if (balance) {
-            balances[ipId] = balance;
-          }
-        }
-        setTokenBalances(balances);
+        setTokenBalances({});
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch IP assets");
       } finally {
@@ -184,6 +209,120 @@ export default function CreatePage() {
 
     fetchAssets();
   }, [isConnected, walletAddress, primaryWallet]);
+
+  const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+  useEffect(() => {
+    const hydrateSelectedIp = async () => {
+      if (!walletAddress) return;
+      if (!selectedIP) return;
+
+      const selected = ipAssets.find((asset) => asset.ipId === selectedIP);
+      if (!selected) return;
+
+      const cachedBalance = tokenBalances[selected.ipId];
+      const alreadyHydrated = cachedBalance !== undefined;
+      if (alreadyHydrated) return;
+
+      try {
+        const royaltyVaultAddress = await getRoyaltyVaultAddress(selected.ipId, primaryWallet ?? undefined);
+
+        if (royaltyVaultAddress && royaltyVaultAddress !== ZERO_ADDRESS) {
+          setIpAssets((prev) =>
+            prev.map((asset) =>
+              asset.ipId === selected.ipId
+                ? {
+                    ...asset,
+                    royaltyVaultAddress,
+                    hasRoyaltyTokens: true,
+                  }
+                : asset
+            )
+          );
+
+          const balance = await getTokenBalance(walletAddress, royaltyVaultAddress);
+          if (balance) {
+            setTokenBalances((prev) => ({ ...prev, [selected.ipId]: balance }));
+          } else {
+            setTokenBalances((prev) => ({
+              ...prev,
+              [selected.ipId]: { address: royaltyVaultAddress, balance: "0", decimals: 6, symbol: "RT" },
+            }));
+          }
+          return;
+        }
+
+        setIpAssets((prev) =>
+          prev.map((asset) =>
+            asset.ipId === selected.ipId
+              ? {
+                  ...asset,
+                  royaltyVaultAddress: ZERO_ADDRESS,
+                  hasRoyaltyTokens: false,
+                }
+              : asset
+          )
+        );
+        setTokenBalances((prev) => ({
+          ...prev,
+          [selected.ipId]: { address: ZERO_ADDRESS, balance: "0", decimals: 6, symbol: "RT" },
+        }));
+      } catch (err) {
+        logger.error("Failed to hydrate selected IP royalty info", err);
+        setIpAssets((prev) =>
+          prev.map((asset) =>
+            asset.ipId === selected.ipId
+              ? {
+                  ...asset,
+                  royaltyVaultAddress: ZERO_ADDRESS,
+                  hasRoyaltyTokens: false,
+                }
+              : asset
+          )
+        );
+        setTokenBalances((prev) => ({
+          ...prev,
+          [selected.ipId]: { address: ZERO_ADDRESS, balance: "0", decimals: 6, symbol: "RT" },
+        }));
+      }
+    };
+
+    hydrateSelectedIp();
+  }, [walletAddress, selectedIP, primaryWallet, ipAssets, tokenBalances]);
+
+  useEffect(() => {
+    const refreshBalance = async () => {
+      if (!walletAddress) return;
+      if (!selectedIP) return;
+
+      const selected = ipAssets.find((asset) => asset.ipId === selectedIP);
+      if (!selected) return;
+
+      const cachedBalance = tokenBalances[selected.ipId];
+      const alreadyHydrated = cachedBalance !== undefined;
+      if (alreadyHydrated) return;
+
+      try {
+        const royaltyVaultAddress = await getRoyaltyVaultAddress(selected.ipId, primaryWallet ?? undefined);
+
+        if (royaltyVaultAddress && royaltyVaultAddress !== ZERO_ADDRESS) {
+          const balance = await getTokenBalance(walletAddress, royaltyVaultAddress);
+          if (balance) {
+            setTokenBalances((prev) => ({ ...prev, [selected.ipId]: balance }));
+          } else {
+            setTokenBalances((prev) => ({
+              ...prev,
+              [selected.ipId]: { address: royaltyVaultAddress, balance: "0", decimals: 6, symbol: "RT" },
+            }));
+          }
+        }
+      } catch (err) {
+        logger.error("Failed to refresh royalty token balance", err);
+      }
+    };
+
+    refreshBalance();
+  }, [walletAddress, selectedIP, primaryWallet, ipAssets, tokenBalances]);
 
   const handleUnlockTokens = async (ipAsset: IPAsset) => {
     if (!walletAddress || !primaryWallet) return;
@@ -208,12 +347,37 @@ export default function CreatePage() {
 
         // Refresh on-chain royalty token balance for this IP and update local state
         try {
-          const updatedBalance = await getTokenBalance(walletAddress, ipAsset.royaltyVaultAddress);
-          if (updatedBalance) {
-            setTokenBalances((prev) => ({
-              ...prev,
-              [ipAsset.ipId]: updatedBalance,
-            }));
+          const latestAsset = ipAssets.find((a) => a.ipId === ipAsset.ipId) || ipAsset;
+          const resolvedVault =
+            latestAsset.royaltyVaultAddress && latestAsset.royaltyVaultAddress !== ZERO_ADDRESS
+              ? latestAsset.royaltyVaultAddress
+              : (await getRoyaltyVaultAddress(ipAsset.ipId, primaryWallet ?? undefined)) || ZERO_ADDRESS;
+
+          if (resolvedVault !== ZERO_ADDRESS) {
+            setIpAssets((prev) =>
+              prev.map((asset) =>
+                asset.ipId === ipAsset.ipId
+                  ? {
+                      ...asset,
+                      royaltyVaultAddress: resolvedVault,
+                      hasRoyaltyTokens: true,
+                    }
+                  : asset
+              )
+            );
+
+            const updatedBalance = await getTokenBalance(walletAddress, resolvedVault);
+            if (updatedBalance) {
+              setTokenBalances((prev) => ({
+                ...prev,
+                [ipAsset.ipId]: updatedBalance,
+              }));
+            } else {
+              setTokenBalances((prev) => ({
+                ...prev,
+                [ipAsset.ipId]: { address: resolvedVault, balance: "0", decimals: 6, symbol: "RT" },
+              }));
+            }
           }
         } catch (balanceError) {
           logger.error("Failed to refresh royalty token balance after transfer", balanceError);
@@ -245,6 +409,10 @@ export default function CreatePage() {
       setError(null);
       setSuccess(null);
 
+      const normalizedTwitterUrl = normalizeTwitterUrl(twitterUrl);
+      const normalizedTelegramUrl = normalizeTelegramUrl(telegramUrl);
+      const normalizedWebsiteUrl = normalizeWebsiteUrl(websiteUrl);
+
       if (!primaryWallet) {
         throw new Error("Please connect your wallet first");
       }
@@ -265,15 +433,41 @@ export default function CreatePage() {
         nameForLaunch,
         symbolForLaunch,
         launchPercentage,
+        ipAsset.ipId,
       );
 
       if (!result.success) {
         throw new Error(result.error || "Failed to launch on bonding curve");
       }
 
+      const wrapperAddress = (result.wrapperAddress || "").toLowerCase();
+
+      if (supabase && wrapperAddress) {
+        const initialImageUrl = launchImageUrl.trim() || ipAsset.imageUrl || null;
+        const { error: tokenErr } = await supabase.from("tokens").upsert(
+          {
+            token_address: wrapperAddress,
+            name: nameForLaunch,
+            symbol: symbolForLaunch,
+            image_uri: initialImageUrl,
+            creator: walletAddress?.toLowerCase() || null,
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: "token_address" }
+        );
+
+        if (tokenErr) {
+          logger.error("Supabase tokens upsert failed (initial persist)", tokenErr);
+          toast.error(`Failed to save token to Supabase (tokens): ${tokenErr.message}`, {
+            duration: 6000,
+          });
+        }
+      }
+
       try {
         // Always upload image to Pinata: prefer manual upload, otherwise fetch from Story/IP asset URL and re-upload
         let imageUrl = "";
+
         if (launchLogoFile) {
           // Manual upload takes precedence
           const imageRes = await pinFileToIPFS(launchLogoFile, launchLogoFile.name);
@@ -305,12 +499,33 @@ export default function CreatePage() {
           }
         }
 
+        if (supabase && wrapperAddress) {
+          const { error: tokenErr } = await supabase.from("tokens").upsert(
+            {
+              token_address: wrapperAddress,
+              name: nameForLaunch,
+              symbol: symbolForLaunch,
+              image_uri: imageUrl || null,
+              creator: walletAddress?.toLowerCase() || null,
+              created_at: new Date().toISOString(),
+            },
+            { onConflict: "token_address" }
+          );
+
+          if (tokenErr) {
+            logger.error("Supabase tokens upsert failed (final metadata persist)", tokenErr);
+            toast.error(`Failed to save token to Supabase (tokens): ${tokenErr.message}`, {
+              duration: 6000,
+            });
+          }
+        }
+
         const metadata = {
           name: nameForLaunch,
           symbol: symbolForLaunch,
           description:
             launchDescription || selectedIPAsset?.description || "",
-          external_url: websiteUrl || undefined,
+          external_url: normalizedWebsiteUrl || undefined,
           image: imageUrl || undefined,
           attributes: [
             {
@@ -323,19 +538,19 @@ export default function CreatePage() {
             },
           ],
           links: {
-            twitter: twitterUrl || undefined,
-            telegram: telegramUrl || undefined,
-            website: websiteUrl || undefined,
+            twitter: normalizedTwitterUrl || undefined,
+            telegram: normalizedTelegramUrl || undefined,
+            website: normalizedWebsiteUrl || undefined,
           },
         };
 
-        await pinJSONToIPFS(
+        const metadataRes = await pinJSONToIPFS(
           metadata,
           `${symbolForLaunch || nameForLaunch}-wrapper`
         );
 
         if (supabase) {
-          await supabase.from("launches").insert({
+          const { error: launchErr } = await supabase.from("launches").insert({
             royalty_token_address: ipAsset.royaltyVaultAddress.toLowerCase(),
             creator_address: walletAddress?.toLowerCase() || null,
             ip_id: ipAsset.ipId, // backing IP Account on Story
@@ -343,11 +558,18 @@ export default function CreatePage() {
             symbol: symbolForLaunch,
             description: launchDescription || null,
             image_url: imageUrl || null,
-            twitter_url: twitterUrl.trim() || null,
-            telegram_url: telegramUrl.trim() || null,
-            website_url: websiteUrl.trim() || null,
-            metadata_uri: ipAsset.metadataUri || null,
+            twitter_url: normalizedTwitterUrl || null,
+            telegram_url: normalizedTelegramUrl || null,
+            website_url: normalizedWebsiteUrl || null,
+            metadata_uri: metadataRes?.uri || ipAsset.metadataUri || null,
           });
+
+          if (launchErr) {
+            logger.error("Supabase launches insert failed", launchErr);
+            toast.error(`Failed to save launch metadata to Supabase (launches): ${launchErr.message}`, {
+              duration: 6000,
+            });
+          }
         }
       } catch (metaError) {
         logger.error("Failed to persist wrapper metadata", metaError);
@@ -456,11 +678,19 @@ export default function CreatePage() {
   const goNext = () => {
     if (currentStep === 1 && !canProceedStep1) return;
     if (currentStep === 2 && !canProceedStep2) return;
-    setCurrentStep((prev) => Math.min(3, prev + 1));
+    setCurrentStep((prev) => {
+      if (prev === 1) return 2;
+      if (prev === 2) return 3;
+      return 3;
+    });
   };
 
   const goPrev = () => {
-    setCurrentStep((prev) => Math.max(1, prev - 1));
+    setCurrentStep((prev) => {
+      if (prev === 3) return 2;
+      if (prev === 2) return 1;
+      return 1;
+    });
   };
 
   const normalizeTwitterUrl = (value: string) => {
@@ -500,8 +730,8 @@ export default function CreatePage() {
     <div className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-6 sm:py-10">
       <div className="mx-auto w-full max-w-[1600px]">
         <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] border border-[#262626] bg-[#0A0A0A]">
-          <aside className="border-b lg:border-b-0 lg:border-r border-[#262626] bg-[#060606] p-4 sm:p-6 lg:sticky lg:top-24 lg:self-start">
-            <div className="space-y-6">
+          <aside className="border-b lg:border-b-0 lg:border-r border-[#262626] bg-[#060606] p-3 sm:p-4 lg:p-6 lg:sticky lg:top-24 lg:self-start">
+            <div className="space-y-4 lg:space-y-6">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
@@ -513,11 +743,11 @@ export default function CreatePage() {
                     {signalStatus}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground hidden lg:block">
                   Raw wireframe of the Token and Story IP asset payload.
                 </p>
               </div>
-              <div className="space-y-3">
+              <div className="hidden lg:block space-y-3">
                 <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
                   Token Card
                 </p>
@@ -531,7 +761,7 @@ export default function CreatePage() {
                         alt={previewName}
                         fill
                         sizes="360px"
-                        className="object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                         onError={() => setPreviewImageErrored(true)}
                       />
                     ) : (
@@ -569,7 +799,7 @@ export default function CreatePage() {
               </div>
               <div className="space-y-2">
                 <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted-foreground">
-                  Checklist
+                  Status
                 </p>
                 <div className="grid gap-2 text-[10px] font-mono uppercase tracking-[0.2em]">
                   <div className="flex items-center justify-between border border-[#262626] bg-[#050505] px-3 py-2">
@@ -837,10 +1067,14 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={tokenName}
-                          onChange={(e) => setTokenName(e.target.value)}
+                          onChange={(e) => {
+                            tokenNameTouchedRef.current = true;
+                            setTokenName(e.target.value);
+                          }}
                           placeholder={selectedIPAsset?.name || "Super Meme"}
                           className={inputClassName}
                         />
+
                         <p className="text-[11px] text-muted-foreground">May differ from the original IP name.</p>
                       </div>
                       <div className="space-y-1.5">
@@ -896,6 +1130,7 @@ export default function CreatePage() {
                           multiple={false}
                           onChange={(files) => {
                             const file = files?.[0] || null;
+                            launchImageTouchedRef.current = true;
                             handleLogoFileChange(file);
                           }}
                         />
@@ -919,7 +1154,10 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={launchDescription}
-                          onChange={(e) => setLaunchDescription(e.target.value)}
+                          onChange={(e) => {
+                            launchDescriptionTouchedRef.current = true;
+                            setLaunchDescription(e.target.value);
+                          }}
                           placeholder="Short description for this wrapped IP token"
                           className={inputClassName}
                         />
@@ -933,10 +1171,11 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={twitterUrl}
-                          onChange={(e) => setTwitterUrl(normalizeTwitterUrl(e.target.value))}
-                          placeholder="https://twitter.com/username"
+                          onChange={(e) => setTwitterUrl(e.target.value)}
+                          placeholder="twitter.com/username"
                           className={inputClassNameSm}
                         />
+
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -944,10 +1183,11 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={telegramUrl}
-                          onChange={(e) => setTelegramUrl(normalizeTelegramUrl(e.target.value))}
-                          placeholder="https://t.me/channel"
+                          onChange={(e) => setTelegramUrl(e.target.value)}
+                          placeholder="t.me/channel"
                           className={inputClassNameSm}
                         />
+
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground">
@@ -955,10 +1195,11 @@ export default function CreatePage() {
                         </Label>
                         <Input
                           value={websiteUrl}
-                          onChange={(e) => setWebsiteUrl(normalizeWebsiteUrl(e.target.value))}
-                          placeholder="https://project.site"
+                          onChange={(e) => setWebsiteUrl(e.target.value)}
+                          placeholder="project.site"
                           className={inputClassNameSm}
                         />
+
                       </div>
                     </div>
 
@@ -1116,7 +1357,7 @@ export default function CreatePage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-[10px] font-mono uppercase tracking-[0.2em] border-[#262626]"
+                  className="text-[10px] font-mono uppercase tracking-[0.2em] border-[#262626] min-h-[44px] flex-1 sm:flex-none"
                   onClick={goPrev}
                   disabled={currentStep === 1}
                 >
@@ -1124,7 +1365,7 @@ export default function CreatePage() {
                 </Button>
                 <Button
                   size="sm"
-                  className="text-[10px] font-mono uppercase tracking-[0.2em]"
+                  className="text-[10px] font-mono uppercase tracking-[0.2em] min-h-[44px] flex-1 sm:flex-none"
                   onClick={goNext}
                   disabled={(currentStep === 1 && !canProceedStep1) || (currentStep === 2 && !canProceedStep2) || currentStep === 3}
                 >
@@ -1146,56 +1387,45 @@ export default function CreatePage() {
               </div>
 
               {/* Post-launch modal */}
-              {showLaunchModal && launchedTokenAddress && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-                  <div className="w-full max-w-md rounded-sm bg-card border border-border p-6 shadow-xl">
-                    <div className="flex items-start justify-between mb-4">
+              <Dialog open={showLaunchModal && !!launchedTokenAddress} onOpenChange={setShowLaunchModal}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Launch Successful</DialogTitle>
+                  </DialogHeader>
+                  <p className="text-xs text-muted-foreground">
+                    Your royalty token is live. Pool and vault addresses are below.
+                  </p>
+                  <div className="space-y-3 text-sm">
+                    <div>
+                      <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Wrapper Token</p>
+                      <p className="text-foreground break-all">{launchedTokenAddress}</p>
+                    </div>
+                    {launchedTokenSymbol && (
                       <div>
-                        <h2 className="text-lg font-semibold text-foreground">Launch Successful</h2>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Your royalty token is live. Pool and vault addresses are below.
-                        </p>
+                        <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Symbol</p>
+                        <p className="text-foreground">{launchedTokenSymbol}</p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-[11px] font-mono uppercase tracking-[0.2em]"
-                        onClick={() => setShowLaunchModal(false)}
-                      >
-                        Close
-                      </Button>
-                    </div>
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Royalty Token</p>
-                        <p className="text-foreground break-all">{launchedTokenAddress}</p>
-                      </div>
-                      {launchedTokenSymbol && (
-                        <div>
-                          <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground">Symbol</p>
-                          <p className="text-foreground">{launchedTokenSymbol}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2 justify-end">
-                      <Button asChild size="sm" className="text-[11px] font-mono uppercase tracking-[0.2em]">
-                        <Link href={`/pool/${launchedTokenAddress}`}>Open Pool</Link>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-[11px] font-mono uppercase tracking-[0.2em]"
-                        onClick={() => {
-                          const url = `https://aeneid.storyscan.io/address/${launchedTokenAddress}`;
-                          window.open(url, "_blank", "noopener,noreferrer");
-                        }}
-                      >
-                        Open on StoryScan
-                      </Button>
-                    </div>
+                    )}
                   </div>
-                </div>
-              )}
+                  <div className="mt-2 flex flex-wrap gap-2 justify-end">
+                    <Button asChild size="sm" className="text-[11px] font-mono uppercase tracking-[0.2em]">
+                      <Link href={`/pool/${launchedTokenAddress}`}>Open Pool</Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-[11px] font-mono uppercase tracking-[0.2em]"
+                      onClick={() => {
+                        const base = STORYSCAN_BASE_URL.replace(/\/$/, "");
+                        const url = `${base}/address/${launchedTokenAddress}`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      Open on StoryScan
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { Address, encodeFunctionData, parseEther } from "viem";
 import { erc20Abi } from "viem";
 import { estimateBuyAmountForIp, WRAP_UNIT, type BondingCurveParams } from "@/lib/bondingCurve";
 import { logger } from "@/lib/logger";
-import { TENDERLY_RPC_URL } from "@/lib/env";
+import { exchangeReadAbi, exchangeWriteAbi, routerWriteAbi } from "@/constants/abis";
 import { getStoryPublicClient } from "@/services/viem/storyPublicClient";
 
 import {
@@ -17,34 +17,6 @@ import { SOVRY_EXCHANGE_ADDRESS, SOVRY_ROUTER_ADDRESS } from "./domain/bondingCu
 // transactions while allowance remains sufficient.
 const MAX_UINT256 = (1n << 256n) - 1n;
 
-// ABI for earlier launchpad deployments; new read paths use `newLaunchpadAbi`.
-const launchpadAbi = [
-  {
-    inputs: [
-      { internalType: "address", name: "wrapperToken", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
-      { internalType: "uint256", name: "maxEthCost", type: "uint256" },
-      { internalType: "uint256", name: "deadline", type: "uint256" },
-    ],
-    name: "buyETH",
-    outputs: [],
-    stateMutability: "payable",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "wrapperToken", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" },
-      { internalType: "uint256", name: "minEthProceeds", type: "uint256" },
-      { internalType: "uint256", name: "deadline", type: "uint256" },
-    ],
-    name: "sell",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
 const publicClient = getStoryPublicClient();
 
 // Cache for contract version so we don't re-detect on every call
@@ -52,7 +24,7 @@ const contractVersionCache = new Map<string, "new" | "old">();
 
 /**
  * Detect which SovryLaunchpad contract version is deployed.
- * For the current Aeneid deployment we always treat it as "new" to avoid
+ * For the current deployment we always treat it as "new" to avoid
  * mis-detecting when probing with dummy wrapper addresses.
  */
 export async function detectContractVersion(
@@ -62,7 +34,7 @@ export async function detectContractVersion(
   if (cached) return cached;
 
   // Frontend is wired against the latest SovryLaunchpad deployment which
-  // exposes consolidated state reads via getTokenState.
+  // exposes consolidated state reads via Exchange view methods.
   contractVersionCache.set(launchpadAddress, "new");
   return "new";
 }
@@ -72,7 +44,9 @@ export interface LaunchInfo {
   token: string;
   royaltyToken: string;
   royaltyVault: string;
+  ipAsset?: string;
   totalRaised: bigint;
+  marketCap?: bigint;
   tokensSold: bigint;
   graduated: boolean;
   reserveBalance: bigint;
@@ -93,48 +67,58 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
     const version = await detectContractVersion(SOVRY_ROUTER_ADDRESS);
     if (version === "new") {
       try {
-        // Read consolidated TokenState from the new SovryLaunchpad contract.
-        const rawState = (await publicClient.readContract({
-          address: SOVRY_EXCHANGE_ADDRESS as Address,
-          abi: newLaunchpadAbi,
-          functionName: "getTokenState",
-          args: [tokenAddress as Address],
-        })) as any;
+        const [tokenInfoRaw, curveRaw, marketCapRaw] = await Promise.all([
+          publicClient.readContract({
+            address: SOVRY_EXCHANGE_ADDRESS as Address,
+            abi: exchangeReadAbi,
+            functionName: "launchedTokens",
+            args: [tokenAddress as Address],
+          }),
+          publicClient.readContract({
+            address: SOVRY_EXCHANGE_ADDRESS as Address,
+            abi: exchangeReadAbi,
+            functionName: "bondingCurves",
+            args: [tokenAddress as Address],
+          }),
+          publicClient.readContract({
+            address: SOVRY_EXCHANGE_ADDRESS as Address,
+            abi: exchangeReadAbi,
+            functionName: "getMarketCap",
+            args: [tokenAddress as Address],
+          }),
+        ]);
 
-        const tokenState = rawState as any;
-        const tokenInfo = tokenState.token as any;
-        const curve = tokenState.curve as any;
+        const tokenInfo = tokenInfoRaw as any;
+        const curve = curveRaw as any;
 
-        const wrapperAddress = tokenInfo.wrapperAddress as string;
-
-        // If the wrapper was never launched, wrapperAddress will be zero
+        const wrapperAddress = (tokenInfo?.wrapperAddress ?? tokenInfo?.[1]) as string | undefined;
         if (!wrapperAddress || wrapperAddress === "0x0000000000000000000000000000000000000000") {
           return null;
         }
 
-        const rtAddress = tokenInfo.rtAddress as string;
-        const creator = tokenInfo.creator as string;
-        const graduated = Boolean(tokenInfo.graduated);
-        const vaultAddress = tokenInfo.vaultAddress as string;
+        const rtAddress = (tokenInfo?.rtAddress ?? tokenInfo?.[0]) as string;
+        const creator = (tokenInfo?.creator ?? tokenInfo?.[2]) as string;
+        const ipAsset = (tokenInfo?.ipAsset ?? tokenInfo?.[3]) as string | undefined;
+        const graduated = Boolean(tokenInfo?.graduated ?? tokenInfo?.[6]);
+        const vaultAddress = (tokenInfo?.vaultAddress ?? tokenInfo?.[8]) as string;
 
-        const reserveBalance = BigInt(curve.reserveBalance ?? 0n);
-        const initialCurveSupply = BigInt(tokenInfo.initialCurveSupply ?? 0n);
-        const currentSupply = BigInt(curve.currentSupply ?? 0n);
+        const reserveBalance = BigInt(curve?.reserveBalance ?? curve?.[3] ?? 0n);
+        const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? tokenInfo?.[10] ?? 0n);
+        const currentSupply = BigInt(curve?.currentSupply ?? curve?.[2] ?? 0n);
 
-        // tokensSold = initialCurveSupply - currentSupply (never negative)
-        const tokensSold =
-          initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
+        const tokensSold = initialCurveSupply > currentSupply ? initialCurveSupply - currentSupply : 0n;
 
-        // For the purposes of the current UI, "totalRaised" is approximated by
-        // the current market cap of the token.
-        const totalRaised = BigInt(tokenState.marketCap ?? 0n);
+        const totalRaised = BigInt((marketCapRaw as bigint | undefined) ?? 0n);
+        const marketCap = BigInt((marketCapRaw as bigint | undefined) ?? 0n);
 
         return {
           creator,
           token: wrapperAddress,
           royaltyToken: rtAddress,
           royaltyVault: vaultAddress,
+          ipAsset,
           totalRaised,
+          marketCap,
           tokensSold,
           graduated,
           reserveBalance,
@@ -154,11 +138,29 @@ export async function getLaunchInfo(tokenAddress: string): Promise<LaunchInfo | 
   }
 }
 
-export function getBondingProgress(info: LaunchInfo | null): number {
-  if (!info || TARGET_RAISE_IP === 0n) return 0;
+export function getBondingProgress(info: LaunchInfo | null, thresholdOverride?: bigint): number {
+  const threshold = thresholdOverride && thresholdOverride > 0n ? thresholdOverride : TARGET_RAISE_IP;
+  if (!info || threshold === 0n) return 0;
   if (info.graduated) return 100;
-  const ratio = Number(info.totalRaised) / Number(TARGET_RAISE_IP);
+  // Use marketCap (which represents the valuation) against the threshold, 
+  // falling back to totalRaised if marketCap is somehow missing or 0.
+  const valuation = info.marketCap && info.marketCap > 0n ? info.marketCap : info.totalRaised;
+  const ratio = Number(valuation) / Number(threshold);
   return Math.max(0, Math.min(100, ratio * 100));
+}
+
+export async function getGraduationThreshold(): Promise<bigint | null> {
+  try {
+    const threshold = await publicClient.readContract({
+      address: SOVRY_EXCHANGE_ADDRESS as Address,
+      abi: exchangeReadAbi,
+      functionName: "graduationThreshold",
+    });
+    return BigInt((threshold as bigint | undefined) ?? 0n);
+  } catch (error) {
+    logger.error("Error fetching graduation threshold:", error);
+    return null;
+  }
 }
 
 /**
@@ -176,7 +178,7 @@ export async function getMarketCap(
       try {
         const marketCap = await publicClient.readContract({
           address: SOVRY_EXCHANGE_ADDRESS as Address,
-          abi: newLaunchpadAbi,
+          abi: exchangeReadAbi,
           functionName: "getMarketCap",
           args: [tokenAddress as Address],
         });
@@ -202,14 +204,10 @@ export async function getEstimatedTokensForIP(
   ipAmount: string
 ): Promise<string> {
   try {
-    // Heuristic: 1 IP -> 1 wrapper token, convert 18-decimal IP to 6-decimal tokens
     const ipAmountWei = parseEther(ipAmount || "0");
     if (ipAmountWei <= 0n) return "0";
-    const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
-    const tokenAmount = ipAmountWei / ONE_TOKEN_FACTOR;
-    if (tokenAmount <= 0n) return "0";
-    // Interpret as 6-decimal balance
-    const numeric = formatBigIntToFloat(tokenAmount, 6);
+    // Wrapper token uses 18 decimals; display estimate in whole tokens.
+    const numeric = formatBigIntToFloat(ipAmountWei, 18);
     return numeric.toString();
   } catch (error) {
     logger.error("Error getting estimated tokens for IP:", error);
@@ -222,10 +220,9 @@ export async function estimateIPForTokens(
   tokenAmount: string
 ): Promise<string> {
   try {
-    // Heuristic inverse: 1 wrapper token (6 decimals) -> 1 IP (18 decimals)
+    // Heuristic inverse: 1 wrapper token (18 decimals) -> 1 IP (18 decimals)
     const tokenAmountWei = parseEther(tokenAmount || "0");
     if (tokenAmountWei === 0n) return "0";
-    // Treat tokenAmountWei as IP wei directly for estimation
     const numeric = formatBigIntToFloat(tokenAmountWei, 18);
     return numeric.toString();
   } catch (error) {
@@ -284,7 +281,7 @@ export async function buy(
     const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
 
     const data = encodeFunctionData({
-      abi: launchpadAbi,
+      abi: routerWriteAbi,
       functionName: "buyETH",
       args: [tokenAddress as Address, amount, value, deadline],
     });
@@ -344,12 +341,12 @@ export async function sell(
     const amountEthDecimals = parseEther(tokenAmount || "0");
     const minIpOutWei = parseEther(minIpOut || "0");
 
-    // Convert 18-decimal UI token amount to 6-decimal wrapper units
-    const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
-    let amount = amountEthDecimals / ONE_TOKEN_FACTOR;
+    // Wrapper token uses 18 decimals; amount is already in smallest units.
+    let amount = amountEthDecimals;
     if (amount <= 0n) {
       throw new Error("Sell amount too small");
     }
+
     const ownerAddress = primaryWallet.address as Address | undefined;
     if (!ownerAddress) {
       throw new Error("No wallet address available");
@@ -398,7 +395,7 @@ export async function sell(
     const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
 
     const sellData = encodeFunctionData({
-      abi: launchpadAbi,
+      abi: routerWriteAbi,
       functionName: "sell",
       args: [tokenAddress as Address, amount, minIpOutWei, deadline],
     });
@@ -436,6 +433,109 @@ export async function sell(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error selling on Launchpad",
+    };
+  }
+}
+
+export async function redeem(
+  tokenAddress: string,
+  tokenAmount: string,
+  primaryWallet: any,
+): Promise<{ success: boolean; approveTxHash?: string; redeemTxHash?: string; error?: string }> {
+  try {
+    if (!primaryWallet) {
+      throw new Error("No wallet connected");
+    }
+
+    const walletClient = await primaryWallet.getWalletClient();
+    if (!walletClient) {
+      throw new Error("No wallet client available");
+    }
+
+    const amount = parseEther(tokenAmount || "0");
+    if (amount <= 0n) {
+      throw new Error("Redeem amount too small");
+    }
+
+    const ownerAddress = primaryWallet.address as Address | undefined;
+    if (!ownerAddress) {
+      throw new Error("No wallet address available");
+    }
+
+    let approveTxHash: string | undefined;
+
+    // Redeem pulls wrapper tokens via transferFrom, so the Exchange needs allowance.
+    try {
+      const currentAllowance = await publicClient.readContract({
+        address: tokenAddress as Address,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [ownerAddress, SOVRY_EXCHANGE_ADDRESS as Address],
+      }) as bigint;
+
+      if (currentAllowance < amount) {
+        const approveData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [SOVRY_EXCHANGE_ADDRESS as Address, MAX_UINT256],
+        });
+
+        approveTxHash = await walletClient.sendTransaction({
+          to: tokenAddress as Address,
+          data: approveData,
+        });
+      }
+    } catch (allowanceError) {
+      logger.error("Error checking allowance for redeem; falling back to approve+redeem:", allowanceError);
+      const approveData = encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [SOVRY_EXCHANGE_ADDRESS as Address, MAX_UINT256],
+      });
+
+      approveTxHash = await walletClient.sendTransaction({
+        to: tokenAddress as Address,
+        data: approveData,
+      });
+    }
+
+    const redeemData = encodeFunctionData({
+      abi: exchangeWriteAbi,
+      functionName: "redeem",
+      args: [tokenAddress as Address, amount, ownerAddress],
+    });
+
+    const redeemTxHash = await walletClient.sendTransaction({
+      to: SOVRY_EXCHANGE_ADDRESS as Address,
+      data: redeemData,
+    });
+
+    try {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: redeemTxHash });
+      if (receipt.status !== "success") {
+        return {
+          success: false,
+          approveTxHash,
+          redeemTxHash,
+          error: "Transaction reverted on-chain",
+        };
+      }
+    } catch (waitError) {
+      logger.error("Error waiting for redeem transaction receipt:", waitError);
+      return {
+        success: false,
+        approveTxHash,
+        redeemTxHash,
+        error: "Failed to confirm transaction status",
+      };
+    }
+
+    return { success: true, approveTxHash, redeemTxHash };
+  } catch (error) {
+    logger.error("Error redeeming on Launchpad:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error redeeming on Launchpad",
     };
   }
 }
@@ -489,23 +589,36 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
     const version = await detectContractVersion(SOVRY_ROUTER_ADDRESS);
     if (version !== "new") return null;
 
-    const rawState = (await publicClient.readContract({
-      address: SOVRY_EXCHANGE_ADDRESS as Address,
-      abi: newLaunchpadAbi,
-      functionName: "getTokenState",
-      args: [tokenAddress as Address],
-    })) as any;
+    const [curveActive, curveRaw, tokenInfoRaw] = await Promise.all([
+      publicClient.readContract({
+        address: SOVRY_EXCHANGE_ADDRESS as Address,
+        abi: exchangeReadAbi,
+        functionName: "bondingCurveActive",
+        args: [tokenAddress as Address],
+      }),
+      publicClient.readContract({
+        address: SOVRY_EXCHANGE_ADDRESS as Address,
+        abi: exchangeReadAbi,
+        functionName: "bondingCurves",
+        args: [tokenAddress as Address],
+      }),
+      publicClient.readContract({
+        address: SOVRY_EXCHANGE_ADDRESS as Address,
+        abi: exchangeReadAbi,
+        functionName: "launchedTokens",
+        args: [tokenAddress as Address],
+      }),
+    ]);
 
-    const state = rawState as any;
-    const curve = state.curve as any;
-    const tokenInfo = state.token as any;
+    if (!curveActive) return null;
 
-    if (!state.curveActive) return null;
+    const curve = curveRaw as any;
+    const tokenInfo = tokenInfoRaw as any;
 
-    const basePrice = BigInt(curve.basePrice ?? 0);
-    const priceIncrement = BigInt(curve.priceIncrement ?? 0);
-    const currentSupply = BigInt(curve.currentSupply ?? 0);
-    const initialCurveSupply = BigInt(tokenInfo.initialCurveSupply ?? 0);
+    const basePrice = BigInt(curve?.basePrice ?? curve?.[0] ?? 0n);
+    const priceIncrement = BigInt(curve?.priceIncrement ?? curve?.[1] ?? 0n);
+    const currentSupply = BigInt(curve?.currentSupply ?? curve?.[2] ?? 0n);
+    const initialCurveSupply = BigInt(tokenInfo?.initialCurveSupply ?? tokenInfo?.[10] ?? 0n);
 
     if (basePrice === 0n && priceIncrement === 0n) {
       return null;
@@ -523,132 +636,6 @@ export async function getCurveParams(tokenAddress: string): Promise<BondingCurve
   }
 }
 
-type TenderlySimulationTx = {
-  from: string;
-  to: string;
-  value?: string;
-  data?: string;
-};
-
-async function simulateOnTenderly(tx: TenderlySimulationTx): Promise<any> {
-  if (!TENDERLY_RPC_URL) {
-    throw new Error("TENDERLY_RPC_URL is not configured for Tenderly simulation");
-  }
-
-  const body = {
-    jsonrpc: "2.0",
-    id: Date.now(),
-    method: "tenderly_simulateTransaction",
-    params: [tx, "latest"],
-  };
-
-  const response = await fetch(TENDERLY_RPC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Tenderly simulation RPC error: ${response.status} ${response.statusText}`);
-  }
-
-  const json = await response.json();
-  if (json.error) {
-    throw new Error(json.error.message || "Tenderly simulation failed");
-  }
-
-  return json.result;
-}
-
-export async function simulateBuy(
-  tokenAddress: string,
-  ipAmount: string,
-  fromAddress: string,
-): Promise<any> {
-  if (!fromAddress) {
-    throw new Error("Wallet address is required for Tenderly simulation");
-  }
-
-  const value = parseEther(ipAmount || "0");
-  if (value <= 0n) {
-    throw new Error("Amount must be greater than 0");
-  }
-
-  const curveParams = await getCurveParams(tokenAddress);
-  if (!curveParams) {
-    throw new Error("Bonding curve not available for this token");
-  }
-
-  const { amount } = estimateBuyAmountForIp(curveParams, value);
-
-  if (amount < WRAP_UNIT) {
-    throw new Error("Trade amount too small to buy at least 1 token");
-  }
-
-  if (curveParams.currentSupply < amount) {
-    throw new Error("Insufficient bonding curve supply");
-  }
-
-  const nowSec = Math.floor(Date.now() / 1000);
-  const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
-
-  const data = encodeFunctionData({
-    abi: launchpadAbi,
-    functionName: "buyETH",
-    args: [tokenAddress as Address, amount, value, deadline],
-  });
-
-  const tx: TenderlySimulationTx = {
-    from: fromAddress,
-    to: SOVRY_ROUTER_ADDRESS as string,
-    value: `0x${value.toString(16)}`,
-    data,
-  };
-
-  return simulateOnTenderly(tx);
-}
-
-export async function simulateSell(
-  tokenAddress: string,
-  tokenAmount: string,
-  minIpOut: string,
-  fromAddress: string,
-): Promise<any> {
-  if (!fromAddress) {
-    throw new Error("Wallet address is required for Tenderly simulation");
-  }
-
-  const amountEthDecimals = parseEther(tokenAmount || "0");
-  const minIpOutWei = parseEther(minIpOut || "0");
-
-  // Convert 18-decimal UI token amount to 6-decimal wrapper units
-  const ONE_TOKEN_FACTOR = 10n ** 12n; // 1e12 to go from 18 -> 6
-  const amount = amountEthDecimals / ONE_TOKEN_FACTOR;
-  if (amount <= 0n) {
-    throw new Error("Sell amount too small");
-  }
-
-  const nowSec = Math.floor(Date.now() / 1000);
-  const deadline = BigInt(nowSec + 20 * 60); // 20 minutes
-
-  const sellData = encodeFunctionData({
-    abi: launchpadAbi,
-    functionName: "sell",
-    args: [tokenAddress as Address, amount, minIpOutWei, deadline],
-  });
-
-  const tx: TenderlySimulationTx = {
-    from: fromAddress,
-    to: SOVRY_ROUTER_ADDRESS as string,
-    value: "0x0",
-    data: sellData,
-  };
-
-  return simulateOnTenderly(tx);
-}
-
 export const launchpadService = {
   getLaunchInfo,
   getBondingProgress,
@@ -657,89 +644,16 @@ export const launchpadService = {
   launchOnBondingCurve: launchOnBondingCurveDynamic,
   buy,
   sell,
-  simulateBuy,
-  simulateSell,
+  redeem,
   harvestAndPump,
   getRoyaltyLockInfo,
   detectContractVersion,
   getMarketCap,
   getCurveParams,
+  getGraduationThreshold,
 };
 
 // LaunchInfo and RoyaltyLockInfo are already exported via their interface/type
 // declarations; no need to re-export them here.
 
-// New contract ABI for Exchange reads (SovryExchange)
-export const newLaunchpadAbi = [
-  {
-    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
-    name: "getMarketCap",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
-    name: "getTokenState",
-    outputs: [
-      {
-        components: [
-          {
-            components: [
-              { internalType: "address", name: "rtAddress", type: "address" },
-              { internalType: "address", name: "wrapperAddress", type: "address" },
-              { internalType: "address", name: "creator", type: "address" },
-              { internalType: "address", name: "ipAsset", type: "address" },
-              { internalType: "uint256", name: "launchTime", type: "uint256" },
-              { internalType: "uint256", name: "totalLocked", type: "uint256" },
-              { internalType: "bool", name: "graduated", type: "bool" },
-              { internalType: "uint256", name: "totalRoyaltiesHarvested", type: "uint256" },
-              { internalType: "address", name: "vaultAddress", type: "address" },
-              { internalType: "uint256", name: "dexReserve", type: "uint256" },
-              { internalType: "uint256", name: "initialCurveSupply", type: "uint256" },
-            ],
-            internalType: "struct SovryExchange.LaunchedToken",
-            name: "token",
-            type: "tuple",
-          },
-          {
-            components: [
-              { internalType: "uint256", name: "basePrice", type: "uint256" },
-              { internalType: "uint256", name: "priceIncrement", type: "uint256" },
-              { internalType: "uint256", name: "currentSupply", type: "uint256" },
-              { internalType: "uint256", name: "reserveBalance", type: "uint256" },
-            ],
-            internalType: "struct SovryExchange.BondingCurve",
-            name: "curve",
-            type: "tuple",
-          },
-          { internalType: "uint256", name: "currentPrice", type: "uint256" },
-          { internalType: "uint256", name: "marketCap", type: "uint256" },
-          { internalType: "bool", name: "canGraduate", type: "bool" },
-          { internalType: "uint256", name: "secondsSinceLaunch", type: "uint256" },
-          { internalType: "uint256", name: "secondsToGraduationDelay", type: "uint256" },
-          { internalType: "bool", name: "curveActive", type: "bool" },
-        ],
-        internalType: "struct SovryExchange.TokenState",
-        name: "",
-        type: "tuple",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "wrapperToken", type: "address" }],
-    name: "wrapperToRt",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "", type: "address" }],
-    name: "rtToWrapper",
-    outputs: [{ internalType: "address", name: "", type: "address" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+export { exchangeReadAbi as newLaunchpadAbi } from "@/constants/abis";

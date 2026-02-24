@@ -2,6 +2,10 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import config from './config/env';
 import apiRoutes from './routes';
+import worker from './workerInstance';
+
+// Start worker automatically with server
+worker.start().catch(err => console.error('Failed to start worker:', err));
 
 console.log('Starting Sovry API Server...');
 console.log('Express version:', require('express/package.json').version);

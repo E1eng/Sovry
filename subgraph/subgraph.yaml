@@ -5,11 +5,11 @@ schema:
 dataSources:
   - kind: ethereum
     name: SovryFactory
-    network: story-aeneid
+    network: story
     source:
-      address: "0x2eC6513800426cA9B3530bd04cdB5A8f47c9C038" # Aeneid launchpad (update for mainnet)
+      address: "0x85814842494ae636172B8a929de90F9CF1171F4D" # mainnet factory (set after deploy)
       abi: SovryFactory
-      startBlock: 13967897
+      startBlock: 14377503
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -29,10 +29,13 @@ dataSources:
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
+        - RoyaltyStateUpdate
         - Candle
       abis:
         - name: SovryFactory
           file: ./abis/SovryFactory.json
+        - name: SovryExchange
+          file: ./abis/SovryExchange.json
       eventHandlers:
         - event: TokenLaunched(indexed address,indexed address,indexed address,uint256,uint256)
           handler: handleTokenLaunched
@@ -41,7 +44,7 @@ dataSources:
 templates:
   - kind: ethereum
     name: SovryExchange
-    network: story-aeneid
+    network: story
     source:
       abi: SovryExchange
     mapping:
@@ -63,6 +66,8 @@ templates:
         - Holder
         - PremineClaim
         - GraduationThresholdUpdate
+        - CurveParamsUpdate
+        - RoyaltyStateUpdate
         - Candle
       abis:
         - name: SovryExchange
@@ -78,19 +83,21 @@ templates:
           handler: handleRoyaltyRevenueQueued
         - event: RoyaltyRevenueProcessed(indexed address,uint256,indexed address)
           handler: handleRoyaltyRevenueProcessed
-        - event: RevenueHarvested(indexed address,uint256,bool)
-          handler: handleRevenueHarvested
-        - event: BuybackExecuted(indexed address,uint256)
-          handler: handleBuybackExecuted
+        - event: RoyaltiesHarvested(indexed address,uint256)
+          handler: handleRoyaltiesHarvested
         - event: Graduated(indexed address,uint256,indexed address)
           handler: handleGraduated
         - event: GraduationThresholdUpdated(uint256)
           handler: handleGraduationThresholdUpdated
+        - event: CurveParamsUpdated(uint128,uint128)
+          handler: handleCurveParamsUpdated
+        - event: RoyaltyStateUpdated(indexed address,uint256,uint256)
+          handler: handleRoyaltyStateUpdated
       file: ./src/launchpad.ts
 
   - kind: ethereum
     name: WrapperToken
-    network: story-aeneid
+    network: story
     source:
       abi: ERC20
     mapping:

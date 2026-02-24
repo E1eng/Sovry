@@ -88,18 +88,17 @@ function processTrades(rawTrades: RawTrade[]): Trade[] {
     const tokenRaw = BigInt(amount)
     const trader = trade.user?.id || ""
 
-    // amount is in wrapper smallest units (6 decimals). Convert to 18-dec for formatting.
-    const tokenWei = tokenRaw * (10n ** 12n)
     const ipFloat = parseFloat(formatEther(ipRaw))
-    const tokenFloat = parseFloat(formatEther(tokenWei))
+    const tokenFloat = parseFloat(formatEther(tokenRaw))
 
     const formatFloat = (value: number): string => {
-      if (!isFinite(value) || value === 0) return "0"
+      if (!isFinite(value) || value === 0) return "0.00"
       const abs = Math.abs(value)
-      if (abs >= 1) return value.toFixed(4).replace(/\.0+$/, "").replace(/\.$/, "")
-      if (abs >= 0.0001) return value.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
-      if (abs >= 0.00000001) return value.toFixed(8).replace(/0+$/, "").replace(/\.$/, "")
-      return "<0.00000001"
+      if (abs < 0.01) return "<0.01"
+      return value.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
     }
 
     return {

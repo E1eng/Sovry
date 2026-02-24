@@ -1,11 +1,12 @@
 {
   "name": "sovry-subgraph",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Sovry Protocol Subgraph",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "goldsky subgraph deploy sovry-aeneid/1.0.0 --path .",
+    "deploy": "goldsky subgraph deploy sovry-aeneid/1.0.1 --path .",
+    "deploy:mainnet": "goldsky subgraph deploy sovry-mainnet/1.0.0 --path .",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001"
   },
   "dependencies": {

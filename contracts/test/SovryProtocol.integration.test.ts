@@ -86,8 +86,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
         amountToLock,
         rt.address,
         "Wrapper",
-        "WRP",
-        { value: ethers.utils.parseEther("1") }
+        "WRP"
       )
     ).to.emit(factory, "TokenLaunched");
   });
@@ -104,10 +103,9 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
     const launchTx = await factory.connect(creator).launchToken(
       rt.address,
       amountToLock,
-      creator.address,
+      rt.address,
       "Wrapper",
-      "WRP",
-      { value: ethers.utils.parseEther("1") }
+      "WRP"
     );
     const receipt = await launchTx.wait();
 
@@ -155,8 +153,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
       amountToLock,
       rt.address,
       "Wrapper",
-      "WRP",
-      { value: ethers.utils.parseEther("1") }
+      "WRP"
     );
     const receipt = await launchTx.wait();
     const wrapperAddress = receipt.events!.find((e) => e.event === "TokenLaunched")!.args!.wrapper;
@@ -208,8 +205,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
       amountToLock,
       rt.address,
       "Wrapper",
-      "WRP",
-      { value: ethers.utils.parseEther("1") }
+      "WRP"
     );
 
     await rejectCreator.launch(
@@ -219,8 +215,7 @@ describe("SovryProtocol (Factory/Exchange/Router) Integration", function () {
       amountToLock,
       rt.address,
       "Wrapper",
-      "WRP",
-      { value: ethers.utils.parseEther("1") }
+      "WRP"
     );
 
     const wrapPerRt = await exchange.WRAP_PER_RT();

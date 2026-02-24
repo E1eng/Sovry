@@ -3,6 +3,13 @@ import hre from "hardhat";
 import fs from "fs";
 import path from "path";
 
+// Story Protocol RoyaltyModule addresses (do not override with env)
+// Source: https://docs.story.foundation/developers/deployed-smart-contracts
+const STORY_ROYALTY_MODULE: Record<string, string> = {
+  mainnet: "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086",
+  aeneid: "0xD2f60c40fEbccf6311f8B47c4f2Ec6b040400086",
+};
+
 async function main() {
   console.log("🚀 Deploying Sovry Protocol to", hre.network.name);
 
@@ -18,21 +25,24 @@ async function main() {
   const piperXV3SwapRouter = process.env.PIPERX_V3_SWAP_ROUTER || process.env.PIPERX_V3_SWAP_ROUTER_AENEID;
   const piperXV3PositionManager =
     process.env.PIPERX_V3_POSITION_MANAGER || process.env.PIPERX_V3_POSITION_MANAGER_AENEID;
-  const royaltyWorkflows = process.env.ROYALTY_WORKFLOWS || process.env.ROYALTY_WORKFLOWS_AENEID;
+  // Use Story Protocol RoyaltyModule (NOT Sovry contracts / random env overrides)
+  const royaltyWorkflows =
+    STORY_ROYALTY_MODULE[hre.network.name] || process.env.ROYALTY_WORKFLOWS || process.env.ROYALTY_WORKFLOWS_AENEID;
   const wipToken = process.env.WIP_ADDRESS || process.env.WIP_ADDRESS_AENEID;
   const keeperAddress = process.env.KEEPER_ADDRESS || deployer.address;
   const shouldVerify = !!process.env.STORYSCAN_API_KEY && process.env.SKIP_AUTO_VERIFY !== "true";
-  const curveBasePriceWei = process.env.CURVE_BASE_PRICE_WEI || "1000000000000"; // 1e12 wei default
-  const curvePriceIncrementWei = process.env.CURVE_PRICE_INCREMENT_WEI || "1000000000"; // 1e9 wei default
+  // Defaults target: marketCap 10,000 IP at ~0.01 IP/token with ~3,000 IP curve raise.
+  const curveBasePriceWei = process.env.CURVE_BASE_PRICE_WEI || "2500000000000000"; // 0.0025 IP
+  const curvePriceIncrementWei = process.env.CURVE_PRICE_INCREMENT_WEI || "15625000000"; // 0.000000015625 IP
 
   if (!treasury || !piperXV3Factory || !piperXV3SwapRouter || !piperXV3PositionManager || !royaltyWorkflows || !wipToken) {
     throw new Error(
-      "Missing one or more required env vars: TREASURY_ADDRESS, PIPERX_V3_FACTORY, PIPERX_V3_SWAP_ROUTER, PIPERX_V3_POSITION_MANAGER, ROYALTY_WORKFLOWS, WIP_ADDRESS"
+      "Missing one or more required env vars: TREASURY_ADDRESS, PIPERX_V3_FACTORY, PIPERX_V3_SWAP_ROUTER, PIPERX_V3_POSITION_MANAGER, WIP_ADDRESS"
     );
   }
 
   // Graduation threshold in ETH (default 1 ETH if not provided)
-  const graduationThresholdEth = process.env.GRADUATION_THRESHOLD_ETH || "2000";
+  const graduationThresholdEth = process.env.GRADUATION_THRESHOLD_ETH || "10000";
   const graduationThreshold = ethers.utils.parseEther(graduationThresholdEth);
 
   console.log("📦 Deploying contracts with args:");
@@ -40,7 +50,7 @@ async function main() {
   console.log("  piperXV3Factory:", piperXV3Factory);
   console.log("  piperXV3SwapRouter:", piperXV3SwapRouter);
   console.log("  piperXV3PositionManager:", piperXV3PositionManager);
-  console.log("  royaltyWorkflows:", royaltyWorkflows);
+  console.log("  royaltyWorkflows (Story RoyaltyModule):", royaltyWorkflows);
   console.log("  wipToken:", wipToken);
   console.log("  graduationThreshold (ETH):", graduationThresholdEth);
   console.log("  keeper:", keeperAddress);

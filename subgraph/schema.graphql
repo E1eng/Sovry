@@ -135,6 +135,16 @@ type RevenueEvent @entity {
   blockNumber: BigInt!
 }
 
+type RoyaltyStateUpdate @entity {
+  id: ID!
+  wrapper: WrapperToken!
+  totalHarvested: BigInt!
+  accumulatedNative: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+}
+
 type Graduation @entity {
   id: ID!
   token: WrapperToken!
@@ -158,6 +168,15 @@ type GraduationThresholdUpdate @entity {
   id: ID!
   launchpad: Launchpad!
   newThreshold: BigInt!
+  txHash: Bytes!
+  timestamp: BigInt!
+}
+
+type CurveParamsUpdate @entity {
+  id: ID!
+  launchpad: Launchpad!
+  basePrice: BigInt!
+  priceIncrement: BigInt!
   txHash: Bytes!
   timestamp: BigInt!
 }

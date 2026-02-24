@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: sovry-backend
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URLS
+        sync: false
+      - key: RPC_PROVIDER_URL
+        value: https://mainnet.storyrpc.io
+      - key: SUBGRAPH_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: EXCHANGE_ADDRESS
+        value: 0xA2b90B0c02B422F66cacBe5B6515Fd5702B7074D
+      - key: LAUNCHPAD_ADDRESS
+        sync: false
+      - key: IP_PRICE_FALLBACK_USD
+        value: "0.50"
+      - key: PRICE_INTERVAL_MS
+        value: "60000"
+      - key: PUSH_INTERVAL_MS
+        value: "3600000"
+      - key: HARVEST_INTERVAL_MS
+        value: "14400000"
+      - key: GRADUATION_INTERVAL_MS
+        value: "60000"

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabaseClient";
@@ -36,7 +36,7 @@ const formatTime = (iso: string) => {
   }
 };
 
-export default function CommentSection({ tokenAddress, tokenName }: CommentSectionProps) {
+export default function CommentSection({ tokenAddress, tokenName: _tokenName }: CommentSectionProps) {
   const { primaryWallet } = useDynamicContext();
   const walletAddress = primaryWallet?.address;
 
@@ -311,23 +311,14 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
         : `${comments.length}`;
 
   return (
-    <Card className="bg-background/80 border-border/80">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-base sm:text-lg font-semibold flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <span>Comments</span>
-            <span className="inline-flex items-center justify-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-              {commentCountLabel}
-            </span>
-          </span>
-          {tokenAddress && (
-            <span className="text-xs sm:text-sm font-normal text-muted-foreground">
-              Thread for {tokenName || truncateAddress(tokenAddress, { separator: "…" })}
-            </span>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Card>
+      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+        <span className="text-xs font-semibold text-foreground">Comments</span>
+        <span className="inline-flex items-center justify-center rounded-sm bg-muted px-1.5 py-px text-[10px] font-mono tabular-nums text-muted-foreground">
+          {commentCountLabel}
+        </span>
+      </div>
+      <CardContent className="p-4 space-y-3">
         {walletAddress ? (
           <div className="flex gap-2">
             <Input
@@ -340,62 +331,63 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
                   handlePost();
                 }
               }}
+              className="h-8 text-xs"
             />
             <Button
               onClick={handlePost}
               disabled={posting || !value.trim()}
-              className="shrink-0 text-sm px-4"
+              className="shrink-0 h-8 text-[10px] font-mono uppercase tracking-[0.2em] px-3"
             >
               Reply
             </Button>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[10px] font-mono text-muted-foreground">
             Connect your wallet to join the discussion.
           </p>
         )}
 
         {error && (
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-[10px] font-mono text-destructive">{error}</p>
         )}
 
-        <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-72 overflow-y-auto no-scrollbar">
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading comments...</p>
+            <p className="text-[10px] font-mono text-muted-foreground">Loading comments...</p>
           ) : comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No comments yet. Be the first to reply.</p>
+            <p className="text-[10px] font-mono text-muted-foreground">No comments yet. Be the first to reply.</p>
           ) : (
             comments.map((comment) => (
               <div
                 key={comment.id}
-                className="rounded-lg border border-border/60 bg-card/60 px-4 py-3 text-sm space-y-1.5"
+                className="rounded-sm border border-border/50 bg-muted/20 px-3 py-2 space-y-1"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {comment.avatarUrl ? (
                       <Image
                         src={comment.avatarUrl}
                         alt="Profile avatar"
-                        width={32}
-                        height={32}
-                        className="h-8 w-8 rounded-full object-cover border border-border/60"
+                        width={20}
+                        height={20}
+                        className="h-5 w-5 rounded-full object-cover border border-border/50"
                       />
                     ) : (
-                      <div className="h-8 w-8 rounded-full bg-muted text-[11px] flex items-center justify-center text-muted-foreground">
+                      <div className="h-5 w-5 rounded-full bg-muted text-[9px] flex items-center justify-center text-muted-foreground">
                         {(comment.username || shortenAddress(comment.user_address))
                           .charAt(0)
                           .toUpperCase()}
                       </div>
                     )}
-                    <span className="font-medium text-primary text-sm sm:text-base">
+                    <span className="text-[10px] font-mono font-medium text-primary">
                       {comment.username || shortenAddress(comment.user_address)}
                     </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[10px] font-mono text-muted-foreground">
                     {formatTime(comment.created_at)}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                   {comment.content}
                 </p>
               </div>
@@ -404,15 +396,15 @@ export default function CommentSection({ tokenAddress, tokenName }: CommentSecti
         </div>
 
         {!loading && comments.length > 0 && hasMore && (
-          <div className="flex justify-center pt-2">
+          <div className="flex justify-center">
             <Button
               variant="outline"
               size="sm"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="h-8 px-4 text-xs sm:text-sm"
+              className="h-7 px-3 text-[10px] font-mono uppercase tracking-[0.2em]"
             >
-              {loadingMore ? "Loading more..." : "Load older comments"}
+              {loadingMore ? "Loading..." : "Load older"}
             </Button>
           </div>
         )}
